@@ -1,5 +1,12 @@
 # Claude Code local overrides (personal, never commit)
 .claude/settings.local.json
+.claude/worktrees/
+
+# JetBrains IDE config (per-developer)
+.idea/
+
+# Local credential scratch (never commit)
+db.md
 
 # macOS
 .DS_Store
