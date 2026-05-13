@@ -1,0 +1,97 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls)",
+      "Bash(ls *)",
+      "Bash(find *)",
+      "Bash(wc *)",
+      "Bash(which *)",
+      "Bash(jq *)",
+      "Bash(node --version)",
+      "Bash(npm run *)",
+      "Bash(npm install*)",
+      "Bash(npm ci)",
+      "Bash(npm list*)",
+      "Bash(npx drizzle-kit *)",
+      "Bash(npx tsc *)",
+      "Bash(npx eslint *)",
+      "Bash(npx shadcn*)",
+      "Bash(npx supabase *)",
+      "Bash(git status)",
+      "Bash(git status *)",
+      "Bash(git diff)",
+      "Bash(git diff *)",
+      "Bash(git log)",
+      "Bash(git log *)",
+      "Bash(git show)",
+      "Bash(git show *)",
+      "Bash(git branch)",
+      "Bash(git branch -l*)",
+      "Bash(git remote -v)",
+      "Bash(git fetch)",
+      "Bash(git fetch *)",
+      "Bash(git stash list)",
+      "Bash(git tag)",
+      "Bash(mkdir *)",
+      "Bash(touch *)"
+    ],
+    "ask": [
+      "Bash(git reset --hard*)",
+      "Bash(git clean -f*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f *)",
+      "Bash(git checkout -- *)",
+      "Bash(git restore *)",
+      "Bash(rm -rf *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git push *)",
+            "command": "COMMAND=$(jq -r '.tool_input.command // empty' 2>/dev/null); if echo \"$COMMAND\" | grep -qE '(--force|-f\\b)'; then jq -n '{\"continue\": false, \"stopReason\": \"Force-push blocked by safety hook. Run manually in your terminal if this is intentional.\"}'; fi",
+            "statusMessage": "Checking push safety..."
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f docs/progress.md ]; then jq -n --rawfile content docs/progress.md '{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":(\"=== SESSION CONTEXT (docs/progress.md) ===\\n\" + $content + \"\\nFull decision log: docs/decisions.md\")}}'; fi",
+            "statusMessage": "Loading session context..."
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -n '{\"systemMessage\": \"⚠️ Context filling — run /handoff now before compaction to preserve decisions and progress.\"}'",
+            "statusMessage": "Context filling..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CHANGES=$(git diff --name-only HEAD -- db/schema/ 2>/dev/null); UNTRACKED=$(git ls-files --others --exclude-standard -- db/schema/ 2>/dev/null); if [ -n \"$CHANGES\" ] || [ -n \"$UNTRACKED\" ]; then ALL=$(printf '%s\\n%s' \"$CHANGES\" \"$UNTRACKED\" | grep .); MSG=$(printf 'Uncommitted schema changes in db/schema/ — remember to run npx drizzle-kit generate before switching context.\\n\\nAffected files:\\n%s' \"$ALL\"); jq -n --arg msg \"$MSG\" '{\"systemMessage\": $msg}'; fi",
+            "statusMessage": "Checking for uncommitted schema changes..."
+          }
+        ]
+      }
+    ]
+  }
+}
