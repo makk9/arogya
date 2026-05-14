@@ -5,31 +5,39 @@
 
 ---
 
-## Current Phase: A complete → Phase B starting
+## Current Phase: B in progress — items 1-4 complete, items 5-10 (agents) pending
 
 ### Phase A Checklist (complete)
-- [x] 1. Project init — Next.js 16 App Router, TS strict, Tailwind v4, Drizzle (postgres-js), Zod-validated `lib/env.ts`. shadcn/ui init deferred to Phase C.
-- [x] 2. DB schema — 15 files in `db/schema/` (14 entities + extraction-session), barrel-exported.
-- [x] 3. Initial migration — `0000_initial_schema.sql` applied to `arogya-dev` (22 tables, 34 enums, 46 FKs, 41 indexes).
-- [x] 4. Stub auth — `lib/auth.ts` exports `STUB_USER_ID` / `STUB_PATIENT_ID` (v4 UUID literals) plus async `getCurrentUser()` returning `{ userId, name, email }` and `getCurrentPatient()` returning `{ patientId, name }` per Phase 9.6:2737-2753.
-- [x] 5. Seed — `db/seed.ts` inserts Ramesh identity row (UUID via `STUB_PATIENT_ID`, `ownerUserId = STUB_USER_ID`, no medical data); idempotent via `onConflictDoNothing`. Script: `npm run db:seed`.
-- [x] 6. Query helpers — 14 per-entity files in `db/queries/` + barrel; typed namespace objects; `forPatient(patientId)` on every entity, `active(patientId)` for medications + conditions.
-- [x] 7. Supabase Storage — private `arogya` bucket created in `arogya-dev`; `lib/storage.ts` exports `uploadFile`, `getSignedUrl` (3600s default), `deleteFile`. Setup script: `npm run storage:setup`.
+- [x] 1-7. Foundation shipped (see prior handoff in decisions.md 2026-05-11/12 entries).
+
+### Phase B Checklist
+- [x] 1. Vault context builder — `lib/agents/_shared/vault-context.ts` per 9.3. Default-true `excludeBriefs` flag, `includeInsights` mode, optional `surfaceContext`, third `now: Date = new Date()` param for per-request determinism.
+- [x] 2. Per-entity serializers — 14 files in `lib/agents/_shared/serializers/` + `format.ts` util + barrel. Pure functions, two exports per file (`serializeXxx` + `xxxSlug`). Slug index threaded from vault-context.
+- [x] 3. Agent error types — `lib/agents/_shared/errors.ts`. `AgentError` with discriminated `code` per 9.3:2452-2459.
+- [x] 4. Zod output schemas — `lib/agents/_shared/schemas.ts`. Router, extraction, insight gen, onboarding outputs per 10.3.
+- [ ] 5. Synthesis agent (Opus 4.7, streaming) — chat / full health scan / doctor brief.
+- [ ] 6. Insight generator (Opus 4.7, non-streaming, debounced fire-and-forget).
+- [ ] 7. Router (Haiku 4.5, non-streaming, no vault context).
+- [ ] 8. Extraction (Sonnet 4.6, non-streaming, vision + text).
+- [ ] 9. Onboarding interview (Sonnet 4.6, streaming, 8-phase).
+- [ ] 10. Auto-titling (Haiku 4.5, non-streaming).
 
 ### Last Session
-- 2026-05-12 (cont.) — closed Phase A. Shipped `lib/auth.ts`, `db/seed.ts`, `db/queries/*` (14 files + barrel), `lib/storage.ts` + `scripts/setup-storage.ts`. `arogya` bucket created private. Added `server-only` dep, `db:seed` + `storage:setup` npm scripts. `tsc --noEmit` clean.
-- **Stub auth deviation caught by /check:** initially shipped `lib/auth.ts` returning `{ id, ... }` — design doc 9.6:2737-2753 prescribes `userId` / `patientId`. Fixed. Future call sites must read `user.userId` and `patient.patientId`, never `.id`.
-- **Stub IDs are v4 UUIDs**, not the doc's `"user_demo_avi"` snake_case strings — `patients.id` is `uuid` in the locked schema, so the doc literal cannot satisfy the FK. Decision logged.
-- **`server-only` quirk:** Next 16 doesn't ship the package transitively; installed explicitly. It throws at runtime when imported outside Next bundling, so `scripts/setup-storage.ts` cannot import `STORAGE_BUCKET` from `lib/storage.ts` — inlines `"arogya"` literal with a cross-reference comment. Acceptable; the guard's credential-protection guarantee is worth the duplication.
-- **Query helpers deliberately minimal:** only `forPatient` + `active()` (for medications/conditions) shipped. Change-log `forParent(id)`, recent-by-type, date-windowed helpers all deferred until a UI surface needs them.
+- 2026-05-13 — shipped Phase B items 1-4. 6 query helpers added (5 change-log `forPatient` + `labResults.forPatient`), co-located with parent entity files. 14 serializer files + `format.ts` (slugify, sortStable, citationFor, computeAge) + barrel. `vault-context.ts` orchestrator does parallel loads, slug-index build with `-2/-3` dedup in id-ASC order, filters reports to `status ∈ (ready, committed)` and insights to `status ≠ dismissed`, joins non-empty sections with `\n\n`, appends `<surface_context>` tag when provided.
+- `scripts/check-vault-context.ts` smoke runner asserts non-empty output, starts with `# Patient`, contains seed name, ISO DOB, computed age, byte-identical between two runs with same `now`, plus brief-exclusion regression assertion (`excludeBriefs: true === false` in v1, load-bearing when Brief lands in v1.5 per 10.1:2948). All passing. `npm run vault-context:check`. `tsc --noEmit` clean. `eslint` clean.
+- **/check review surfaced 3 follow-ups, all landed.** Router confidence enum corrected to `"high" | "medium" | "low"` per 5.5:833-837 canonical (10.3:3214 is an oversimplification — doc fix to 10.3 pending). `server-only` placement deferred to Phase B cleanup with explicit TODO at top of `vault-context.ts` — push the guard down to `@/lib/env` when the first client component starts importing from `@/lib/*`. Brief-exclusion regression assertion added to smoke script.
+- **Determinism contract:** `now: Date = new Date()` is the third param to `buildVaultContext`; per-request, not across time. No `Date.now()` / `new Date()` / `Math.random()` in serializers; re-sort with `id` ASC tiebreaker; omit empty sections + `updated_at` / `createdAt` from output. Enables Anthropic prompt caching downstream.
+- **Citation slugs locked at `§ entity-type:slug`** (markdown pill). Phase 5.3's XML-tag example is stale; ignored. Collisions get `-2/-3` suffixes deterministically; semantic disambiguation (e.g. `med:amlodipine-5mg`) is v1.5 polish.
+- **Brief-exclusion flag** is wired with default-true; no v1 data path; comment marks v1.5 entry point. Now regression-protected by smoke assertion.
 
 ### Next Steps
-1. **Phase B item 1 — vault context builder.** `lib/agents/_shared/vault-context.ts` per design doc 9.3. Most architecturally critical piece in Phase B; every agent depends on it. Must include the brief-exclusion default-true flag per CLAUDE.md tripwires. Install `@anthropic-ai/sdk` first (per Phase A decisions.md 2026-05-11 entry — deferred to Phase B).
-2. **Phase B item 2 — per-entity vault serializers.** `lib/agents/_shared/serializers/` directory, one fn per entity rendering vault content in the `§ entity-type:id` citation-friendly format. Tight coupling with #1 — design together.
-3. **Phase B items 3-4 together — agent error types + Zod output schemas.** `lib/agents/_shared/errors.ts` + `lib/agents/_shared/schemas.ts`. Small infrastructure files; build before the first agent (synthesis, item 5) so it has the shared scaffolding ready.
+1. **Phase B item 5 — synthesis agent.** Install SDKs first (`@anthropic-ai/sdk`, `ai`, `@ai-sdk/anthropic`) per two-SDK split decision. Build `lib/agents/synthesis.ts` with the full system prompt from Phase 10.3:3055-3185 verbatim, model `claude-opus-4-7`, streaming via Vercel AI SDK's `streamText`. Wire `/api/chat` route. Pass `surfaceContext` from the chat surface. Resolve the patient-relationship gap (10.3:3064 prompts for "your father / your mother" — schema has no relationship field; fallback to `patient.name` in the prompt instructions).
+2. **Phase B item 6 — insight generator.** `lib/agents/insight-generator.ts`, `claude-opus-4-7`, non-streaming, debounced fire-and-forget per 9.3:2466-2497. Uses `buildVaultContext(patientId, { includeInsights: "deduplication-only" })`. First place where `prompt-fragments.ts` (shared hard rules between synthesis and insight gen) actually pays off — extract then, not preemptive.
+3. **Phase B item 7 — router agent.** `lib/agents/router.ts`, `claude-haiku-4-5`, non-streaming, no vault context, returns `routerOutputSchema`-validated JSON (now 3-bucket confidence). Smallest agent; useful warm-up before extraction/onboarding land.
 
 ### Open Questions / Blockers
-*(none)*
+- **TODO before Phase C:** push `import "server-only"` down to `@/lib/env` for a uniform credential boundary. Triggered when first client component imports from `@/lib/*`. TODO comment placed at top of `lib/agents/_shared/vault-context.ts`.
+- **Doc-fix pending (not blocking):** `docs/design.md` 10.3:3214 should be updated to match 5.5's three-bucket confidence enum. Cleanup pass on the doc, separate from code work.
 
 ---
 *Keep this file under 80 lines. Last Session and Next Steps replace on each `/handoff` — never append.*

@@ -1,7 +1,12 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { lifestyleProfiles, type LifestyleProfile } from "@/db/schema";
+import {
+  lifestyleChanges,
+  lifestyleProfiles,
+  type LifestyleChange,
+  type LifestyleProfile,
+} from "@/db/schema";
 
 export const lifestyleQueries = {
   async getForPatient(patientId: string): Promise<LifestyleProfile | undefined> {
@@ -11,5 +16,15 @@ export const lifestyleQueries = {
       .where(eq(lifestyleProfiles.patientId, patientId))
       .limit(1);
     return rows[0];
+  },
+};
+
+export const lifestyleChangeQueries = {
+  async forPatient(patientId: string): Promise<LifestyleChange[]> {
+    return db
+      .select()
+      .from(lifestyleChanges)
+      .where(eq(lifestyleChanges.patientId, patientId))
+      .orderBy(desc(lifestyleChanges.changedAt));
   },
 };

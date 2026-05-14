@@ -1,7 +1,12 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
-import { conditions, type Condition } from "@/db/schema";
+import {
+  conditionChanges,
+  conditions,
+  type Condition,
+  type ConditionChange,
+} from "@/db/schema";
 
 export const conditionQueries = {
   async forPatient(patientId: string): Promise<Condition[]> {
@@ -20,5 +25,23 @@ export const conditionQueries = {
         and(eq(conditions.patientId, patientId), eq(conditions.status, "active")),
       )
       .orderBy(desc(conditions.createdAt));
+  },
+};
+
+export const conditionChangeQueries = {
+  async forPatient(patientId: string): Promise<ConditionChange[]> {
+    return db
+      .select()
+      .from(conditionChanges)
+      .where(
+        inArray(
+          conditionChanges.conditionId,
+          db
+            .select({ id: conditions.id })
+            .from(conditions)
+            .where(eq(conditions.patientId, patientId)),
+        ),
+      )
+      .orderBy(desc(conditionChanges.changedAt));
   },
 };

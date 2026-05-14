@@ -26,4 +26,12 @@ export const labResultQueries = {
       .where(eq(labResults.labReportId, labReportId))
       .orderBy(asc(labResults.marker));
   },
+
+  async forPatient(patientId: string): Promise<LabResult[]> {
+    return db
+      .select()
+      .from(labResults)
+      .where(eq(labResults.patientId, patientId))
+      .orderBy(desc(labResults.resultDate), asc(labResults.marker));
+  },
 };

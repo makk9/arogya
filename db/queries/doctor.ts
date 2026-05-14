@@ -1,7 +1,12 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
-import { doctors, type Doctor } from "@/db/schema";
+import {
+  doctorChanges,
+  doctors,
+  type Doctor,
+  type DoctorChange,
+} from "@/db/schema";
 
 export const doctorQueries = {
   async forPatient(patientId: string): Promise<Doctor[]> {
@@ -10,5 +15,23 @@ export const doctorQueries = {
       .from(doctors)
       .where(eq(doctors.patientId, patientId))
       .orderBy(asc(doctors.name));
+  },
+};
+
+export const doctorChangeQueries = {
+  async forPatient(patientId: string): Promise<DoctorChange[]> {
+    return db
+      .select()
+      .from(doctorChanges)
+      .where(
+        inArray(
+          doctorChanges.doctorId,
+          db
+            .select({ id: doctors.id })
+            .from(doctors)
+            .where(eq(doctors.patientId, patientId)),
+        ),
+      )
+      .orderBy(desc(doctorChanges.changedAt));
   },
 };

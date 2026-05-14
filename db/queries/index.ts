@@ -1,9 +1,9 @@
 export { patientQueries } from "./patient";
-export { doctorQueries } from "./doctor";
-export { conditionQueries } from "./condition";
-export { medicationQueries } from "./medication";
-export { allergyQueries } from "./allergy";
-export { lifestyleQueries } from "./lifestyle";
+export { doctorQueries, doctorChangeQueries } from "./doctor";
+export { conditionQueries, conditionChangeQueries } from "./condition";
+export { medicationQueries, medicationChangeQueries } from "./medication";
+export { allergyQueries, allergyChangeQueries } from "./allergy";
+export { lifestyleQueries, lifestyleChangeQueries } from "./lifestyle";
 export { familyHistoryQueries } from "./family-history";
 export { visitQueries } from "./visit";
 export { labReportQueries, labResultQueries } from "./lab";
