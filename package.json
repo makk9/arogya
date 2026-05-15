@@ -14,10 +14,14 @@
     "db:push": "drizzle-kit push",
     "db:seed": "tsx --env-file=.env.local db/seed.ts",
     "storage:setup": "tsx --env-file=.env.local scripts/setup-storage.ts",
-    "vault-context:check": "tsx --env-file=.env.local scripts/check-vault-context.ts"
+    "vault-context:check": "tsx --env-file=.env.local scripts/check-vault-context.ts",
+    "synthesis:check": "tsx --env-file=.env.local scripts/check-synthesis.ts"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.77",
+    "@anthropic-ai/sdk": "^0.96.0",
     "@supabase/supabase-js": "^2.105.4",
+    "ai": "^6.0.182",
     "drizzle-orm": "^0.45.2",
     "next": "16.2.6",
     "postgres": "^3.4.9",
