@@ -10,6 +10,10 @@ export type CurrentUser = {
 export type CurrentPatient = {
   patientId: string;
   name: string;
+  // IANA timezone for date-only fields (started_on, discontinued_on, etc.) per
+  // design.md 9.6:2803 — "Patient's local timezone, not the user's." v1 stub
+  // mirrors the seed in db/seed.ts; v1.5 reads from patients.timezone.
+  timezone: string;
 };
 
 export async function getCurrentUser(): Promise<CurrentUser> {
@@ -24,5 +28,6 @@ export async function getCurrentPatient(): Promise<CurrentPatient> {
   return {
     patientId: STUB_PATIENT_ID,
     name: "Ramesh Sharma",
+    timezone: "Asia/Kolkata",
   };
 }

@@ -208,8 +208,6 @@ Stub-auth seed identity only — no hardcoded medical data. Real medical data ge
 - **User (account holder):** Avi Sharma — US-based, tracking his father remotely
 - **Patient:** Ramesh Sharma — 77, M, Father, Pune, India
 
-`docs/design.md` still says "Aarav" in places — pending doc fix; CLAUDE.md is authoritative.
-
 ---
 
 ## Tooling

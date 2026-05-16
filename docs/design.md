@@ -1839,7 +1839,7 @@ Reached from: `+ Add` CTAs on state list pages, `+ Log` CTAs on event timeline p
 
 **Per-entity field sets (rough drafts — fields render in this order, with required marked):**
 
-*Add medication:* Name * (autocomplete from common meds) · Dose · Frequency (paired with Dose) · Form (default Tablet) · Started on (paired with Form, default today) · Prescribing doctor (autocomplete from patient's Doctors with `+ Create new`) · Treats condition (autocomplete with `+ Create new`) · Category (default Allopathic) · Notes.
+*Add medication:* Name * (autocomplete from common meds) · Dose * · Frequency * (paired with Dose) · Form (default Tablet) · Started on (paired with Form, default today) · Prescribing doctor (autocomplete from patient's Doctors with `+ Create new`) · Treats condition (autocomplete with `+ Create new`) · Category * (default Allopathic) · Notes.
 
 *Add condition:* Name * (autocomplete) · Status (default Active) · Severity · Diagnosed on · Diagnosing doctor (autocomplete with `+ Create new`) · Managing doctor · Category · Notes.
 
@@ -2756,30 +2756,30 @@ Every API route and server component imports these and uses the returned values.
 
 The seed data fixture creates the demo user + demo patient on first run.
 
-**API route patterns.** RESTful where natural, RPC-style for actions:
+**API route patterns.** RESTful where natural, RPC-style for actions. `patientId` is auth-derived via `getCurrentPatient()` per the tripwire above — not a path segment in v1. v1.5/v2 multi-patient surfaces reintroduce `[patientId]` when sharing lands.
 
 ```
-GET    /api/patients/[patientId]/medications              (list)
-POST   /api/patients/[patientId]/medications              (create)
-GET    /api/patients/[patientId]/medications/[id]         (read)
-PATCH  /api/patients/[patientId]/medications/[id]         (update)
-DELETE /api/patients/[patientId]/medications/[id]         (delete)
+GET    /api/medications              (list)
+POST   /api/medications              (create)
+GET    /api/medications/[id]         (read)
+PATCH  /api/medications/[id]         (update)
+DELETE /api/medications/[id]         (delete)
 
-POST   /api/patients/[patientId]/medications/[id]/discontinue   (RPC action)
-POST   /api/files/sign                                          (action: get signed URL)
-POST   /api/files/process                                       (action: process upload)
-POST   /api/insights/generate                                   (action: trigger insight gen)
-POST   /api/chat                                                (streaming endpoint)
+POST   /api/medications/[id]/discontinue   (RPC action)
+POST   /api/files/sign                     (action: get signed URL)
+POST   /api/files/process                  (action: process upload)
+POST   /api/insights/generate              (action: trigger insight gen)
+POST   /api/chat                           (streaming endpoint)
 ```
 
 Validation:
 - Request bodies validated via Zod schemas (`lib/schemas/api/`)
-- URL parameters validated (e.g., `patientId` is a UUID)
+- URL parameters validated (e.g., `[id]` is a UUID)
 - Failed validation returns 400 with structured error response
 
-Consistent error response shape:
+Consistent error response shape — four canonical codes plus `invalid_state_transition` (409 Conflict) for domain state-machine violations (already-discontinued med, already-resolved condition, etc.):
 ```typescript
-{ error: { code: "validation_failed" | "not_found" | "unauthorized" | "server_error", message: string, details?: any } }
+{ error: { code: "validation_failed" | "not_found" | "unauthorized" | "server_error" | "invalid_state_transition", message: string, details?: unknown } }
 ```
 
 Helpers: `apiError(code, message)` for consistent error responses; `lib/api/middleware.ts` for shared concerns (auth check, patient ownership check).
