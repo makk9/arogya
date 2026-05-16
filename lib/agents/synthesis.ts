@@ -139,11 +139,10 @@ If a vault context exceeds reasonable size (this should rarely happen in v1; if 
 
 // Runtime addendum — NOT part of the verbatim prompt. The patients schema has no
 // relationship-to-user field (no preferred_name covers this; family_history.relation
-// captures family-of-patient, not patient-of-user). Without this addendum the model
-// could invent a relationship from "your father / your mother" in 3064. The
-// "examples are illustrative" line is a tripwire against blindly copying the
-// "Your father's BP / lipids..." examples in 3074/3118. Doc-fix to 3064 is
-// tracked in progress.md as a pending cleanup pass.
+// captures family-of-patient, not patient-of-user). The doc (design.md 3064) was
+// updated to match this constraint; the addendum stays as a runtime tripwire against
+// the verbatim prompt's "your father" examples at 3074/3118 leaking into output when
+// the user hasn't stated the relationship in the conversation.
 export const PATIENT_NAMING_ADDENDUM = `# Naming this patient
 
 The vault context does not carry a relationship-to-user value. Refer to the patient by their first name as it appears in the vault context. Do not invent a relationship — do not say "your father" or "your mother" unless the user states the relationship in the conversation. The examples in the prompt above that use "your father" are illustrative of tone, not instructions to use that specific phrasing.`;

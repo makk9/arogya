@@ -15,7 +15,9 @@
     "db:seed": "tsx --env-file=.env.local db/seed.ts",
     "storage:setup": "tsx --env-file=.env.local scripts/setup-storage.ts",
     "vault-context:check": "tsx --env-file=.env.local scripts/check-vault-context.ts",
-    "synthesis:check": "tsx --env-file=.env.local scripts/check-synthesis.ts"
+    "synthesis:check": "tsx --env-file=.env.local scripts/check-synthesis.ts",
+    "router:check": "tsx --env-file=.env.local scripts/check-router.ts",
+    "citation-parser:check": "tsx scripts/check-citation-parser.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.77",
@@ -27,7 +29,9 @@
     "postgres": "^3.4.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "react-markdown": "^10.1.0",
     "server-only": "^0.0.1",
+    "unist-util-visit": "^5.1.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

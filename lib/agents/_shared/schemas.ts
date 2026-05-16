@@ -1,10 +1,11 @@
 import { z } from "zod";
 
-// Router agent output — per design.md 5.5:833-837 (canonical, three-bucket).
-// 10.3:3214 shows a two-bucket "high" | "low" variant — that's an oversimplification;
-// 5.5's three-bucket model is correct. Doc fix to 10.3 pending.
+// Router agent output — per design.md 5.5:833-837 + 10.3:3214 + 9.3:2446.
+// `intent` describes what the user typed (not the destination agent); three-bucket
+// confidence gives the UI room to gate the disambiguator on medium-confidence
+// inputs without forcing the explicit `ambiguous` intent.
 export const routerOutputSchema = z.object({
-  intent: z.enum(["log", "synthesis", "ambiguous"]),
+  intent: z.enum(["question", "log", "ambiguous"]),
   confidence: z.enum(["high", "medium", "low"]),
   reasoning: z.string(),
 });

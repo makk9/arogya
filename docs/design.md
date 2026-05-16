@@ -2392,7 +2392,7 @@ export async function POST(req: Request) {
   const vaultContext = await buildVaultContext(patientId);
   
   const result = streamText({
-    model: anthropic("claude-opus-4-5"),
+    model: anthropic("claude-opus-4-7"),
     system: SYNTHESIS_SYSTEM_PROMPT + "\n\n" + vaultContext,
     messages,
     maxTokens: 4096,
@@ -2418,7 +2418,7 @@ export async function runExtraction(
   const vaultContext = await buildVaultContext(patientId, { includeInsights: "none" });
   
   const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-5",
+    model: "claude-sonnet-4-6",
     max_tokens: 4096,
     system: EXTRACTION_SYSTEM_PROMPT + "\n\n" + vaultContext,
     messages: [{ role: "user", content: buildExtractionInput(source) }],
@@ -2430,20 +2430,20 @@ export async function runExtraction(
 
 Direct calls are simpler when streaming isn't needed; better control over timeouts, retries, error handling, structured output parsing.
 
-**Model choices per agent** (locked from Phase 5):
+**Model choices per agent** (locked from Phase 5; "latest of tier" — keep IDs current per CLAUDE.md):
 | Agent              | Model              | Reasoning                                 |
 |--------------------|--------------------|-------------------------------------------|
-| Synthesis          | Claude Opus 4.5    | Quality matters most; cost is acceptable  |
-| Extraction         | Claude Sonnet 4.5  | Vision-capable, accuracy-critical, faster |
+| Synthesis          | Claude Opus 4.7    | Quality matters most; cost is acceptable  |
+| Extraction         | Claude Sonnet 4.6  | Vision-capable, accuracy-critical, faster |
 | Router             | Claude Haiku 4.5   | Fast classification on every chat input   |
-| Insight generator  | Claude Opus 4.5    | Complex cross-entity reasoning            |
-| Onboarding         | Claude Sonnet 4.5  | Conversational, structured extraction     |
+| Insight generator  | Claude Opus 4.7    | Complex cross-entity reasoning            |
+| Onboarding         | Claude Sonnet 4.6  | Conversational, structured extraction     |
 | Auto-titling       | Claude Haiku 4.5   | Trivial naming, minimize cost             |
 
 **Output parsing.** Three patterns based on agent:
 1. *Synthesis (streaming, free-form markdown)* — no parsing needed; render as markdown via `react-markdown` with custom renderers for `§` citations and `↗` external links. Citation parsing is a markdown post-processor.
 2. *Extraction, Insight gen, Onboarding (JSON output)* — agent instructed to return structured JSON; parsed and validated against Zod schemas. Failed parsing → fall back to safe state per agent.
-3. *Router (small classification object)* — `{ "intent": "log" | "synthesis", "confidence": "high" | "low" }`. Same Zod-validated parsing.
+3. *Router (small classification object)* — `{ "intent": "question" | "log" | "ambiguous", "confidence": "high" | "medium" | "low" }`. Same Zod-validated parsing. (Canonical shape per 5.5; `intent` describes what the user typed, not the destination agent.)
 
 Zod schemas live in `lib/agents/_shared/schemas.ts`. Markdown renderer with citation parsing lives in `components/ai-message.tsx`.
 
@@ -3061,7 +3061,7 @@ You are not a generic chatbot. You are a thoughtful presence inside arogya — k
 
 When you speak, you say "I" — "I noticed," "I'd want to see," "I couldn't reliably read this." You don't perform being an AI; you don't apologize for being an AI; you don't preface responses with "As an AI..." or end them with "Please consult your doctor." Consulting their doctor is the implicit context for everything you say; explicit reminders feel patronizing.
 
-You refer to the user as "you" and to the patient by name (or "your father / your mother" where natural based on the relationship). The patient is a person, not a record.
+You refer to the user as "you" and to the patient by name. Use "your father / your mother" only when the user has stated the relationship in the conversation — never assume it from the record. The patient schema has no relationship-to-user field, so any guess from the vault would be invented. The patient is a person, not a record.
 
 # Your tone
 
@@ -3211,11 +3211,11 @@ For the remaining agents, structural specs that Claude Code uses to compose actu
 **Quick-log Router (Haiku, classification)**
 
 - *Persona:* Fast classifier. Decides whether a chat input is a logging intent or a synthesis intent. Biases toward asking the user when uncertain.
-- *Output format:* small JSON: `{ intent: "log" | "synthesis" | "ambiguous", confidence: "high" | "low", reasoning: "short string" }`
+- *Output format:* small JSON: `{ intent: "question" | "log" | "ambiguous", confidence: "high" | "medium" | "low", reasoning: "short string" }`. `intent` describes what the user typed, not the destination agent — `question` (routes to synthesis), `log` (routes to extraction), or `ambiguous` (routes to the disambiguator UI). Three-bucket confidence per 5.5:833-837.
 - *Decision rules:*
   - Inputs that look like factual data ("BP 152/95", "felt dizzy this morning", "took amlodipine at 8am") → log
-  - Inputs that look like questions ("why is BP creeping up?", "should I worry about the dizziness?") → synthesis
-  - Compound inputs ("BP 152/95 — should I worry?") → log first, then synthesis
+  - Inputs that look like questions ("why is BP creeping up?", "should I worry about the dizziness?") → question
+  - Compound inputs ("BP 152/95 — should I worry?") → log first; synthesis runs automatically after the user confirms the extraction
   - Genuinely ambiguous inputs → mark as `ambiguous` so UI presents the disambiguator
 - *No vault context needed* — Haiku doesn't need it for this classification.
 - *No medical hard rules* — this is just routing.
