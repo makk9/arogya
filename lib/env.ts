@@ -1,3 +1,8 @@
+// Canonical credential boundary. tsx-run scripts (db:seed, *-check, etc.) pass
+// `--conditions react-server` so the package resolves to its no-op empty module
+// rather than the throwing default; client bundles get the throwing default.
+import "server-only";
+
 import { z } from "zod";
 
 const envSchema = z.object({

@@ -1,12 +1,5 @@
-// No `server-only` guard here. The credential boundary is at `@/db` (postgres-js client) and
-// `@/lib/env`; vault-context.ts inherits server-only-ness via its dependency on `@/db/queries`,
-// which `postgres-js` makes unbundleable for the client. Dropping the guard lets tsx-based
-// scripts (e.g. scripts/check-vault-context.ts) import this module directly.
-//
-// TODO (Phase B cleanup, before Phase C): push the `import "server-only"` guard down to
-// `@/lib/env` so the credential boundary is enforced at the canonical layer rather than
-// relying on bundle-time failures from `postgres-js`. Revisit when the first client
-// component starts importing from `@/lib/*` and a uniform boundary becomes necessary.
+// Server-only boundary lives at `@/lib/env` (canonical layer). This module inherits it
+// transitively via `@/db/queries` → `@/db` → `@/lib/env`.
 
 import {
   allergyChangeQueries,

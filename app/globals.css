@@ -1,26 +1,106 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans);
+  /*
+    Sidebar + chart tokens deleted from the palette in Phase C item 2. The
+    shadcn defaults were chroma-0 grays plus a saturated blue (oklch 0.488
+    0.243 264.376) for sidebar-primary in dark mode — both anti-patterns
+    per 7.2:2131-2136. They land when the first sidebar/chart consumer
+    ships, palette-aligned at that time.
+  */
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/*
+ * Palette: stone-only warm neutrals. Brand-accent decision deferred until we
+ * have more surfaces to validate against (per the 2026-05-20 reset — sage
+ * primary read too green against 7.2:2131 anti-patterns). Primary, accent,
+ * ring all use Tailwind stone values so confident dark-warm-on-cream contrast
+ * carries "click me" without committing to a brand accent. Severity
+ * (destructive) stays desaturated red per 7.2.
+ */
+:root {
+  --background: oklch(0.985 0.004 80);
+  --foreground: oklch(0.25 0.012 70);
+  --card: oklch(0.99 0.003 80);
+  --card-foreground: oklch(0.25 0.012 70);
+  --popover: oklch(0.99 0.003 80);
+  --popover-foreground: oklch(0.25 0.012 70);
+  --primary: oklch(0.374 0.01 67.558);          /* stone-700 */
+  --primary-foreground: oklch(0.985 0.001 106.423); /* stone-50 */
+  --secondary: oklch(0.95 0.006 80);
+  --secondary-foreground: oklch(0.3 0.012 70);
+  --muted: oklch(0.95 0.006 80);
+  --muted-foreground: oklch(0.5 0.012 70);
+  --accent: oklch(0.97 0.001 106.424);          /* stone-100 */
+  --accent-foreground: oklch(0.374 0.01 67.558); /* stone-700 */
+  --destructive: oklch(0.55 0.18 27);
+  --border: oklch(0.9 0.008 80);
+  --input: oklch(0.9 0.008 80);
+  --ring: oklch(0.553 0.013 58.071);            /* stone-500 */
+  --radius: 0.625rem;
+}
+
+.dark {
+  --background: oklch(0.18 0.008 70);
+  --foreground: oklch(0.95 0.005 80);
+  --card: oklch(0.22 0.008 70);
+  --card-foreground: oklch(0.95 0.005 80);
+  --popover: oklch(0.22 0.008 70);
+  --popover-foreground: oklch(0.95 0.005 80);
+  --primary: oklch(0.869 0.005 56.366);         /* stone-300 */
+  --primary-foreground: oklch(0.216 0.006 56.043); /* stone-900 */
+  --secondary: oklch(0.28 0.008 70);
+  --secondary-foreground: oklch(0.95 0.005 80);
+  --muted: oklch(0.28 0.008 70);
+  --muted-foreground: oklch(0.7 0.008 80);
+  --accent: oklch(0.268 0.007 34.298);          /* stone-800 */
+  --accent-foreground: oklch(0.923 0.003 48.717); /* stone-200 */
+  --destructive: oklch(0.65 0.18 27);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.709 0.01 56.259);             /* stone-400 */
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
 }

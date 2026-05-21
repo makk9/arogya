@@ -9,6 +9,7 @@ import {
   type MedicationChange,
   type NewMedication,
 } from "@/db/schema";
+import { todayInTimezone } from "@/lib/datetime";
 
 type MedicationStatus = (typeof medicationStatus.enumValues)[number];
 
@@ -141,13 +142,7 @@ export const medicationQueries = {
         linkedVisitId: opts.linkedVisitId ?? null,
       });
 
-      // en-CA locale formats Date as YYYY-MM-DD natively in the given timezone.
-      const today = new Intl.DateTimeFormat("en-CA", {
-        timeZone: opts.timezone,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(new Date());
+      const today = todayInTimezone(opts.timezone);
 
       const [updated] = await tx
         .update(medications)

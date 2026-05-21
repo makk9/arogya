@@ -1818,7 +1818,7 @@ Reached from: `+ Add` CTAs on state list pages, `+ Log` CTAs on event timeline p
 - *Constrained content width* (~720-800px), document-like, consistent with detail templates.
 - *No floating Ask AI button on this surface.* User is mid-task with a linear form flow; AI assistant is distracting.
 - *Cancel-only top-right.* Save actions live at the bottom of the form.
-- *Two save actions:* `+ Save and add another` (subtle outline, left) and `Save` (terra/clay primary, right). The first supports bulk-entry workflows.
+- *Two save actions:* `+ Save and add another` (subtle outline, left) and `Save` (primary, right). The first supports bulk-entry workflows. Primary save button: warm dark neutral (stone-700 or equivalent) on warm light background. The brand accent for primary actions is deferred — picked at Phase C checkpoint 1 (after items 3-4) when more surfaces exist to validate against. See decisions.md 2026-05-20.
 - *Required field treatment:* small red asterisk next to the label. Inline errors below the field on save attempt; validation does NOT show red-error states while typing.
 - *2-column grid for paired fields* — saves vertical space when fields are naturally related (e.g., Dose + Frequency, Form + Started on, paired in the medication form).
 - *Linked-entity fields use rich autocomplete* — dropdown rows show name + avatar + multi-line subtitle (specialty, clinic, relationship duration). Helps disambiguation in real-world use.
@@ -1839,7 +1839,7 @@ Reached from: `+ Add` CTAs on state list pages, `+ Log` CTAs on event timeline p
 
 **Per-entity field sets (rough drafts — fields render in this order, with required marked):**
 
-*Add medication:* Name * (autocomplete from common meds) · Dose * · Frequency * (paired with Dose) · Form (default Tablet) · Started on (paired with Form, default today) · Prescribing doctor (autocomplete from patient's Doctors with `+ Create new`) · Treats condition (autocomplete with `+ Create new`) · Category * (default Allopathic) · Notes.
+*Add medication:* Name * (autocomplete from common meds, v1.5) · Brand name (paired with Name; optional but surfaced — useful in India where brand names dominate scripts, per Phase 4) · Dose * · Frequency * (paired with Dose) · Form (default Tablet) · Started on (paired with Form, default today in patient timezone) · Prescribing doctor (autocomplete from patient's Doctors with `+ Create new` — lands in Phase D with the doctor entity) · Treats condition (autocomplete with `+ Create new` — lands in Phase D with the condition entity) · Category * (default Allopathic) · Notes.
 
 *Add condition:* Name * (autocomplete) · Status (default Active) · Severity · Diagnosed on · Diagnosing doctor (autocomplete with `+ Create new`) · Managing doctor · Category · Notes.
 

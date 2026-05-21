@@ -5,7 +5,7 @@
 
 ---
 
-## Current Phase: Phase C item 1 done — item 2 next
+## Current Phase: Phase C item 2 done — item 3 next
 
 ### Phase A (complete)
 - [x] 1-7. Foundation shipped (see decisions.md 2026-05-11/12 entries).
@@ -21,7 +21,7 @@
 
 ### Phase C — First Vertical Slice (Medication)
 - [x] 1. Medication API routes — `app/api/medications/{route,[id]/route,[id]/discontinue/route}.ts` + `lib/schemas/api/medication.ts`. Path-less routes (auth-derived patientId), PATCH refuses clinical fields with per-field details, transactional discontinue with timezone-aware date, `invalid_state_transition` (409) error code added. 13/13 smoke green; /check fixes landed (enum drift, timezone, exhaustiveness, auth ordering).
-- [ ] 2. Medication form — shadcn/ui init happens here (first component); form template per 6.12
+- [x] 2. Medication form — shadcn/ui init (base-nova, stone base), `components/medications/medication-form.tsx`, `lib/schemas/forms/medication.ts` derived from API schema via `.extend()`, interim list page at `app/patient/[id]/medications/page.tsx`. Stone-only palette (sage/emerald/seafoam all read green; accent deferred to checkpoint 1).
 - [ ] 3. Medications list page — state list template per 6.4
 - [ ] 4. Medication detail page — state entity detail template per 6.5
 - [ ] 5. Inline editing + change-log entry creation
@@ -39,19 +39,19 @@ Extraction agent + upload pipeline + confirmation surface · Onboarding (agent +
 ---
 
 ### Last Session
-- 2026-05-16 — **Phase B item 7 (Citation parser) shipped.** react-markdown + custom remark plugin + inert pills + tokenizer unit tests. Phase B complete.
-- 2026-05-16 — **Phase C item 1 (Medication API routes) shipped.** Six routes (list/create/read/update/delete + discontinue). Three conventions locked: (a) path-less routes — `patientId` auth-derived, never path; (b) PATCH refuses clinical-event fields with per-field `details` guidance keyed by field name (saved to memory: error-response-teaching-surface); (c) `invalid_state_transition` (409) error code for state-machine violations (memory: state-transition-error-codes). Transactional discontinue writes a `medication_changes` row + mutates the parent atomically; date computed in the patient's IANA timezone via `Intl.DateTimeFormat`. `getCurrentPatient()` now returns `timezone`.
-- 2026-05-16 — `/check` review found 4 fixes (E1 enum drift → Zod enums derive from `pgEnum.enumValues`; E2 timezone-aware discontinuedOn; E3 exhaustiveness on `MedicationDomainError.kind`; E4 auth-first ordering across PATCH/DELETE/discontinue). All four landed.
-- 2026-05-16 — **Doc-fix pass:** design.md 6.12:1842 (add `*` to Dose/Frequency/Category); design.md 9.6:2761-2783 (path-less route examples + `invalid_state_transition` in error enum, `unknown` not `any`); CLAUDE.md stale "Aarav" note removed.
+- 2026-05-17 — **Phase C item 2 shipped.** shadcn/ui init (base-nova preset, stone base, Base UI primitives — `field`/`select`/`alert-dialog`/etc.; legacy RHF-coupled `form` primitive replaced by lower-level `Field` family). MedicationForm (RHF + Zod), 4 plan-mode decisions: skip linked-entity fields (Q2); include `brandName` paired with Name (Q3); interim minimal list page (Q4); sage accent (later reversed). API error shape pre-smoked (`details.{formErrors,fieldErrors}` confirmed). `import "server-only"` pushed to `lib/env.ts`; tsx scripts use `--conditions react-server` for the no-op shim.
+- 2026-05-17 — **`/check` review → 9 fixes landed.** W1+E2: form schema → `lib/schemas/forms/medication.ts`, derived from `createMedicationSchema` via `.extend()`. W2: field labels uppercase-mono, helpers normal-case (inverted from initial impl). W3: breadcrumb leading `/` + truncation comment. E1: submit factory flattened into two named handlers sharing `postMedication()`. E3: `setError` whitelisted against `formKeys`, unknowns route to banner. E4: declarative POST body using `JSON.stringify`-drops-undefined. E5: `lib/datetime.ts` extracted with `todayInTimezone(tz)`; both call sites (new-page, discontinue) updated. E6: unused sidebar/chart palette tokens stripped (incl. saturated blue 7.2 anti-pattern). E7: `shadcn` CLI → devDependencies. Required `.next/` clear + dev restart after npm reshuffle for module resolution.
+- 2026-05-20 — **Palette reset → stone-only.** First-pass implementation used emerald-700; recommended sage `oklch(0.5 0.055 155)` also read too green; dusty seafoam (third option) would have hit the same wall. All three triggered 7.2 anti-patterns ("not wellness-green," "no green for positive feedback"). `--primary` reset to stone-700, accent decision deferred to Phase C checkpoint 1 (after items 3-4) when multiple surfaces exist to compare candidates. Cancel button → `variant="link"` (text-link, not ghost-button). design.md 6.12:1821 + decisions.md 2026-05-20 capture the deferral + allowed candidates (muted terracotta / dusty rose / warm brown / aged linen / non-green eucalyptus) + the meta-lesson.
+- **Working tree status:** Phase C item 2 + all /check fixes + palette reset are uncommitted. Smoke green (typecheck, lint, vault-context:check, citation-parser:check, end-to-end curl). No commits since `90e8f4e` (Phase C item 1).
 
 ### Next Steps
-1. **Phase C item 2 — Medication form + shadcn/ui init.** First component triggers shadcn/ui setup. Form template per design.md 6.12 (Name * · Dose * · Frequency * · Form · Started on · Prescribing doctor · Treats condition · Category * · Notes). React Hook Form + Zod resolver. POST `/api/medications`.
-2. **Phase C item 3 — Medications list page** (state list template per 6.4): section-grouped cards (ACTIVE expanded, DISCONTINUED collapsed), filter pills, `+ Add medication`, floating Ask AI button.
-3. **Phase C item 4 — Medication detail page** (state entity detail template per 6.5): five sections, ~720-800px width, `…` menu (Discontinue/Delete).
+1. **Commit current working tree** — Phase C item 2 + /check fixes + palette reset. Three logical commits possible (item 2 impl, /check fixes, palette reset) but a single squashed commit is also fine.
+2. **Phase C item 3 — Medications list page** (state list template per 6.4): section-grouped cards (ACTIVE expanded, DISCONTINUED collapsed), filter pills, floating Ask AI button. Expand the interim `app/patient/[id]/medications/page.tsx` (don't replace).
+3. **Phase C item 4 — Medication detail page** (state entity detail template per 6.5): five sections, ~720-800px width, `…` menu (Discontinue/Delete). Click-through from the list page rows lands here.
 
 ### Open Questions / Blockers
-- **TODO before item 2:** push `import "server-only"` to `@/lib/env` when first client component imports from `@/lib/*`. TODO comment in `vault-context.ts`.
-- **API smoke doc follow-up:** capture the Phase C item 1 curl sequence in `docs/api-smoke.md` (~10 min cleanup); deferred per plan.
+- **Brand accent decision deferred to Phase C checkpoint 1** (post-items-3-4). See decisions.md 2026-05-20 for allowed candidates + the explicit green-register disallow.
+- **API smoke doc follow-up:** capture the Phase C item 1 + 2 curl sequences in `docs/api-smoke.md`; still deferred.
 - **Server-side error logging missing across all routes** (incl. pre-existing `/api/chat`). Per 9.6:2845. Worth landing minimal `lib/logger.ts` (PHI-aware, error-code + metadata only) before item 4 produces real failures.
 - **SDK workaround:** `@ai-sdk/anthropic` 3.0.x missing `cacheReadInputTokens` at top level. Smoke script reads snake_case directly. Pending upstream fix.
 
