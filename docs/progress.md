@@ -5,7 +5,7 @@
 
 ---
 
-## Current Phase: Phase C item 2 done — item 3 next
+## Current Phase: Phase C item 3 done — item 4 next
 
 ### Phase A (complete)
 - [x] 1-7. Foundation shipped (see decisions.md 2026-05-11/12 entries).
@@ -22,7 +22,7 @@
 ### Phase C — First Vertical Slice (Medication)
 - [x] 1. Medication API routes — `app/api/medications/{route,[id]/route,[id]/discontinue/route}.ts` + `lib/schemas/api/medication.ts`. Path-less routes (auth-derived patientId), PATCH refuses clinical fields with per-field details, transactional discontinue with timezone-aware date, `invalid_state_transition` (409) error code added. 13/13 smoke green; /check fixes landed (enum drift, timezone, exhaustiveness, auth ordering).
 - [x] 2. Medication form — shadcn/ui init (base-nova, stone base), `components/medications/medication-form.tsx`, `lib/schemas/forms/medication.ts` derived from API schema via `.extend()`, interim list page at `app/patient/[id]/medications/page.tsx`. Stone-only palette (sage/emerald/seafoam all read green; accent deferred to checkpoint 1).
-- [ ] 3. Medications list page — state list template per 6.4
+- [x] 3. Medications list page — state list template per 6.4. Server page in `app/patient/[id]/medications/page.tsx` (parallel fetch + in-memory denormalization), client islands for filters and section-collapse (`components/medications/{medication-filters,medications-list}.tsx`), RSC card + empty-state (`components/medications/{medication-card,medication-empty-state}.tsx`), inert floating Ask AI placeholder (`components/ask-ai-button.tsx`). Hybrid filter state (URL params for status/category, useState for collapse). PAUSED group added between ACTIVE/DISCONTINUED. /check fixes landed: empty-state copy trimmed (Phase E extraction promise removed), Ask AI `aria-disabled` + visual demotion, title-vs-subtitle asymmetry comment, `D `→`Dr ` doctor prefix.
 - [ ] 4. Medication detail page — state entity detail template per 6.5
 - [ ] 5. Inline editing + change-log entry creation
 - [ ] 6. Floating Ask AI button on Medication pages
@@ -39,20 +39,22 @@ Extraction agent + upload pipeline + confirmation surface · Onboarding (agent +
 ---
 
 ### Last Session
-- 2026-05-17 — **Phase C item 2 shipped.** shadcn/ui init (base-nova preset, stone base, Base UI primitives — `field`/`select`/`alert-dialog`/etc.; legacy RHF-coupled `form` primitive replaced by lower-level `Field` family). MedicationForm (RHF + Zod), 4 plan-mode decisions: skip linked-entity fields (Q2); include `brandName` paired with Name (Q3); interim minimal list page (Q4); sage accent (later reversed). API error shape pre-smoked (`details.{formErrors,fieldErrors}` confirmed). `import "server-only"` pushed to `lib/env.ts`; tsx scripts use `--conditions react-server` for the no-op shim.
-- 2026-05-17 — **`/check` review → 9 fixes landed.** W1+E2: form schema → `lib/schemas/forms/medication.ts`, derived from `createMedicationSchema` via `.extend()`. W2: field labels uppercase-mono, helpers normal-case (inverted from initial impl). W3: breadcrumb leading `/` + truncation comment. E1: submit factory flattened into two named handlers sharing `postMedication()`. E3: `setError` whitelisted against `formKeys`, unknowns route to banner. E4: declarative POST body using `JSON.stringify`-drops-undefined. E5: `lib/datetime.ts` extracted with `todayInTimezone(tz)`; both call sites (new-page, discontinue) updated. E6: unused sidebar/chart palette tokens stripped (incl. saturated blue 7.2 anti-pattern). E7: `shadcn` CLI → devDependencies. Required `.next/` clear + dev restart after npm reshuffle for module resolution.
-- 2026-05-20 — **Palette reset → stone-only.** First-pass implementation used emerald-700; recommended sage `oklch(0.5 0.055 155)` also read too green; dusty seafoam (third option) would have hit the same wall. All three triggered 7.2 anti-patterns ("not wellness-green," "no green for positive feedback"). `--primary` reset to stone-700, accent decision deferred to Phase C checkpoint 1 (after items 3-4) when multiple surfaces exist to compare candidates. Cancel button → `variant="link"` (text-link, not ghost-button). design.md 6.12:1821 + decisions.md 2026-05-20 capture the deferral + allowed candidates (muted terracotta / dusty rose / warm brown / aged linen / non-green eucalyptus) + the meta-lesson.
-- **Working tree status:** Phase C item 2 + all /check fixes + palette reset are uncommitted. Smoke green (typecheck, lint, vault-context:check, citation-parser:check, end-to-end curl). No commits since `90e8f4e` (Phase C item 1).
+- 2026-05-27 — **Phase C item 3 shipped.** Medications list page → full 6.4 template. Six files: server `app/patient/[id]/medications/page.tsx` (parallel meds+doctors+conditions fetch, in-memory Map denormalization, filter+group+count, three-branch render), client `medications-list.tsx` (section collapse via useState; sections with count 0 hide entirely), client `medication-filters.tsx` (URL params via router.replace + `scroll:false`), RSC `medication-card.tsx` (two-line layout, brand-name in parens, inert doctor/condition spans, TODO recent-change), RSC `medication-empty-state.tsx`, `ask-ai-button.tsx` (inert placeholder, `aria-disabled` + opacity-60).
+- 2026-05-27 — **Plan decisions D1-D8.** Hybrid filter state (URL params for status/category, useState for collapse per 6.4 session-only). Card→detail link wired now (404 acceptable until item 4); doctor/condition spans inert until Phase D. PAUSED gets its own collapsed-by-default group between ACTIVE and DISCONTINUED. Recent-change indicator deferred. Specialists = distinct specialty values across active+paused doctors. Subtitle omits zero segments. `medication-card.tsx` extracted standalone to establish the per-entity card pattern Phase D replicates. See decisions.md 2026-05-27.
+- 2026-05-27 — **`/check` → 4 fixes landed.** Empty-state copy trimmed (verbatim 6.4 advertised Phase E extraction; build sequencing inverted that). Ask AI `aria-disabled` + visual demotion (machine-readable inert signal without "coming soon" copy). Title-vs-subtitle count asymmetry documented inline. Doctor prefix `D `→`Dr `. Eight more concerns flagged for Phase D / polish pass (enum-validation extraction, `useId()` for section IDs, spacer-hack comment, `1×` spec clarification, filter-pill placement).
+- **Gotcha — PAUSED/DISCONTINUED have no UI path yet.** Schema supports all three; DISCONTINUED only reachable via `POST /api/medications/[id]/discontinue` (curl until item 4 `…` menu); PAUSED has zero API path (PATCH refuses clinical fields per C.1). List page renders all three correctly when present, but visual verification of paused/discontinued needs curl + direct DB write. Active/Discontinued grouping + filter become user-visibly useful once item 4 ships the Discontinue UI.
+- **Working tree status:** Uncommitted. Phase C item 3 code + /check fixes + this handoff ready to land in one commit. Typecheck + lint clean; user manually verified visual rendering. Last commit on branch: `b7dbbf1` (C.2).
 
 ### Next Steps
-1. **Commit current working tree** — Phase C item 2 + /check fixes + palette reset. Three logical commits possible (item 2 impl, /check fixes, palette reset) but a single squashed commit is also fine.
-2. **Phase C item 3 — Medications list page** (state list template per 6.4): section-grouped cards (ACTIVE expanded, DISCONTINUED collapsed), filter pills, floating Ask AI button. Expand the interim `app/patient/[id]/medications/page.tsx` (don't replace).
-3. **Phase C item 4 — Medication detail page** (state entity detail template per 6.5): five sections, ~720-800px width, `…` menu (Discontinue/Delete). Click-through from the list page rows lands here.
+1. **Commit Phase C item 3** — six new/modified files. Suggested title: `Phase C.3 — Medications list page + /check fixes`.
+2. **Phase C item 4 — Medication detail page** (state entity detail template per 6.5): five sections (Header → Current → History → Linked context → Notes), constrained ~720-800px width, prominent dose+frequency card, change-log history with `+ Show all N changes`, `…` menu (Discontinue/Delete). Discontinue hits existing endpoint — this is what makes the list page's ACTIVE/DISCONTINUED grouping useful in UI.
+3. **Phase C item 5 — Inline editing + change-log writes.** Edit button toggles in-place Current section fields; `+ Log a change` writes a `medication_changes` row. PAUSED gets a UI path here. New API surface likely needed (`POST /api/medications/[id]/changes` or inline PATCH support for status).
 
 ### Open Questions / Blockers
-- **Brand accent decision deferred to Phase C checkpoint 1** (post-items-3-4). See decisions.md 2026-05-20 for allowed candidates + the explicit green-register disallow.
-- **API smoke doc follow-up:** capture the Phase C item 1 + 2 curl sequences in `docs/api-smoke.md`; still deferred.
-- **Server-side error logging missing across all routes** (incl. pre-existing `/api/chat`). Per 9.6:2845. Worth landing minimal `lib/logger.ts` (PHI-aware, error-code + metadata only) before item 4 produces real failures.
+- **Brand accent decision deferred to Phase C checkpoint 1** (post-items-3-4). See decisions.md 2026-05-20.
+- **Item 3 polish backlog** (non-blocking; address during Phase D or polish): enum-validation extraction to `lib/schemas/url-filters.ts` (multiplies 5× in Phase D), `useId()` for section panel IDs, spacer-hack comment in page.tsx, design.md 6.4 `1×` prefix clarification, filter-pill placement (top-right inline vs own row), empty-state copy restore once Phase E extraction ships.
+- **API smoke doc follow-up:** capture the Phase C item 1 + 2 curl sequences in `docs/api-smoke.md`.
+- **Server-side error logging missing across all routes** (incl. `/api/chat`). Per 9.6:2845. Worth landing minimal `lib/logger.ts` before item 4 produces real failures.
 - **SDK workaround:** `@ai-sdk/anthropic` 3.0.x missing `cacheReadInputTokens` at top level. Smoke script reads snake_case directly. Pending upstream fix.
 
 ---
