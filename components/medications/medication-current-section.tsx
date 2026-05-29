@@ -1,3 +1,8 @@
+"use client";
+
+import { InlineField } from "@/components/medications/inline-field";
+import { useMaybeMedicationEdit } from "@/components/medications/medication-edit-context";
+import { useMaybeMedicationLogChange } from "@/components/medications/medication-log-change-context";
 import type { Condition, Doctor, Medication } from "@/db/schema";
 import { formatAbsoluteDate } from "@/lib/datetime";
 
@@ -14,10 +19,18 @@ interface Props {
 }
 
 /*
- * Current section per design.md 6.5:1380. Two prominent equal-width cards
- * (dose + frequency, the medication-specific clinically-important fields)
- * over a tinted 4-column compact grid for secondary fields. Field-label
- * convention matches medication-form.tsx:88 (uppercase-mono, muted).
+ * Current section per design.md 6.5:1380. Prominent dose + frequency cards,
+ * compact 4-column grid below for prescribing doctor / treats / form /
+ * category.
+ *
+ * In edit mode:
+ *   - dose, frequency, prescribingDoctor stay read-only (clinical fields —
+ *     route through `+ Log a change`)
+ *   - treats (purpose) stays read-only (Condition autocomplete is Phase D)
+ *   - form + category swap to InlineField select variants
+ *   - a single muted hint renders below the dose card explaining where to
+ *     log clinical changes; the hint is a button that opens the log-change
+ *     dialog via context
  */
 
 const SECTION_HEAD =
@@ -35,6 +48,10 @@ export function MedicationCurrentSection({
   treatsCondition,
   doseInlineNote,
 }: Props) {
+  const editCtx = useMaybeMedicationEdit();
+  const editing = editCtx?.editing ?? false;
+  const logChange = useMaybeMedicationLogChange();
+
   return (
     <section className="mb-8">
       <h2 className={SECTION_HEAD}>Current</h2>
@@ -59,6 +76,17 @@ export function MedicationCurrentSection({
           <div className="mt-1 text-xs text-muted-foreground">frequency</div>
         </div>
       </div>
+
+      {editing && logChange ? (
+        <button
+          type="button"
+          onClick={logChange.open}
+          className="mt-2 text-left text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        >
+          Use &quot;+ Log a change&quot; in History to update dose, frequency,
+          status, or prescribing doctor.
+        </button>
+      ) : null}
 
       <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg bg-muted/40 px-4 py-3 md:grid-cols-4">
         <div>
@@ -89,17 +117,35 @@ export function MedicationCurrentSection({
         </div>
         <div>
           <div className={FIELD_LABEL}>form</div>
-          <div className="text-sm">
-            {medication.form ? (
-              capitalize(medication.form)
-            ) : (
-              <span className="text-muted-foreground">—</span>
-            )}
-          </div>
+          <InlineField
+            fieldKey="form"
+            value={medication.form ?? ""}
+            variant="select-form"
+            required={false}
+            clearable
+            ariaLabel="Form"
+            displayValue={
+              <span className="text-sm">
+                {medication.form ? (
+                  capitalize(medication.form)
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </span>
+            }
+          />
         </div>
         <div>
           <div className={FIELD_LABEL}>category</div>
-          <div className="text-sm">{medication.category}</div>
+          <InlineField
+            fieldKey="category"
+            value={medication.category}
+            variant="select-category"
+            required
+            clearable={false}
+            ariaLabel="Category"
+            displayValue={<span className="text-sm">{medication.category}</span>}
+          />
         </div>
       </div>
     </section>

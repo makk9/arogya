@@ -2,9 +2,12 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
+  doctors,
   medicationChanges,
+  medicationChangeField,
   medications,
   medicationStatus,
+  visits,
   type Medication,
   type MedicationChange,
   type NewMedication,
@@ -12,6 +15,7 @@ import {
 import { todayInTimezone } from "@/lib/datetime";
 
 type MedicationStatus = (typeof medicationStatus.enumValues)[number];
+type MedicationChangeField = (typeof medicationChangeField.enumValues)[number];
 
 type MedicationUpdate = Partial<
   Pick<
@@ -20,12 +24,30 @@ type MedicationUpdate = Partial<
   >
 >;
 
+// Domain error kinds:
+//  - not_found            — patient-scoped lookup missed
+//  - already_discontinued — discontinue endpoint hit a med already in that state
+//  - medication_discontinued — changes endpoint refuses log entries on a
+//                              discontinued med (distinct from above so the
+//                              route can render a different message)
+//  - invalid_status_transition — field=status with current!=active or newValue
+//                                outside the v1-permitted transition
+//  - linked_entity_invalid — newValue or linkedVisitId references a record
+//                            outside patient scope, or duplicates the current
+//                            prescriber (no-op guard)
 export class MedicationDomainError extends Error {
   constructor(
-    public readonly kind: "not_found" | "already_discontinued",
+    public readonly kind:
+      | "not_found"
+      | "already_discontinued"
+      | "medication_discontinued"
+      | "invalid_status_transition"
+      | "linked_entity_invalid",
     public readonly meta?: {
       currentStatus?: MedicationStatus;
       discontinuedOn?: string | null;
+      field?: string;
+      reason?: string;
     },
   ) {
     super(kind);
@@ -160,6 +182,10 @@ export const medicationQueries = {
 };
 
 export const medicationChangeQueries = {
+  // Sort by changedAt (the clinical day the change happened) with createdAt as
+  // a tiebreaker. Date-only form input coerces to noon UTC, so multiple rows
+  // dated the same day tie on changedAt; createdAt (defaultNow()) captures the
+  // real insert instant and breaks the tie in write order.
   async forPatient(patientId: string): Promise<MedicationChange[]> {
     return db
       .select()
@@ -173,7 +199,10 @@ export const medicationChangeQueries = {
             .where(eq(medications.patientId, patientId)),
         ),
       )
-      .orderBy(desc(medicationChanges.changedAt));
+      .orderBy(
+        desc(medicationChanges.changedAt),
+        desc(medicationChanges.createdAt),
+      );
   },
 
   // Patient-scoped via the inner-select on patient's medications — a medId
@@ -197,6 +226,155 @@ export const medicationChangeQueries = {
           ),
         ),
       )
-      .orderBy(desc(medicationChanges.changedAt));
+      .orderBy(
+        desc(medicationChanges.changedAt),
+        desc(medicationChanges.createdAt),
+      );
+  },
+
+  // Transactional: read current med → validate transitions and linked entities
+  // → insert change-log row → update parent's current_* field. Mirrors the
+  // discontinue helper's shape: throws MedicationDomainError for state-machine
+  // violations and lets the route map kinds to HTTP codes.
+  //
+  // `oldValue` is server-computed from the current med row — never trusted
+  // from the client. The status branch sets medications.status="paused" only;
+  // discontinued_on stays untouched (that's the discontinue route's job).
+  async create(
+    patientId: string,
+    medicationId: string,
+    input: {
+      field: MedicationChangeField;
+      newValue: string;
+      reason?: string;
+      changedAt?: Date;
+      linkedVisitId?: string;
+      recordedBy: string;
+    },
+  ): Promise<{ change: MedicationChange; medication: Medication }> {
+    return db.transaction(async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(medications)
+        .where(
+          and(eq(medications.id, medicationId), eq(medications.patientId, patientId)),
+        )
+        .limit(1);
+
+      if (!current) {
+        throw new MedicationDomainError("not_found");
+      }
+      if (current.status === "discontinued") {
+        throw new MedicationDomainError("medication_discontinued", {
+          currentStatus: current.status,
+          discontinuedOn: current.discontinuedOn,
+        });
+      }
+
+      // Field-specific guards.
+      if (input.field === "status") {
+        if (current.status !== "active") {
+          throw new MedicationDomainError("invalid_status_transition", {
+            currentStatus: current.status,
+          });
+        }
+        if (input.newValue !== "paused") {
+          // Defensive — the API schema constrains this to "paused"; this guard
+          // catches a direct-helper-call bypass.
+          throw new MedicationDomainError("invalid_status_transition", {
+            currentStatus: current.status,
+          });
+        }
+      }
+
+      if (input.field === "prescribing_doctor") {
+        if (current.prescribingDoctor === input.newValue) {
+          throw new MedicationDomainError("linked_entity_invalid", {
+            field: "newValue",
+            reason: "already the prescribing doctor",
+          });
+        }
+        const [doctor] = await tx
+          .select({ id: doctors.id })
+          .from(doctors)
+          .where(
+            and(eq(doctors.id, input.newValue), eq(doctors.patientId, patientId)),
+          )
+          .limit(1);
+        if (!doctor) {
+          throw new MedicationDomainError("linked_entity_invalid", {
+            field: "newValue",
+            reason: "doctor not found",
+          });
+        }
+      }
+
+      if (input.linkedVisitId) {
+        const [visit] = await tx
+          .select({ id: visits.id })
+          .from(visits)
+          .where(
+            and(
+              eq(visits.id, input.linkedVisitId),
+              eq(visits.patientId, patientId),
+            ),
+          )
+          .limit(1);
+        if (!visit) {
+          throw new MedicationDomainError("linked_entity_invalid", {
+            field: "linkedVisitId",
+            reason: "visit not found",
+          });
+        }
+      }
+
+      const oldValue: string | null = (() => {
+        switch (input.field) {
+          case "dose":
+            return current.currentDose;
+          case "frequency":
+            return current.currentFrequency;
+          case "status":
+            return current.status;
+          case "prescribing_doctor":
+            return current.prescribingDoctor;
+        }
+      })();
+
+      const [change] = await tx
+        .insert(medicationChanges)
+        .values({
+          medicationId,
+          field: input.field,
+          oldValue,
+          newValue: input.newValue,
+          reason: input.reason ?? null,
+          recordedBy: input.recordedBy,
+          linkedVisitId: input.linkedVisitId ?? null,
+          ...(input.changedAt ? { changedAt: input.changedAt } : {}),
+        })
+        .returning();
+
+      const patch: Partial<NewMedication> = (() => {
+        switch (input.field) {
+          case "dose":
+            return { currentDose: input.newValue };
+          case "frequency":
+            return { currentFrequency: input.newValue };
+          case "status":
+            return { status: "paused" };
+          case "prescribing_doctor":
+            return { prescribingDoctor: input.newValue };
+        }
+      })();
+
+      const [updated] = await tx
+        .update(medications)
+        .set(patch)
+        .where(eq(medications.id, medicationId))
+        .returning();
+
+      return { change, medication: updated };
+    });
   },
 };

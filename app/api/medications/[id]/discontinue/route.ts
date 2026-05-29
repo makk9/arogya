@@ -62,11 +62,20 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
           },
         );
       }
-      // Exhaustiveness: a future MedicationDomainError("kind") that isn't
-      // mapped above will surface here as a compile error rather than silently
-      // returning 500.
-      const _exhaust: never = err.kind;
-      void _exhaust;
+      // The remaining kinds (medication_discontinued, invalid_status_transition,
+      // linked_entity_invalid) are owned by the /changes route's helper, never
+      // raised by discontinue(). Fall through to server_error if one surfaces
+      // here — a sign the helper changed shape without updating this route.
+      if (
+        err.kind === "medication_discontinued" ||
+        err.kind === "invalid_status_transition" ||
+        err.kind === "linked_entity_invalid"
+      ) {
+        // Intentional fall-through to server_error below.
+      } else {
+        const _exhaust: never = err.kind;
+        void _exhaust;
+      }
     }
     return apiError("server_error", "Failed to discontinue medication");
   }

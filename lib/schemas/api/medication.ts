@@ -69,6 +69,40 @@ export const discontinueMedicationSchema = z
   })
   .strict();
 
+// Discriminated union on `field` — newValue's shape varies per branch:
+// dose/frequency are free text, status is constrained to "paused" (active→
+// paused is the only v1 transition via this endpoint; discontinue uses its
+// own route; resume from paused is v1.5), prescribing_doctor is a uuid.
+//
+// Shared base fields (reason / changedAt / linkedVisitId) sit in
+// medicationChangeBase and are spread into each branch via .extend(). The
+// route reparses the request body with this schema after the path uuid + JSON
+// checks, so failure surfaces with the standard flatten()'d details payload.
+const medicationChangeBase = z.object({
+  reason: z.string().min(1).optional(),
+  changedAt: dateOnlySchema.optional(),
+  linkedVisitId: uuidSchema.optional(),
+});
+
+export const createMedicationChangeSchema = z.discriminatedUnion("field", [
+  medicationChangeBase.extend({
+    field: z.literal("dose"),
+    newValue: z.string().min(1),
+  }),
+  medicationChangeBase.extend({
+    field: z.literal("frequency"),
+    newValue: z.string().min(1),
+  }),
+  medicationChangeBase.extend({
+    field: z.literal("status"),
+    newValue: z.literal("paused"),
+  }),
+  medicationChangeBase.extend({
+    field: z.literal("prescribing_doctor"),
+    newValue: uuidSchema,
+  }),
+]);
+
 export const listMedicationsQuerySchema = z
   .object({
     status: medicationStatusEnum.optional(),
@@ -79,4 +113,7 @@ export type CreateMedicationInput = z.infer<typeof createMedicationSchema>;
 export type UpdateMedicationInput = z.infer<typeof updateMedicationSchema>;
 export type DiscontinueMedicationInput = z.infer<
   typeof discontinueMedicationSchema
+>;
+export type CreateMedicationChangeInput = z.infer<
+  typeof createMedicationChangeSchema
 >;

@@ -6,9 +6,9 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
 import {
-  medicationCategory,
-  medicationForm as medicationFormEnum,
-} from "@/db/schema";
+  CATEGORY_OPTIONS,
+  FORM_OPTIONS,
+} from "@/components/medications/medication-options";
 import {
   medicationFormSchema,
   type MedicationFormValues,
@@ -53,33 +53,6 @@ interface MedicationFormProps {
   patientId: string;
   todayInPatientTz: string;
 }
-
-const FORM_OPTIONS: ReadonlyArray<{
-  value: (typeof medicationFormEnum.enumValues)[number];
-  label: string;
-}> = [
-  { value: "tablet", label: "Tablet" },
-  { value: "capsule", label: "Capsule" },
-  { value: "liquid", label: "Liquid" },
-  { value: "injection", label: "Injection" },
-  { value: "topical", label: "Topical" },
-  { value: "inhaler", label: "Inhaler" },
-  { value: "patch", label: "Patch" },
-  { value: "drops", label: "Drops" },
-  { value: "other", label: "Other" },
-];
-
-const CATEGORY_OPTIONS: ReadonlyArray<{
-  value: (typeof medicationCategory.enumValues)[number];
-  label: string;
-}> = [
-  { value: "allopathic", label: "Allopathic" },
-  { value: "ayurvedic", label: "Ayurvedic" },
-  { value: "homeopathic", label: "Homeopathic" },
-  { value: "supplement", label: "Supplement" },
-  { value: "OTC", label: "OTC" },
-  { value: "other", label: "Other" },
-];
 
 // Field labels render in uppercase-mono tracking-wide to match design.md
 // 6.12:1826 (`FORM · default Tablet`, `STARTED ON · defaults to today`).

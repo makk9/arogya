@@ -25,3 +25,23 @@ export const medicationFormSchema = createMedicationSchema.extend({
 });
 
 export type MedicationFormValues = z.infer<typeof medicationFormSchema>;
+
+/**
+ * Flat form-side schema for the `+ Log a change` dialog. RHF defaults work
+ * better with a stable shape across `field` changes, so the form schema is
+ * permissive (any newValue string) and the submit handler reparses with the
+ * API's `createMedicationChangeSchema` (discriminated union) for sharper
+ * per-field errors before POSTing. Same defense-in-depth pattern as the Add
+ * Medication form (medication-form.tsx).
+ */
+export const medicationChangeFormSchema = z.object({
+  field: z.enum(["dose", "frequency", "status", "prescribing_doctor"]),
+  newValue: z.string().min(1, "Required"),
+  reason: z.string().optional(),
+  changedAt: z.string().optional(),
+  linkedVisitId: z.string().optional(),
+});
+
+export type MedicationChangeFormValues = z.infer<
+  typeof medicationChangeFormSchema
+>;

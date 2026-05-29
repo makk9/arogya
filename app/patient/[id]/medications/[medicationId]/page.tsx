@@ -13,11 +13,16 @@ import {
   type DoseInlineNote,
 } from "@/components/medications/medication-current-section";
 import { MedicationDetailHeader } from "@/components/medications/medication-detail-header";
+import { MedicationDetailShell } from "@/components/medications/medication-detail-shell";
 import { MedicationHistorySection } from "@/components/medications/medication-history-section";
 import {
   MedicationLinkedContext,
   type LinkedVisitRef,
 } from "@/components/medications/medication-linked-context";
+import type {
+  DoctorOption,
+  VisitOption,
+} from "@/components/medications/medication-log-change-dialog";
 import { MedicationNotesSection } from "@/components/medications/medication-notes-section";
 import { conditionQueries } from "@/db/queries/condition";
 import { doctorQueries } from "@/db/queries/doctor";
@@ -27,6 +32,7 @@ import {
 } from "@/db/queries/medication";
 import { visitQueries } from "@/db/queries/visit";
 import { getCurrentPatient } from "@/lib/auth";
+import { todayInTimezone } from "@/lib/datetime";
 
 const medicationIdParam = z.string().uuid();
 const RECENT_LIMIT = 5;
@@ -147,40 +153,68 @@ export default async function MedicationDetailPage({
 
   const notesText = medication.notes?.trim() ?? "";
   const showActionsMenu = medication.status !== "discontinued";
+  const todayInPatientTz = todayInTimezone(patient.timezone);
+
+  // Flatten doctor + visit lists into the option shapes the log-change dialog
+  // expects. All patient doctors / visits are surfaced — the dialog filters
+  // out the current prescriber itself.
+  const doctorOptions: DoctorOption[] = doctors.map((d) => ({
+    id: d.id,
+    name: d.name,
+    specialty: d.specialty,
+  }));
+  const visitOptions: VisitOption[] = visits
+    .map((v) => {
+      const doc = doctorMap.get(v.doctorId);
+      if (!doc) return null;
+      return {
+        id: v.id,
+        visitDate: v.visitDate,
+        doctorName: doc.name,
+      };
+    })
+    .filter((v): v is VisitOption => v !== null);
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
-      <MedicationDetailHeader
-        patientId={patient.patientId}
+      <MedicationDetailShell
         medication={medication}
-        actions={
-          showActionsMenu ? (
-            <MedicationActionsMenu
-              medicationId={medication.id}
-              medicationName={medication.name}
-            />
-          ) : null
-        }
-      />
+        doctors={doctorOptions}
+        visits={visitOptions}
+        todayInPatientTz={todayInPatientTz}
+      >
+        <MedicationDetailHeader
+          patientId={patient.patientId}
+          medication={medication}
+          actionsSlot={
+            showActionsMenu ? (
+              <MedicationActionsMenu
+                medicationId={medication.id}
+                medicationName={medication.name}
+              />
+            ) : null
+          }
+        />
 
-      <MedicationCurrentSection
-        medication={medication}
-        prescribingDoctor={prescribingDoctor}
-        treatsCondition={treatsCondition}
-        doseInlineNote={doseInlineNote}
-      />
+        <MedicationCurrentSection
+          medication={medication}
+          prescribingDoctor={prescribingDoctor}
+          treatsCondition={treatsCondition}
+          doseInlineNote={doseInlineNote}
+        />
 
-      <MedicationHistorySection
-        totalCount={totalCount}
-        recentEntries={recentEntries}
-        olderEntries={olderEntries}
-      />
+        <MedicationHistorySection
+          totalCount={totalCount}
+          recentEntries={recentEntries}
+          olderEntries={olderEntries}
+        />
 
-      {linkedVisits.length > 0 ? (
-        <MedicationLinkedContext linkedVisits={linkedVisits} />
-      ) : null}
+        {linkedVisits.length > 0 ? (
+          <MedicationLinkedContext linkedVisits={linkedVisits} />
+        ) : null}
 
-      {notesText ? <MedicationNotesSection notes={notesText} /> : null}
+        <MedicationNotesSection notes={notesText} />
+      </MedicationDetailShell>
 
       <AskAiButton />
     </main>
