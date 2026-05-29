@@ -175,4 +175,28 @@ export const medicationChangeQueries = {
       )
       .orderBy(desc(medicationChanges.changedAt));
   },
+
+  // Patient-scoped via the inner-select on patient's medications — a medId
+  // belonging to another patient returns [] rather than leaking rows.
+  async forMedication(
+    patientId: string,
+    medicationId: string,
+  ): Promise<MedicationChange[]> {
+    return db
+      .select()
+      .from(medicationChanges)
+      .where(
+        and(
+          eq(medicationChanges.medicationId, medicationId),
+          inArray(
+            medicationChanges.medicationId,
+            db
+              .select({ id: medications.id })
+              .from(medications)
+              .where(eq(medications.patientId, patientId)),
+          ),
+        ),
+      )
+      .orderBy(desc(medicationChanges.changedAt));
+  },
 };
