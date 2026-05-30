@@ -21,8 +21,10 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -44,7 +46,11 @@ import {
 } from "@/components/ui/sheet";
 
 interface ChatDrawerContextValue {
-  openChat: (surfaceContext?: string) => void;
+  // Opens the drawer. The surface tag is published separately via `setSurface`
+  // so it tracks the page the user is *currently* on, not just where the drawer
+  // was first opened (the drawer stays open across navigation).
+  openChat: () => void;
+  setSurface: (surfaceContext?: string) => void;
 }
 
 const ChatDrawerContext = createContext<ChatDrawerContextValue | null>(null);
@@ -74,7 +80,10 @@ function textOf(message: UIMessage): string {
 
 export function ChatDrawerProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
-  // Tags each message with the surface the user is on when they send it.
+  // The surface the user is currently on. Pages publish it via `setSurface`
+  // (the floating Ask AI button does this on mount + on route change), so each
+  // sent message is tagged with the live current page — even after the drawer
+  // was opened elsewhere and the user navigated with it pinned open.
   const surfaceContextRef = useRef<string | undefined>(undefined);
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -88,10 +97,14 @@ export function ChatDrawerProvider({ children }: { children: ReactNode }) {
     if (open) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, status, open]);
 
-  function openChat(surfaceContext?: string) {
+  const setSurface = useCallback((surfaceContext?: string) => {
     surfaceContextRef.current = surfaceContext;
-    setOpen(true);
-  }
+  }, []);
+  const openChat = useCallback(() => setOpen(true), []);
+  const contextValue = useMemo(
+    () => ({ openChat, setSurface }),
+    [openChat, setSurface],
+  );
 
   function submit(text: string) {
     const trimmed = text.trim();
@@ -106,7 +119,7 @@ export function ChatDrawerProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <ChatDrawerContext.Provider value={{ openChat }}>
+    <ChatDrawerContext.Provider value={contextValue}>
       {/*
         Push/squeeze instead of overlay: when the drawer is open we pad the page
         by the drawer's width (max-w-lg = 32rem) so the centered page content
@@ -218,6 +231,7 @@ export function ChatDrawerProvider({ children }: { children: ReactNode }) {
           <form onSubmit={onSubmit} className="border-t p-4">
             <div className="flex items-end gap-2">
               <Textarea
+                aria-label="Ask about this record"
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={(event) => {

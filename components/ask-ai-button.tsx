@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 import { useChatDrawer } from "@/components/chat/chat-drawer-provider";
 import { cn } from "@/lib/utils";
 
@@ -20,11 +22,20 @@ export function AskAiButton({
   surfaceContext?: string;
   className?: string;
 }) {
-  const { openChat } = useChatDrawer();
+  const { openChat, setSurface } = useChatDrawer();
+
+  // Publish this page's surface to the drawer on mount + whenever the route's
+  // surface changes, so the drawer (which stays open across navigation) tags
+  // each message with the page the user is currently on — not just where it
+  // was first opened.
+  useEffect(() => {
+    setSurface(surfaceContext);
+  }, [surfaceContext, setSurface]);
+
   return (
     <button
       type="button"
-      onClick={() => openChat(surfaceContext)}
+      onClick={openChat}
       className={cn(
         "fixed bottom-6 right-6 z-40 inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-3 text-sm font-medium text-primary-foreground shadow-lg transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
         className,

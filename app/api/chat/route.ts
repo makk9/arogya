@@ -1,4 +1,4 @@
-import { convertToModelMessages, type UIMessage } from "ai";
+import { convertToModelMessages, type ModelMessage, type UIMessage } from "ai";
 
 import { runSynthesis } from "@/lib/agents/synthesis";
 import { AgentError } from "@/lib/agents/_shared/errors";
@@ -34,7 +34,7 @@ export async function POST(req: Request): Promise<Response> {
   // want ModelMessages. convertToModelMessages does the strict shape validation
   // the boundary schema intentionally skips — a malformed parts array throws
   // here and surfaces as a 400 rather than a 500.
-  let modelMessages;
+  let modelMessages: ModelMessage[];
   try {
     modelMessages = await convertToModelMessages(parsed.data.messages as UIMessage[]);
   } catch {
