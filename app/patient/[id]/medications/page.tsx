@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AskAiButton } from "@/components/ask-ai-button";
+import { MEDICATIONS_LIST_SURFACE } from "@/lib/chat/surface-context";
 import { MedicationCard } from "@/components/medications/medication-card";
 import { MedicationEmptyState } from "@/components/medications/medication-empty-state";
 import { MedicationFilters } from "@/components/medications/medication-filters";
@@ -181,7 +182,7 @@ export default async function MedicationsListPage({
         />
       )}
 
-      <AskAiButton />
+      <AskAiButton surfaceContext={MEDICATIONS_LIST_SURFACE} />
     </main>
   );
 }

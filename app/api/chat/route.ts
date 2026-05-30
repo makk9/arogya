@@ -1,4 +1,4 @@
-import type { ModelMessage } from "ai";
+import { convertToModelMessages, type UIMessage } from "ai";
 
 import { runSynthesis } from "@/lib/agents/synthesis";
 import { AgentError } from "@/lib/agents/_shared/errors";
@@ -30,12 +30,21 @@ export async function POST(req: Request): Promise<Response> {
   // CLAUDE.md tripwire ("All auth flows through getCurrentUser/Patient").
   const { patientId } = await getCurrentPatient();
 
+  // The client (useChat) sends UIMessages with `parts`; runSynthesis/streamText
+  // want ModelMessages. convertToModelMessages does the strict shape validation
+  // the boundary schema intentionally skips — a malformed parts array throws
+  // here and surfaces as a 400 rather than a 500.
+  let modelMessages;
+  try {
+    modelMessages = await convertToModelMessages(parsed.data.messages as UIMessage[]);
+  } catch {
+    return apiError("validation_failed", "Invalid chat messages");
+  }
+
   try {
     const result = await runSynthesis({
       patientId,
-      // Cast: Zod validates role + presence of content; ModelMessage's strict
-      // discriminated union is enforced by the AI SDK downstream.
-      messages: parsed.data.messages as ModelMessage[],
+      messages: modelMessages,
       surfaceContext: parsed.data.surfaceContext,
     });
     return result.toUIMessageStreamResponse();

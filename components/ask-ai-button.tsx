@@ -1,22 +1,32 @@
+"use client";
+
+import { useChatDrawer } from "@/components/chat/chat-drawer-provider";
 import { cn } from "@/lib/utils";
 
 /*
- * Placeholder for the global floating Ask AI button (design.md 6.4 + 6.5 +
- * the wiki-surface global pattern). Full chat wiring is Phase C item 6.
+ * Global floating Ask AI button (design.md 6.4:1354 + 6.5) — opens the chat
+ * drawer with this surface's context pre-loaded (5.3), keeping the page visible
+ * behind the slide-over. Renders on every state/event list + detail page; never
+ * on the dashboard, chat, onboarding, extraction-confirmation, structured-form,
+ * or settings surfaces (6.4:1356).
  *
- * `aria-disabled` + visual demotion signal the placeholder state without
- * "coming soon" copy (which 7.1 prohibits). aria-disabled is machine-
- * readable state, not user-facing copy — keyboard and screen-reader users
- * get accurate feedback that the affordance is inert; sighted users see a
- * muted treatment instead of a fully active-looking button.
+ * `surfaceContext` is built by the page (it already holds the entity) and passed
+ * in; the drawer tags each message with it. Undefined → no surface bias.
  */
-export function AskAiButton({ className }: { className?: string }) {
+export function AskAiButton({
+  surfaceContext,
+  className,
+}: {
+  surfaceContext?: string;
+  className?: string;
+}) {
+  const { openChat } = useChatDrawer();
   return (
     <button
       type="button"
-      aria-disabled
+      onClick={() => openChat(surfaceContext)}
       className={cn(
-        "fixed bottom-6 right-6 z-40 inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-3 text-sm font-medium text-primary-foreground shadow-lg transition-colors opacity-60 cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+        "fixed bottom-6 right-6 z-40 inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-3 text-sm font-medium text-primary-foreground shadow-lg transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
         className,
       )}
     >
