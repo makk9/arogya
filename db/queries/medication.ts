@@ -13,6 +13,7 @@ import {
   type NewMedication,
 } from "@/db/schema";
 import { todayInTimezone } from "@/lib/datetime";
+import { slugify } from "@/lib/agents/_shared/serializers/format";
 
 type MedicationStatus = (typeof medicationStatus.enumValues)[number];
 type MedicationChangeField = (typeof medicationChangeField.enumValues)[number];
@@ -96,6 +97,22 @@ export const medicationQueries = {
       .where(and(eq(medications.id, id), eq(medications.patientId, patientId)))
       .limit(1);
     return rows[0] ?? null;
+  },
+
+  // Resolves a citation-pill slug (the `slugify(name)` half of `med:<slug>`)
+  // back to a medication. Powers the chat citation-pill popover (Phase C item 7):
+  // pills carry `slugify(name)`, not the UUID, so this is the slug→entity bridge.
+  //
+  // Match logic reuses the same `slugify()` the serializer used to emit the slug,
+  // so it round-trips by construction. Known limitation: the cross-vault `-2`/`-3`
+  // collision suffixes assigned in vault-context.ts are NOT reproduced here. A
+  // base slug resolves to the FIRST matching med; a suffixed citation (e.g.
+  // `med:amlodipine-2`) matches no name and returns null — so the popover shows
+  // "not in the record" even though the med exists. Acceptable for single-patient
+  // v1 (names are unique in practice); faithful disambiguation is a v1.5 item.
+  async bySlug(patientId: string, slug: string): Promise<Medication | null> {
+    const rows = await medicationQueries.forPatient(patientId);
+    return rows.find((m) => slugify(m.name) === slug) ?? null;
   },
 
   async create(values: NewMedication): Promise<Medication> {
