@@ -44,7 +44,7 @@ Extraction agent + upload pipeline + confirmation surface · Onboarding (agent +
 - 2026-05-31 — **Verified three ways:** `tsc`+`eslint` clean; smoke 6/6 on edge-case names (apostrophe `Lo'Loestrin Fe`, parens `Lipitor (atorvastatin)`, caps, accent `Lévothyrox`); resolver curl'd live against the running server (200 incl. multi-word + discontinued, 404 miss, 400 invalid slug); UI click-through confirmed by user (pill→popover→detail page).
 - 2026-05-31 — **/check run + 2 fixes applied:** (1) error state was permanently bricked (`requestedRef` never reset) — now retryable on reopen; (2) `bySlug` comment corrected — a `-N` collision-suffixed citation (`med:x-2`) resolves to null → shows "not in record" (misleading but v1.5-deferred; unique names in single-patient v1).
 - **Confirmed (not a bug):** the floating Ask AI button is absent on the Add-medication form — correct per 6.4:1357 (structured-form surfaces are excluded).
-- **Working tree status:** COMMITTED by user (Phase C.7 — Citation pill popover). Phase C is fully shipped and committed; tree clean. Item 6 committed at `e9958a1`/`f6f6ad7`.
+- **Working tree status:** COMMITTED at `471f4b6` (Phase C.7 — Citation pill popover) on `main`. Phase C fully shipped; tree clean. Item 6 at `e9958a1`/`f6f6ad7`.
 
 ### Next Steps
 1. **Phase C checkpoint 1 — brand-accent decision.** All Phase C surfaces now exist (list, detail, form, drawer, pills) to compare against 7.2 anti-patterns; lock the accent or stay stone (per 2026-05-20 reset).
