@@ -190,9 +190,9 @@ export function ChatDrawerProvider({ children }: { children: ReactNode }) {
               messages.map((message) =>
                 message.role === "user" ? (
                   <div key={message.id} className="flex justify-end">
-                    {/* Stone tint stands in for the 6.2 terra/clay user bubble
-                        until the brand accent lands (decisions 2026-05-20). */}
-                    <div className="max-w-[80%] rounded-2xl bg-stone-100 px-4 py-2.5 text-stone-900 ring-1 ring-stone-200">
+                    {/* Periwinkle-tinted user bubble (the 6.2 accent slot).
+                        Periwinkle locked 2026-05-31; supersedes the stone stand-in. */}
+                    <div className="max-w-[80%] rounded-2xl bg-accent px-4 py-2.5 text-accent-foreground ring-1 ring-accent-foreground/15">
                       {textOf(message)}
                     </div>
                   </div>

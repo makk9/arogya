@@ -5,7 +5,7 @@
 
 ---
 
-## Current Phase: Phase C COMPLETE — checkpoint 1 (brand accent) + Phase D next
+## Current Phase: Phase D — Replicate Pattern (active) · checkpoint 1 (brand accent) ✓ periwinkle locked
 
 ### Phase A (complete)
 - [x] 1-7. Foundation shipped (see decisions.md 2026-05-11/12 entries).
@@ -19,17 +19,34 @@
 - [x] 6. Router — `lib/agents/router.ts` + `scripts/check-router.ts`. Haiku 4.5, direct SDK, no vault context, 3-bucket confidence. Smoke green (6/6 cases, ~1s latency per call).
 - [x] 7. Citation parser — `lib/citations/{parse,remark-plugin}.ts` + `components/{citation-pill,ai-message}.tsx` + `scripts/check-citation-parser.ts`. react-markdown + custom remark plugin → inert pills with `data-*` attrs for Phase C handoff. Smoke green (10/10 cases incl. round-trip against `citationFor()`).
 
-### Phase C — First Vertical Slice (Medication)
-- [x] 1. Medication API routes — `app/api/medications/{route,[id]/route,[id]/discontinue/route}.ts` + `lib/schemas/api/medication.ts`. Path-less routes (auth-derived patientId), PATCH refuses clinical fields with per-field details, transactional discontinue with timezone-aware date, `invalid_state_transition` (409) error code added.
-- [x] 2. Medication form — shadcn/ui init (base-nova, stone base), `components/medications/medication-form.tsx`, `lib/schemas/forms/medication.ts` derived from API schema via `.extend()`. Stone-only palette (accent deferred to checkpoint 1).
-- [x] 3. Medications list page — state list template per 6.4. Server page (parallel fetch + Map denormalization), client islands for filters + section-collapse, RSC card + empty-state, inert Ask AI placeholder. Hybrid filter state (URL params + useState). PAUSED group between ACTIVE/DISCONTINUED.
-- [x] 4. Medication detail page — state entity detail template per 6.5. Server `app/patient/[id]/medications/[medicationId]/page.tsx` (5-way parallel fetch + Map denormalization + narrow lookups + server-prerendered entry arrays); 8 components (detail-header, current-section, history-section client island, change-entry, linked-context, notes-section, actions-menu, discontinue-dialog); `medicationChangeQueries.forMedication` (patient-scoped); 3 datetime helpers (`formatAbsoluteDate`, `formatRelative`, `formatRelativeAndAbsolute`); shadcn `dropdown-menu`. Locked refinements: collapse only when `changes > 5`; `…` menu omitted when status=discontinued; Notes omitted when empty; 409→OK→router.refresh. /check polish landed (D1, E1-E6).
-- [x] 5. Inline editing + change-log entry creation — `POST /api/medications/[id]/changes` route + transactional `medicationChangeQueries.create` (mirrors discontinue's pattern, throws `MedicationDomainError` for `medication_discontinued`/`invalid_status_transition`/`linked_entity_invalid`); `createMedicationChangeSchema` (discriminated union) + `medicationChangeFormSchema`; 6 new components (`medication-detail-shell`, `medication-log-change-dialog`, `inline-field`, `medication-edit-context`, `medication-log-change-context`, `medication-options`); 3 modified sections converted to client (`detail-header`, `current-section`, `notes-section`); History section gets `+ Log a change` button; `changedAt` coerced to noon UTC. Smoke green (13 curl cases). /check polish landed (D2 layout, E2 empty row, E6 decisions log, E7 S22 split).
-- [x] 6. Floating Ask AI button + chat drawer — `components/chat/chat-drawer-provider.tsx` (patient-layout-hosted single persistent `useChat` thread) + `app/patient/[id]/layout.tsx` + `components/ui/sheet.tsx` (Base UI slide-over) + `AskAiButton`→client drawer trigger + `lib/chat/surface-context.ts` (pure builders) + `/api/chat` UIMessage→ModelMessage bridge (`convertToModelMessages`) + `@ai-sdk/react` dep. Non-modal + no backdrop + push layout (content reflows left, stays fully visible) + pinned (ignores outside-press; only Close/Escape dismiss). One thread across patient; `surfaceContext` rides each message body. Browser-verified (Playwright→system Chrome).
-- [x] 7. Citation pill popover — `components/citation-pill.tsx` (now `"use client"`) + shadcn `popover` (Base UI) + `medicationQueries.bySlug` + `app/api/medications/by-slug/[slug]/route.ts` + `scripts/check-citation-pill-resolve.ts`. Med pills click→Popover (fetch-on-open, name/dose·freq/status, `View full →` closes popover, drawer stays open). Non-med + external pills stay inert (Phase D). Resolver matches `slugify(name)` (no stored slug). Smoke 6/6, endpoint verified live (5 paths), UI verified by user. /check fixes landed (error-retry, collision doc).
+### Phase C — First Vertical Slice (Medication) ✓ COMPLETE — reference impl for Phase D
+- [x] 1. API routes — `app/api/medications/*` + `lib/schemas/api/medication.ts` (path-less, auth-derived patientId; PATCH refuses clinical fields; transactional `/discontinue` + `/changes`; `/by-slug/[slug]` resolver matches `slugify(name)`, no stored slug).
+- [x] 2-3. Form (`components/medications/medication-form.tsx`, RHF+Zod, 6.12; `lib/schemas/forms/medication.ts` via `.extend()`) + list page (6.4: server fetch + Map denormalization, client islands for filters/section-collapse).
+- [x] 4-5. Detail page (6.5: 5 sections, parallel fetch, 8+ components; collapse only when changes>5, `…` omitted when discontinued, Notes omitted when empty) + inline-edit (`inline-field`, useState/onBlur) + `+ Log a change` (transactional change-log write).
+- [x] 6. Ask AI push-drawer — `components/chat/*` + `app/patient/[id]/layout.tsx`; single persistent `useChat` thread across patient, non-modal/no-backdrop/push layout, `surfaceContext` rides each message; `lib/chat/surface-context.ts`.
+- [x] 7. Citation-pill popover — `§ med:<slug>` → fetch-on-open preview (name·dose·freq·status) → `View full →`. Non-med + external pills inert (their detail pages are Phase D).
 
-### Phase D — Replicate Pattern (after C)
-Other state entities · All event entities · Patient profile · Insights feed (placeholder)
+### Phase D — Replicate Pattern (active)
+Reuse Phase C's Medication template. **State entities** → 6.4 list + 6.5 detail + 6.12 form + `*_changes` log (Medication is the reference impl). **Event entities** → NEW templates 6.6 timeline + 6.7 event detail (no change log; Outcomes replaces History; Lab markers read-only). Sequencing: do **Condition** first (proves the state template generalizes beyond Medication), then **Visit** first among events (proves the new event template), then the rest parallelize.
+
+State entities (6.4 + 6.5 + `*_changes`):
+- [ ] Condition — status ACTIVE/CONTROLLED/IN_REMISSION/RESOLVED/SUSPECTED; linked meds + labs
+- [ ] Doctor — list grouped by specialty (not status)
+- [ ] Allergy — straightforward; fewest fields
+- [ ] Lifestyle — singleton (no list page; single profile detail)
+- [ ] FamilyHistory — NO change log; inline-edited; grouped by relation type
+
+Event entities (6.6 + 6.7; no change logs):
+- [ ] Visit — richest; glyph result badges; month-grouped timeline
+- [ ] LabReport + LabResults — read-only MARKERS table + `+ Log a correction`
+- [ ] Symptom (Type + Episode) — timeline grouped by type, not month
+- [ ] Report — PDF preview; extracted-entity outcomes
+- [ ] JournalEntry — no Outcomes/Notes sections
+- [ ] VitalReading — routes + form only; NO timeline page (surfaces as `●` pills on episodes)
+
+Standalone surfaces:
+- [ ] Patient profile — 6.10 (state-detail variation)
+- [ ] Insights feed + detail — 6.8 + 6.9; placeholder data (generation is Phase E)
 
 ### Phase E — AI-Driven Flows (after D)
 Extraction agent + upload pipeline + confirmation surface · Onboarding (agent + surface) · Insight generator · Auto-titling · Doctor brief
@@ -39,6 +56,7 @@ Extraction agent + upload pipeline + confirmation surface · Onboarding (agent +
 ---
 
 ### Last Session
+- 2026-05-31 — **Phase C checkpoint 1 RESOLVED: brand accent = periwinkle** (muted blue-violet, oklch hue 277). A *recorded deviation* from §7.2 "not clinical-blue" — validated live across all 5 Phase C surfaces before committing; reads calm, not clinical. Token swap in `app/globals.css` (accent-bearing tokens only; warm-stone neutrals unchanged — pairing judged harmonious). Vault citation pills + chat user-bubble wired to the accent tint; external `↗` pills stay neutral stone; `View full →` link → `text-primary`. `--destructive` stays red. Dark mode derived, NOT yet visually validated (light-first). Full rationale: decisions.md 2026-05-31; §7.2 doc note applied. `tsc`+`eslint` clean.
 - 2026-05-31 — **Phase C item 7 shipped: citation pill popover — Phase C is now COMPLETE.** `§ med:<slug>` pills are clickable → Base UI Popover with entity preview (name · dose·freq · status) + `View full →` to the detail page. New: `medicationQueries.bySlug` (matches `slugify(name)` — meds have **no stored slug**), `GET /api/medications/by-slug/[slug]` (returns preview + `patientId`, since the drawer is global and pills can't assume the route), shadcn `components/ui/popover.tsx`, `scripts/check-citation-pill-resolve.ts`. `citation-pill.tsx` is now `"use client"`; non-med vault + external pills deliberately stay inert (their detail pages are Phase D).
 - 2026-05-31 — **Interaction:** fetch-on-open-CLICK (not hover, not mount) — Base UI Popover, result cached via `requestedRef`; transient errors drop the guard so reopen retries. `View full →` closes the popover but **leaves the drawer open** — its push/squeeze + persist-across-nav design makes navigating-with-drawer-open the intended pattern, not overlay confusion. Palette stays stone-only (2026-05-20 reset); the pill's old "pick earth-tones at item 7" comment was superseded + removed.
 - 2026-05-31 — **Verified three ways:** `tsc`+`eslint` clean; smoke 6/6 on edge-case names (apostrophe `Lo'Loestrin Fe`, parens `Lipitor (atorvastatin)`, caps, accent `Lévothyrox`); resolver curl'd live against the running server (200 incl. multi-word + discontinued, 404 miss, 400 invalid slug); UI click-through confirmed by user (pill→popover→detail page).
@@ -47,9 +65,9 @@ Extraction agent + upload pipeline + confirmation surface · Onboarding (agent +
 - **Working tree status:** COMMITTED at `471f4b6` (Phase C.7 — Citation pill popover) on `main`. Phase C fully shipped; tree clean. Item 6 at `e9958a1`/`f6f6ad7`.
 
 ### Next Steps
-1. **Phase C checkpoint 1 — brand-accent decision.** All Phase C surfaces now exist (list, detail, form, drawer, pills) to compare against 7.2 anti-patterns; lock the accent or stay stone (per 2026-05-20 reset).
-2. **Start Phase D** — replicate the medication template across the other state entities + event entities + patient profile + insights-feed placeholder.
-3. **Apply queued doc-fixes to design.md** (the §6.5 / §6.2 / §6.4 items in Open Questions) so the spec stops contradicting shipped reality.
+1. **Start Phase D** — replicate the medication template across the other state entities + event entities + patient profile + insights-feed placeholder. Build against the now-settled periwinkle palette. Begin with **Condition** (proves the state template generalizes).
+2. **Apply queued doc-fixes to design.md** (the §6.5 / §6.2 / §6.4 items in Open Questions) so the spec stops contradicting shipped reality. (§7.2 no-blue note already applied this session.)
+3. **Periwinkle dark-mode pass (deferred, v1.5).** No theme system is wired — nothing sets the `.dark` class, so the dark block never activates (dead code until a toggle exists; dark mode is out of v1 scope). Periwinkle dark values are derived, not validated; revisit only if/when a theme toggle lands.
 
 ### Open Questions / Blockers
 - **Pending doc-fixes (apply alongside next design.md edit):** (§6.5) permit Notes omission when empty + broaden "Edit toggles Current-section fields" to all non-clinical fields (clinical route through + Log a change); (§6.2/§6.4) floating Ask AI opens a **context-preserving push drawer** (non-modal, no backdrop), NOT full-screen nav — three-column rail "Chat" surface + chat persistence-across-refresh remain Phase D (no chat-session table in v1).

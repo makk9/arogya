@@ -2128,7 +2128,7 @@ Color, typography, spacing, components, iconography, and motion are all delegate
 **Color guidance (not prescription):**
 
 The brand foundation in 7.1 rules out specific directions but doesn't prescribe one:
-- *Not* a clinical-blue palette (rules out the typical health-app aesthetic)
+- *Not* a clinical-blue palette (rules out the typical health-app aesthetic) — *targets saturated clinical/techy blue (hue ~230–250). See the "Accent locked" note below: a muted blue-violet (periwinkle) was judged outside this failure mode and chosen as the accent.*
 - *Not* a wellness-green palette (rules out the typical mindfulness-app aesthetic)
 - *Not* a startup-orange or terra/clay palette (avoids confusion with Anthropic/Claude visual identity)
 - *Not* corporate gray or pure-white sterility
@@ -2140,6 +2140,8 @@ Within those rules, the agent picks a palette that fits the mood: **calm, carefu
 - Restrained severity colors — desaturated brick-red for urgent, muted golden-amber for attention, used sparingly
 - No green for "positive feedback" semantics (use neutral checkmarks)
 - No blue for links (use the brand accent in a darker shade)
+
+**Accent locked — periwinkle (2026-05-31, Phase C checkpoint 1):** After three picks died in the wellness-green register (seafoam → sage → emerald) and a stone-only interim baseline (2026-05-20 reset), the accent is **periwinkle** — a muted blue-violet, oklch hue 277 (`--primary` = `oklch(0.52 0.097 277)` / `#5b63a0`, with a `oklch(0.96 0.017 277)` tint for soft fills). This is a *deliberate, recorded deviation* from "not clinical-blue" / "no deep blues": the anti-pattern targets saturated clinical blue, and periwinkle at this lightness/chroma was validated live across all five Phase C surfaces (list, detail, form, drawer, pills) as reading calm rather than clinical or techy. It sits on the existing warm-stone neutrals (no neutral rework — the warm/cool pairing was judged harmonious). Vault citation pills carry the accent tint; external `↗` pills stay neutral stone. Severity stays desaturated red. Full rationale + token mapping: decisions.md 2026-05-31. (Dark-mode values are derived, not yet visually validated — v1 ships light-first.)
 
 **Other visual decisions (full delegation):**
 

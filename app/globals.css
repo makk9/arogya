@@ -29,6 +29,7 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-link: var(--link);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -43,12 +44,16 @@
 }
 
 /*
- * Palette: stone-only warm neutrals. Brand-accent decision deferred until we
- * have more surfaces to validate against (per the 2026-05-20 reset — sage
- * primary read too green against 7.2:2131 anti-patterns). Primary, accent,
- * ring all use Tailwind stone values so confident dark-warm-on-cream contrast
- * carries "click me" without committing to a brand accent. Severity
- * (destructive) stays desaturated red per 7.2.
+ * Palette: periwinkle accent on warm-stone neutrals. Locked 2026-05-31 at Phase C
+ * checkpoint 1 (supersedes the 2026-05-20 stone-only reset). Periwinkle is a muted
+ * blue-violet (hue 277) — a deliberate, recorded deviation from 7.2:2131 "not
+ * clinical-blue" / 7.1 "no deep blues": at this lightness/chroma it read as calm,
+ * not clinical or techy, when validated live across all Phase C surfaces (see
+ * decisions.md 2026-05-31 + design.md 7.2). Accent-bearing tokens (--primary,
+ * --accent, --accent-foreground, --ring) carry periwinkle; the warm-stone neutrals
+ * stay warm (validated as harmonious — no neutral cooling needed). Severity
+ * (--destructive) stays desaturated red per 7.2.
+ * Periwinkle scale (hue 277): 50 #eff1fd · 300 #a6aeda · 400 #828bc2 · 500 #5b63a0 · 600 #41477c.
  */
 :root {
   --background: oklch(0.985 0.004 80);
@@ -57,18 +62,19 @@
   --card-foreground: oklch(0.25 0.012 70);
   --popover: oklch(0.99 0.003 80);
   --popover-foreground: oklch(0.25 0.012 70);
-  --primary: oklch(0.374 0.01 67.558);          /* stone-700 */
-  --primary-foreground: oklch(0.985 0.001 106.423); /* stone-50 */
+  --primary: oklch(0.52 0.097 277);             /* periwinkle 500 #5b63a0 */
+  --primary-foreground: oklch(0.985 0.001 106.423); /* near-white; passes on periwinkle 500 */
+  --link: oklch(0.41 0.08 277);                 /* periwinkle 600 #41477c — links: a darker shade of the accent per 7.2:2142 */
   --secondary: oklch(0.95 0.006 80);
   --secondary-foreground: oklch(0.3 0.012 70);
   --muted: oklch(0.95 0.006 80);
   --muted-foreground: oklch(0.5 0.012 70);
-  --accent: oklch(0.97 0.001 106.424);          /* stone-100 */
-  --accent-foreground: oklch(0.374 0.01 67.558); /* stone-700 */
+  --accent: oklch(0.96 0.017 277);              /* periwinkle 50 #eff1fd — tint */
+  --accent-foreground: oklch(0.41 0.08 277);    /* periwinkle 600 #41477c */
   --destructive: oklch(0.55 0.18 27);
   --border: oklch(0.9 0.008 80);
   --input: oklch(0.9 0.008 80);
-  --ring: oklch(0.553 0.013 58.071);            /* stone-500 */
+  --ring: oklch(0.62 0.08 277);                 /* periwinkle 400 #828bc2 */
   --radius: 0.625rem;
 }
 
@@ -79,18 +85,21 @@
   --card-foreground: oklch(0.95 0.005 80);
   --popover: oklch(0.22 0.008 70);
   --popover-foreground: oklch(0.95 0.005 80);
-  --primary: oklch(0.869 0.005 56.366);         /* stone-300 */
-  --primary-foreground: oklch(0.216 0.006 56.043); /* stone-900 */
+  /* Dark mode derived from the light periwinkle ramp (inverted lightness, same
+     hue 277); not yet visually validated — v1 ships light-first. */
+  --primary: oklch(0.76 0.064 277);             /* periwinkle 300 #a6aeda — light for dark bg */
+  --primary-foreground: oklch(0.22 0.04 277);   /* deep periwinkle, text on light primary */
+  --link: oklch(0.76 0.064 277);                /* periwinkle 300 — lighter for dark bg */
   --secondary: oklch(0.28 0.008 70);
   --secondary-foreground: oklch(0.95 0.005 80);
   --muted: oklch(0.28 0.008 70);
   --muted-foreground: oklch(0.7 0.008 80);
-  --accent: oklch(0.268 0.007 34.298);          /* stone-800 */
-  --accent-foreground: oklch(0.923 0.003 48.717); /* stone-200 */
+  --accent: oklch(0.30 0.03 277);               /* deep periwinkle tint */
+  --accent-foreground: oklch(0.85 0.04 277);    /* light periwinkle text */
   --destructive: oklch(0.65 0.18 27);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.709 0.01 56.259);             /* stone-400 */
+  --ring: oklch(0.70 0.07 277);                 /* periwinkle (mechanically mirrored) */
 }
 
 @layer base {

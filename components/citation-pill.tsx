@@ -11,11 +11,11 @@
  * until Phase D, so a popover would dead-end. As more state-entity detail pages
  * land, extend the interactive branch.
  *
- * Color: stone-only neutrals, intentionally. The brand accent is deferred per
- * the 2026-05-20 palette reset (see app/globals.css + decisions.md); the pill
- * stays on neutral tokens — vault and external remain distinguishable by their
- * two near-identical grays — until a brand accent is locked. Do not introduce a
- * new pill color before that decision.
+ * Color: vault pills carry the periwinkle brand accent (the `--accent` tint with
+ * `--accent-foreground` text); external `↗` pills stay neutral stone. The split is
+ * semantic — a vault citation points inside the record (brand-tinted), an external
+ * citation points outside it (neutral). Periwinkle locked 2026-05-31 (see
+ * app/globals.css + decisions.md); supersedes the 2026-05-20 stone-only reset.
  */
 
 import Link from "next/link";
@@ -45,7 +45,7 @@ export type CitationPillProps = VaultPillProps | ExternalPillProps;
 // Shared base styling so the interactive med pill is visually identical to the
 // inert spans — the popover affordance is the only difference.
 const VAULT_PILL_CLASS =
-  "inline-flex items-baseline rounded-full bg-stone-100 px-2 py-0.5 font-mono text-[0.85em] text-stone-700 ring-1 ring-stone-200";
+  "inline-flex items-baseline rounded-full bg-accent px-2 py-0.5 font-mono text-[0.85em] text-accent-foreground ring-1 ring-accent-foreground/15";
 
 export function CitationPill(props: CitationPillProps): ReactNode {
   if (props.variant === "external") {
@@ -149,7 +149,7 @@ function MedCitationPill({
         data-citation-type="vault"
         data-entity-type="med"
         data-slug={slug}
-        className={`${VAULT_PILL_CLASS} cursor-pointer transition-colors hover:bg-stone-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-400`}
+        className={`${VAULT_PILL_CLASS} cursor-pointer transition-colors hover:ring-accent-foreground/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring`}
       >
         {children}
       </PopoverTrigger>
@@ -185,7 +185,7 @@ function MedCitationPill({
             <Link
               href={`/patient/${preview.patientId}/medications/${preview.id}`}
               onClick={() => setOpen(false)}
-              className="text-stone-700 underline-offset-4 hover:underline"
+              className="text-link underline-offset-4 hover:underline"
             >
               View full →
             </Link>
