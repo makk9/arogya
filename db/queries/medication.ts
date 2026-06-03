@@ -2,18 +2,17 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
-  doctors,
   medicationChanges,
   medicationChangeField,
   medications,
   medicationStatus,
-  visits,
   type Medication,
   type MedicationChange,
   type NewMedication,
 } from "@/db/schema";
 import { todayInTimezone } from "@/lib/datetime";
 import { slugify } from "@/lib/agents/_shared/serializers/format";
+import { conditionInScope, doctorInScope, visitInScope } from "./_shared";
 
 type MedicationStatus = (typeof medicationStatus.enumValues)[number];
 type MedicationChangeField = (typeof medicationChangeField.enumValues)[number];
@@ -115,7 +114,29 @@ export const medicationQueries = {
     return rows.find((m) => slugify(m.name) === slug) ?? null;
   },
 
+  // Validates FK targets are in patient scope before insert (so a bad/foreign id
+  // returns a mapped 400, not a Postgres FK-violation 500, and can't reference
+  // another patient's records). /changes enforces the same on prescribing-doctor
+  // changes; create owns prescribingDoctor + purpose.
   async create(values: NewMedication): Promise<Medication> {
+    if (
+      values.prescribingDoctor &&
+      !(await doctorInScope(values.patientId, values.prescribingDoctor))
+    ) {
+      throw new MedicationDomainError("linked_entity_invalid", {
+        field: "prescribingDoctor",
+        reason: "doctor_not_found",
+      });
+    }
+    if (
+      values.purpose &&
+      !(await conditionInScope(values.patientId, values.purpose))
+    ) {
+      throw new MedicationDomainError("linked_entity_invalid", {
+        field: "purpose",
+        reason: "condition_not_found",
+      });
+    }
     const [row] = await db.insert(medications).values(values).returning();
     return row;
   },
@@ -308,39 +329,22 @@ export const medicationChangeQueries = {
         if (current.prescribingDoctor === input.newValue) {
           throw new MedicationDomainError("linked_entity_invalid", {
             field: "newValue",
-            reason: "already the prescribing doctor",
+            reason: "no_op",
           });
         }
-        const [doctor] = await tx
-          .select({ id: doctors.id })
-          .from(doctors)
-          .where(
-            and(eq(doctors.id, input.newValue), eq(doctors.patientId, patientId)),
-          )
-          .limit(1);
-        if (!doctor) {
+        if (!(await doctorInScope(patientId, input.newValue))) {
           throw new MedicationDomainError("linked_entity_invalid", {
             field: "newValue",
-            reason: "doctor not found",
+            reason: "doctor_not_found",
           });
         }
       }
 
       if (input.linkedVisitId) {
-        const [visit] = await tx
-          .select({ id: visits.id })
-          .from(visits)
-          .where(
-            and(
-              eq(visits.id, input.linkedVisitId),
-              eq(visits.patientId, patientId),
-            ),
-          )
-          .limit(1);
-        if (!visit) {
+        if (!(await visitInScope(patientId, input.linkedVisitId))) {
           throw new MedicationDomainError("linked_entity_invalid", {
             field: "linkedVisitId",
-            reason: "visit not found",
+            reason: "visit_not_found",
           });
         }
       }

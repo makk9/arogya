@@ -3,6 +3,7 @@ import { z } from "zod";
 import { medicationQueries } from "@/db/queries/medication";
 import { apiError } from "@/lib/api/error";
 import { getCurrentPatient } from "@/lib/auth";
+import { errorCode, logger } from "@/lib/logger";
 
 // postgres-js (transitively via medicationQueries → @/db) requires Node.
 export const runtime = "nodejs";
@@ -42,7 +43,12 @@ export async function GET(_req: Request, ctx: Ctx): Promise<Response> {
         status: medication.status,
       },
     });
-  } catch {
+  } catch (err) {
+    logger.error({
+      op: "medications.bySlug",
+      code: errorCode(err),
+      ids: { patientId },
+    });
     return apiError("server_error", "Failed to resolve medication");
   }
 }

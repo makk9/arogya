@@ -1,14 +1,12 @@
-import { z } from "zod";
-
 import { medicationQueries } from "@/db/queries/medication";
 import { apiError } from "@/lib/api/error";
+import { parseJsonBody, validateUuidParam } from "@/lib/api/route-helpers";
 import { getCurrentPatient } from "@/lib/auth";
+import { errorCode, logger } from "@/lib/logger";
 import { updateMedicationSchema } from "@/lib/schemas/api/medication";
 
 // postgres-js (transitively imported via medicationQueries → @/db) requires Node.
 export const runtime = "nodejs";
-
-const idPathParamSchema = z.string().uuid();
 
 // PATCH refuses the four medicationChangeField enum fields. Per-field guidance
 // lives here (not in the Zod schema) so the rejection response can carry a
@@ -27,23 +25,8 @@ const CLINICAL_FIELD_GUIDANCE: Record<string, string> = {
 
 type Ctx = { params: Promise<{ id: string }> };
 
-async function validateIdParam(ctx: Ctx): Promise<
-  | { ok: true; id: string }
-  | { ok: false; response: Response }
-> {
-  const { id } = await ctx.params;
-  const parsed = idPathParamSchema.safeParse(id);
-  if (!parsed.success) {
-    return {
-      ok: false,
-      response: apiError("validation_failed", "Invalid medication id"),
-    };
-  }
-  return { ok: true, id: parsed.data };
-}
-
 export async function GET(_req: Request, ctx: Ctx): Promise<Response> {
-  const idCheck = await validateIdParam(ctx);
+  const idCheck = await validateUuidParam(ctx.params, "id", "medication id");
   if (!idCheck.ok) return idCheck.response;
 
   const { patientId } = await getCurrentPatient();
@@ -54,23 +37,25 @@ export async function GET(_req: Request, ctx: Ctx): Promise<Response> {
       return apiError("not_found", "Medication not found");
     }
     return Response.json({ medication });
-  } catch {
+  } catch (err) {
+    logger.error({
+      op: "medications.get",
+      code: errorCode(err),
+      ids: { patientId, medicationId: idCheck.id },
+    });
     return apiError("server_error", "Failed to read medication");
   }
 }
 
 export async function PATCH(req: Request, ctx: Ctx): Promise<Response> {
-  const idCheck = await validateIdParam(ctx);
+  const idCheck = await validateUuidParam(ctx.params, "id", "medication id");
   if (!idCheck.ok) return idCheck.response;
 
   const { patientId } = await getCurrentPatient();
 
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    return apiError("validation_failed", "Request body is not valid JSON");
-  }
+  const body = await parseJsonBody(req);
+  if (!body.ok) return body.response;
+  const raw = body.data;
 
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     return apiError("validation_failed", "Request body must be a JSON object");
@@ -109,13 +94,18 @@ export async function PATCH(req: Request, ctx: Ctx): Promise<Response> {
       return apiError("not_found", "Medication not found");
     }
     return Response.json({ medication });
-  } catch {
+  } catch (err) {
+    logger.error({
+      op: "medications.update",
+      code: errorCode(err),
+      ids: { patientId, medicationId: idCheck.id },
+    });
     return apiError("server_error", "Failed to update medication");
   }
 }
 
 export async function DELETE(_req: Request, ctx: Ctx): Promise<Response> {
-  const idCheck = await validateIdParam(ctx);
+  const idCheck = await validateUuidParam(ctx.params, "id", "medication id");
   if (!idCheck.ok) return idCheck.response;
 
   const { patientId } = await getCurrentPatient();
@@ -126,7 +116,12 @@ export async function DELETE(_req: Request, ctx: Ctx): Promise<Response> {
       return apiError("not_found", "Medication not found");
     }
     return new Response(null, { status: 204 });
-  } catch {
+  } catch (err) {
+    logger.error({
+      op: "medications.delete",
+      code: errorCode(err),
+      ids: { patientId, medicationId: idCheck.id },
+    });
     return apiError("server_error", "Failed to delete medication");
   }
 }

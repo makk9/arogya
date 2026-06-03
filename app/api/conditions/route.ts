@@ -1,20 +1,19 @@
-import { MedicationDomainError, medicationQueries } from "@/db/queries/medication";
+import { ConditionDomainError, conditionQueries } from "@/db/queries/condition";
 import { apiError } from "@/lib/api/error";
 import { fieldErrorsFromReason, parseJsonBody } from "@/lib/api/route-helpers";
 import { getCurrentPatient } from "@/lib/auth";
 import { errorCode, logger } from "@/lib/logger";
 import {
-  createMedicationSchema,
-  listMedicationsQuerySchema,
-} from "@/lib/schemas/api/medication";
+  createConditionSchema,
+  listConditionsQuerySchema,
+} from "@/lib/schemas/api/condition";
 
-// postgres-js (transitively imported via medicationQueries → @/db) requires Node.
+// postgres-js (transitively imported via conditionQueries → @/db) requires Node.
 export const runtime = "nodejs";
 
-// create() can reject prescribingDoctor / purpose that are out of patient scope.
+// create() can reject diagnosedBy / managingDoctor that are out of patient scope.
 const CREATE_LINKED_ENTITY_MESSAGES: Record<string, string> = {
   doctor_not_found: "Doctor not found in this patient's record.",
-  condition_not_found: "Condition not found in this patient's record.",
 };
 
 export async function GET(req: Request): Promise<Response> {
@@ -22,7 +21,7 @@ export async function GET(req: Request): Promise<Response> {
 
   const url = new URL(req.url);
   const statusParam = url.searchParams.get("status");
-  const queryParsed = listMedicationsQuerySchema.safeParse(
+  const queryParsed = listConditionsQuerySchema.safeParse(
     statusParam !== null ? { status: statusParam } : {},
   );
   if (!queryParsed.success) {
@@ -34,13 +33,13 @@ export async function GET(req: Request): Promise<Response> {
   }
 
   try {
-    const medications = queryParsed.data.status
-      ? await medicationQueries.byStatus(patientId, queryParsed.data.status)
-      : await medicationQueries.forPatient(patientId);
-    return Response.json({ medications });
+    const conditions = queryParsed.data.status
+      ? await conditionQueries.byStatus(patientId, queryParsed.data.status)
+      : await conditionQueries.forPatient(patientId);
+    return Response.json({ conditions });
   } catch (err) {
-    logger.error({ op: "medications.list", code: errorCode(err), ids: { patientId } });
-    return apiError("server_error", "Failed to list medications");
+    logger.error({ op: "conditions.list", code: errorCode(err), ids: { patientId } });
+    return apiError("server_error", "Failed to list conditions");
   }
 }
 
@@ -50,7 +49,7 @@ export async function POST(req: Request): Promise<Response> {
   const body = await parseJsonBody(req);
   if (!body.ok) return body.response;
 
-  const parsed = createMedicationSchema.safeParse(body.data);
+  const parsed = createConditionSchema.safeParse(body.data);
   if (!parsed.success) {
     return apiError(
       "validation_failed",
@@ -60,11 +59,11 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   try {
-    const medication = await medicationQueries.create({ ...parsed.data, patientId });
-    return Response.json({ medication }, { status: 201 });
+    const condition = await conditionQueries.create({ ...parsed.data, patientId });
+    return Response.json({ condition }, { status: 201 });
   } catch (err) {
     if (
-      err instanceof MedicationDomainError &&
+      err instanceof ConditionDomainError &&
       err.kind === "linked_entity_invalid"
     ) {
       return apiError(
@@ -73,7 +72,7 @@ export async function POST(req: Request): Promise<Response> {
         fieldErrorsFromReason(err.meta ?? {}, CREATE_LINKED_ENTITY_MESSAGES),
       );
     }
-    logger.error({ op: "medications.create", code: errorCode(err), ids: { patientId } });
-    return apiError("server_error", "Failed to create medication");
+    logger.error({ op: "conditions.create", code: errorCode(err), ids: { patientId } });
+    return apiError("server_error", "Failed to create condition");
   }
 }

@@ -1,63 +1,43 @@
-import { z } from "zod";
-
 import {
   MedicationDomainError,
   medicationChangeQueries,
 } from "@/db/queries/medication";
 import { apiError } from "@/lib/api/error";
+import {
+  coerceChangedAt,
+  fieldErrorsFromReason,
+  parseJsonBody,
+  validateUuidParam,
+} from "@/lib/api/route-helpers";
 import { getCurrentPatient, getCurrentUser } from "@/lib/auth";
+import { errorCode, logger } from "@/lib/logger";
 import { createMedicationChangeSchema } from "@/lib/schemas/api/medication";
 
 // postgres-js (transitively imported via medicationChangeQueries → @/db)
 // requires Node.
 export const runtime = "nodejs";
 
-const idPathParamSchema = z.string().uuid();
+// linked_entity_invalid reason codes → per-field messages (the shared
+// fieldErrorsFromReason routes each under its offending field for RHF setError).
+const LINKED_ENTITY_MESSAGES: Record<string, string> = {
+  doctor_not_found: "Doctor not found in this patient's record.",
+  no_op: "This doctor is already the prescribing doctor.",
+  visit_not_found: "Visit not found in this patient's record.",
+};
 
 type Ctx = { params: Promise<{ id: string }> };
 
-// changedAt arrives as YYYY-MM-DD (date-only). Schema is timestamptz. Per
-// approved plan, coerce to noon UTC — safe from day-boundary flips in any
-// patient timezone Pune-eastward and clinically equivalent to "logged on this
-// day" for backdated entries. A clinical-fidelity refinement (noon in patient
-// tz via a sibling of todayInTimezone) is queued for when we revisit
-// lib/datetime.ts for date-fns or DST-aware display arithmetic.
-function coerceChangedAt(dateStr: string | undefined): Date | undefined {
-  if (!dateStr) return undefined;
-  return new Date(`${dateStr}T12:00:00Z`);
-}
-
-// Map linked_entity_invalid → per-field fieldErrors so RHF setError can route
-// the message under the right input.
-function fieldErrorsFromLinkedEntityMeta(meta: {
-  field?: string;
-  reason?: string;
-}): { fieldErrors: Record<string, string[]> } {
-  const field = meta.field ?? "newValue";
-  const message = meta.reason
-    ? `Couldn't use that — ${meta.reason}.`
-    : "Couldn't use that value.";
-  return { fieldErrors: { [field]: [message] } };
-}
-
 export async function POST(req: Request, ctx: Ctx): Promise<Response> {
-  const { id: rawId } = await ctx.params;
-  const idParsed = idPathParamSchema.safeParse(rawId);
-  if (!idParsed.success) {
-    return apiError("validation_failed", "Invalid medication id");
-  }
+  const idCheck = await validateUuidParam(ctx.params, "id", "medication id");
+  if (!idCheck.ok) return idCheck.response;
 
   const { patientId } = await getCurrentPatient();
   const { userId: recordedBy } = await getCurrentUser();
 
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    return apiError("validation_failed", "Request body is not valid JSON");
-  }
+  const body = await parseJsonBody(req);
+  if (!body.ok) return body.response;
 
-  const bodyParsed = createMedicationChangeSchema.safeParse(raw);
+  const bodyParsed = createMedicationChangeSchema.safeParse(body.data);
   if (!bodyParsed.success) {
     return apiError(
       "validation_failed",
@@ -68,18 +48,14 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   const input = bodyParsed.data;
 
   try {
-    const result = await medicationChangeQueries.create(
-      patientId,
-      idParsed.data,
-      {
-        field: input.field,
-        newValue: input.newValue,
-        reason: input.reason,
-        changedAt: coerceChangedAt(input.changedAt),
-        linkedVisitId: input.linkedVisitId,
-        recordedBy,
-      },
-    );
+    const result = await medicationChangeQueries.create(patientId, idCheck.id, {
+      field: input.field,
+      newValue: input.newValue,
+      reason: input.reason,
+      changedAt: coerceChangedAt(input.changedAt),
+      linkedVisitId: input.linkedVisitId,
+      recordedBy,
+    });
     return Response.json(result);
   } catch (err) {
     if (err instanceof MedicationDomainError) {
@@ -107,7 +83,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
         return apiError(
           "validation_failed",
           "Invalid linked entity",
-          fieldErrorsFromLinkedEntityMeta(err.meta ?? {}),
+          fieldErrorsFromReason(err.meta ?? {}, LINKED_ENTITY_MESSAGES),
         );
       }
       if (err.kind === "already_discontinued") {
@@ -120,6 +96,11 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
       const _exhaust: never = err.kind as never;
       void _exhaust;
     }
+    logger.error({
+      op: "medications.change.create",
+      code: errorCode(err),
+      ids: { patientId, medicationId: idCheck.id },
+    });
     return apiError("server_error", "Failed to log medication change");
   }
 }

@@ -1,37 +1,28 @@
-import { z } from "zod";
-
 import {
   MedicationDomainError,
   medicationQueries,
 } from "@/db/queries/medication";
 import { apiError } from "@/lib/api/error";
+import { parseJsonBody, validateUuidParam } from "@/lib/api/route-helpers";
 import { getCurrentPatient } from "@/lib/auth";
+import { errorCode, logger } from "@/lib/logger";
 import { discontinueMedicationSchema } from "@/lib/schemas/api/medication";
 
 // postgres-js (transitively imported via medicationQueries → @/db) requires Node.
 export const runtime = "nodejs";
 
-const idPathParamSchema = z.string().uuid();
-
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function POST(req: Request, ctx: Ctx): Promise<Response> {
-  const { id: rawId } = await ctx.params;
-  const idParsed = idPathParamSchema.safeParse(rawId);
-  if (!idParsed.success) {
-    return apiError("validation_failed", "Invalid medication id");
-  }
+  const idCheck = await validateUuidParam(ctx.params, "id", "medication id");
+  if (!idCheck.ok) return idCheck.response;
 
   const { patientId, timezone } = await getCurrentPatient();
 
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    return apiError("validation_failed", "Request body is not valid JSON");
-  }
+  const body = await parseJsonBody(req);
+  if (!body.ok) return body.response;
 
-  const bodyParsed = discontinueMedicationSchema.safeParse(raw);
+  const bodyParsed = discontinueMedicationSchema.safeParse(body.data);
   if (!bodyParsed.success) {
     return apiError(
       "validation_failed",
@@ -41,11 +32,10 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   }
 
   try {
-    const medication = await medicationQueries.discontinue(
-      patientId,
-      idParsed.data,
-      { ...bodyParsed.data, timezone },
-    );
+    const medication = await medicationQueries.discontinue(patientId, idCheck.id, {
+      ...bodyParsed.data,
+      timezone,
+    });
     return Response.json({ medication });
   } catch (err) {
     if (err instanceof MedicationDomainError) {
@@ -77,6 +67,11 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
         void _exhaust;
       }
     }
+    logger.error({
+      op: "medications.discontinue",
+      code: errorCode(err),
+      ids: { patientId, medicationId: idCheck.id },
+    });
     return apiError("server_error", "Failed to discontinue medication");
   }
 }

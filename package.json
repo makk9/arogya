@@ -18,7 +18,8 @@
     "synthesis:check": "tsx --conditions react-server --env-file=.env.local scripts/check-synthesis.ts",
     "router:check": "tsx --conditions react-server --env-file=.env.local scripts/check-router.ts",
     "citation-parser:check": "tsx scripts/check-citation-parser.ts",
-    "citation-resolve:check": "tsx scripts/check-citation-pill-resolve.ts"
+    "citation-resolve:check": "tsx scripts/check-citation-pill-resolve.ts",
+    "conditions-api:check": "tsx --conditions react-server --env-file=.env.local scripts/check-conditions-api.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.77",
