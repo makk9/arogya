@@ -331,7 +331,28 @@ export function ConditionForm({ patientId }: ConditionFormProps) {
           </Field>
         </div>
 
+        {/* Field order follows 6.12:1844 with the deferred linked-doctor fields
+            removed: Diagnosed on precedes Category. */}
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <Field>
+            <FieldLabel className={FIELD_LABEL_CLASS} htmlFor="diagnosedOn">
+              Diagnosed on
+              <LabelHelper text="native picker" />
+            </FieldLabel>
+            <Input
+              id="diagnosedOn"
+              type="date"
+              aria-invalid={!!errors.diagnosedOn}
+              {...register("diagnosedOn")}
+            />
+            <FieldError
+              errors={
+                errors.diagnosedOn
+                  ? [{ message: errors.diagnosedOn.message }]
+                  : []
+              }
+            />
+          </Field>
           <Field>
             <FieldLabel className={FIELD_LABEL_CLASS} htmlFor="category">
               Category
@@ -362,25 +383,6 @@ export function ConditionForm({ patientId }: ConditionFormProps) {
             <FieldError
               errors={
                 errors.category ? [{ message: errors.category.message }] : []
-              }
-            />
-          </Field>
-          <Field>
-            <FieldLabel className={FIELD_LABEL_CLASS} htmlFor="diagnosedOn">
-              Diagnosed on
-              <LabelHelper text="native picker" />
-            </FieldLabel>
-            <Input
-              id="diagnosedOn"
-              type="date"
-              aria-invalid={!!errors.diagnosedOn}
-              {...register("diagnosedOn")}
-            />
-            <FieldError
-              errors={
-                errors.diagnosedOn
-                  ? [{ message: errors.diagnosedOn.message }]
-                  : []
               }
             />
           </Field>

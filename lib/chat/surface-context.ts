@@ -13,6 +13,8 @@
 
 export const MEDICATIONS_LIST_SURFACE = "The user is viewing the full list of medications.";
 
+export const CONDITIONS_LIST_SURFACE = "The user is viewing the full list of conditions.";
+
 export function medicationSurfaceContext(medication: {
   name: string;
   currentDose: string;
