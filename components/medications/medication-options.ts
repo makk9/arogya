@@ -1,4 +1,7 @@
-import { medicationCategory, medicationForm } from "@/db/schema";
+// Type-only import: the enums are used solely in `typeof X.enumValues` positions
+// below, never at runtime. Keeping this `import type` stops @/db/schema (and the
+// whole DB layer) from being pulled into the client bundle via this options file.
+import type { medicationCategory, medicationForm } from "@/db/schema";
 
 // Shared label maps for medication form + category enums. Consumed by
 // `medication-form.tsx` (the Add Medication form) and by `inline-field.tsx`

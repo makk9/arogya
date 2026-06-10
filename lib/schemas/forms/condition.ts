@@ -37,3 +37,26 @@ export const conditionFormSchema = createConditionSchema
   });
 
 export type ConditionFormValues = z.infer<typeof conditionFormSchema>;
+
+/**
+ * Flat form-side schema for the `+ Log a change` dialog. RHF defaults work
+ * better with a stable shape across `field` changes, so the form schema is
+ * permissive (any newValue string) and the submit handler reparses with the
+ * API's `createConditionChangeSchema` (discriminated union) for sharper
+ * per-field errors before POSTing. Same defense-in-depth pattern as the
+ * Medication change form (medication-change-form / medication-log-change-dialog).
+ *
+ * No `linkedVisitId` — condition_changes has no such column (the Condition
+ * divergence from Medication). The three change fields are the §6.5 Condition
+ * History axes: status / severity / managing-doctor.
+ */
+export const conditionChangeFormSchema = z.object({
+  field: z.enum(["status", "severity", "managing_doctor"]),
+  newValue: z.string().min(1, "Required"),
+  reason: z.string().optional(),
+  changedAt: z.string().optional(),
+});
+
+export type ConditionChangeFormValues = z.infer<
+  typeof conditionChangeFormSchema
+>;

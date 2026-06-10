@@ -1,4 +1,9 @@
-import {
+// Type-only import: the enums are used solely in `typeof X.enumValues` positions
+// below, never at runtime. Keeping this `import type` stops @/db/schema (and the
+// whole DB layer) from being pulled into the client bundle, and avoids the
+// temporal-dead-zone that a runtime edge here caused in early-loaded consumers
+// like citation-pill.tsx.
+import type {
   conditionCategory,
   conditionSeverity,
   conditionStatus,

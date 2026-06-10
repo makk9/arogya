@@ -23,3 +23,12 @@ export function medicationSurfaceContext(medication: {
 }): string {
   return `The user is viewing the medication record for ${medication.name} (${medication.currentDose}, ${medication.currentFrequency}), currently ${medication.status}.`;
 }
+
+export function conditionSurfaceContext(condition: {
+  name: string;
+  status: string;
+  severity: string | null;
+}): string {
+  const severityNote = condition.severity ? `, ${condition.severity}` : "";
+  return `The user is viewing the condition record for ${condition.name}, currently ${condition.status}${severityNote}.`;
+}
