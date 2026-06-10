@@ -325,7 +325,7 @@ export function ConditionLogChangeDialog({
                     name="newValue"
                     render={({ field }) => (
                       <Select
-                        value={field.value || undefined}
+                        value={field.value || null}
                         items={availableStatuses}
                         onValueChange={field.onChange}
                       >
@@ -348,7 +348,7 @@ export function ConditionLogChangeDialog({
                     name="newValue"
                     render={({ field }) => (
                       <Select
-                        value={field.value || undefined}
+                        value={field.value || null}
                         items={SEVERITY_OPTIONS}
                         onValueChange={field.onChange}
                       >
@@ -371,7 +371,7 @@ export function ConditionLogChangeDialog({
                     name="newValue"
                     render={({ field }) => (
                       <Select
-                        value={field.value || undefined}
+                        value={field.value || null}
                         items={availableDoctors.map((d) => ({
                           value: d.id,
                           label: `${displayDoctorName(d.name)} · ${d.specialty}`,

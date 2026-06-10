@@ -141,7 +141,10 @@ export function ConditionInlineField({
     return (
       <div className={cn("flex flex-col gap-1", className)}>
         <Select
-          value={draft || undefined}
+          // null, not undefined: Base UI's controlled empty value is null —
+          // undefined makes the Select uncontrolled, and the first pick flips it
+          // to controlled (console warning).
+          value={draft || null}
           items={CATEGORY_OPTIONS}
           disabled={pending}
           onValueChange={(next) => {
