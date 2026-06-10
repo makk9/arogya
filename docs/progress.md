@@ -31,7 +31,7 @@ Reuse Phase C's Medication template. **State entities** → 6.4 list + 6.5 detai
 **Per-entity build order** (clone Medication files, don't re-derive): schema (`lib/schemas/api/*`) + `db/queries/*` → API routes (curl-smoke green) → form → list page → detail page → inline-edit + change-log. That's Phase C items 1→5. **Items 6-7 are now infra, NOT per-entity work:** the Ask AI drawer is global; citation pills just need a `bySlug` query + `/api/<entity>/by-slug/[slug]` route + a case in the pill resolver. **Shared infra exists (use it, don't re-clone):** `lib/api/route-helpers.ts` (`coerceChangedAt`/`parseJsonBody`/`validateUuidParam`/`fieldErrorsFromReason`), `db/queries/_shared.ts` (`*InScope` FK scope-checks), `lib/logger.ts` (log every server_error catch).
 
 State entities (6.4 + 6.5 + `*_changes`):
-- [x] Condition — **COMPLETE** (API · form · list · detail · inline-edit · +Log a change · Delete · live `§ condition:` pill). 2nd proof the state template generalizes. Detail uncommitted at handoff.
+- [x] Condition — **COMPLETE** (API · form · list · detail · inline-edit · +Log a change · Delete · live `§ condition:` pill). 2nd proof the state template generalizes. Detail shipped `0f34d25`.
 - [ ] Doctor — list grouped by specialty (not status)
 - [ ] Allergy — straightforward; fewest fields
 - [ ] Lifestyle — singleton (no list page; single profile detail)
@@ -62,10 +62,10 @@ Extraction agent + upload pipeline + confirmation surface · Onboarding (agent +
 - **/check applied** — TDZ fix above + 2 §6.5 deviations: linked meds now show a status pill on the right; `△` glyph + flag pill reserved for genuinely flagged labs (`low|high|critical`), not all. Lab-flag render path type-checked only (no lab create API yet).
 - **Gotcha:** Supabase dev DB auto-pauses after ~7 days idle → `ENOTFOUND tenant … not found`; resume in the dashboard (not a code error).
 - **Verified** E2E on the resumed arogya-dev DB (create→render→inline-edit + clinical-reject→change+409→by-slug→linked-context→Delete 204→404+set-null), all on ZZZ-throwaway rows (cleaned). `tsc`+`eslint` green.
-- **Working tree: UNCOMMITTED** — 14 new files + 5 edits (citation-pill, surface-context, forms/condition, both `*-options`, delete-dialog). Commit before starting Doctor.
+- **Committed `0f34d25`** — 20 files (14 new condition components + detail page, 4 edits, 2 docs) on `main`. Working tree clean.
 
 ### Next Steps
-1. **Commit the Condition vertical** (uncommitted), then **Doctor** — full state vertical: list grouped **by specialty** (not status), backlinks from meds/conditions/visits, wire `§ doctor:` pill. **Extract the shared `<EntityList>`/`Section` here** (E2 — Doctor is the 3rd list copy). Unblocks the inert managing/diagnosing-doctor refs in the Condition detail.
+1. **Doctor** — full state vertical: list grouped **by specialty** (not status), backlinks from meds/conditions/visits, wire `§ doctor:` pill. **Extract the shared `<EntityList>`/`Section` here** (E2 — Doctor is the 3rd list copy). Unblocks the inert managing/diagnosing-doctor refs in the Condition detail.
 2. **Then Allergy / Lifestyle / FamilyHistory** parallelize (state; Lifestyle singleton no-list; FamilyHistory no change-log, inline-edited).
 3. **Then Visit** — first event entity; NEW 6.6 timeline + 6.7 detail template (unproven).
 
