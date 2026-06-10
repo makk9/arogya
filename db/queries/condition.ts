@@ -144,6 +144,18 @@ export const conditionQueries = {
     id: string,
     values: ConditionUpdate,
   ): Promise<Condition | null> {
+    // Same scope-check as create(): a PATCHed diagnosedBy must be one of this
+    // patient's doctors. (The FK constraint alone only proves the uuid exists —
+    // it could reference another patient's doctor.)
+    if (
+      values.diagnosedBy &&
+      !(await doctorInScope(patientId, values.diagnosedBy))
+    ) {
+      throw new ConditionDomainError("linked_entity_invalid", {
+        field: "diagnosedBy",
+        reason: "doctor_not_found",
+      });
+    }
     const [row] = await db
       .update(conditions)
       .set(values)

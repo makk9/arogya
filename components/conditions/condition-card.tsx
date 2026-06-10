@@ -6,6 +6,7 @@ import {
 } from "@/components/conditions/condition-options";
 import type { Condition, Doctor } from "@/db/schema";
 import { formatAbsoluteDate } from "@/lib/datetime";
+import { displayDoctorName } from "@/lib/doctor-display";
 
 interface ConditionCardProps {
   patientId: string;
@@ -48,7 +49,9 @@ export function ConditionCard({
     lineTwoParts.push(`since ${formatAbsoluteDate(condition.diagnosedOn)}`);
   }
   if (doctor) {
-    lineTwoParts.push(`managed by Dr ${doctor.name} · ${doctor.specialty}`);
+    lineTwoParts.push(
+      `managed by ${displayDoctorName(doctor.name)} · ${doctor.specialty}`,
+    );
   }
 
   const linkedParts: string[] = [];

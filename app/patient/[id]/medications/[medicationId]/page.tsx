@@ -198,6 +198,7 @@ export default async function MedicationDetailPage({
         />
 
         <MedicationCurrentSection
+          patientId={patient.patientId}
           medication={medication}
           prescribingDoctor={prescribingDoctor}
           treatsCondition={treatsCondition}

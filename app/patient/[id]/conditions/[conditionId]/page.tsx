@@ -141,9 +141,11 @@ export default async function ConditionDetailPage({
         />
 
         <ConditionCurrentSection
+          patientId={patient.patientId}
           condition={condition}
           managingDoctor={managingDoctor}
           diagnosedByDoctor={diagnosedByDoctor}
+          doctorOptions={doctorOptions}
         />
 
         <ConditionHistorySection

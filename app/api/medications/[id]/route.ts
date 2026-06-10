@@ -63,7 +63,9 @@ export async function PATCH(req: Request, ctx: Ctx): Promise<Response> {
 
   const rejectedFields: Record<string, string> = {};
   for (const key of Object.keys(raw)) {
-    if (key in CLINICAL_FIELD_GUIDANCE) {
+    // Object.hasOwn, not `in`: `in` walks the prototype chain, so a body key
+    // like "constructor" would be misread as a guarded field.
+    if (Object.hasOwn(CLINICAL_FIELD_GUIDANCE, key)) {
       rejectedFields[key] = CLINICAL_FIELD_GUIDANCE[key];
     }
   }

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { doctorQueries } from "@/db/queries/doctor";
 import { medicationQueries } from "@/db/queries/medication";
 import { apiError } from "@/lib/api/error";
 import { getCurrentPatient } from "@/lib/auth";
@@ -33,6 +34,12 @@ export async function GET(_req: Request, ctx: Ctx): Promise<Response> {
     if (!medication) {
       return apiError("not_found", "Medication not found");
     }
+    // The prescribing doctor is the demo's cross-doctor field — joined into the
+    // preview now that the Doctor entity exists (closes the Phase C popover
+    // limitation noted in progress.md).
+    const prescriber = medication.prescribingDoctor
+      ? await doctorQueries.getById(patientId, medication.prescribingDoctor)
+      : null;
     return Response.json({
       medication: {
         id: medication.id,
@@ -41,6 +48,9 @@ export async function GET(_req: Request, ctx: Ctx): Promise<Response> {
         currentDose: medication.currentDose,
         currentFrequency: medication.currentFrequency,
         status: medication.status,
+        prescribedBy: prescriber
+          ? { name: prescriber.name, specialty: prescriber.specialty }
+          : null,
       },
     });
   } catch (err) {

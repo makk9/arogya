@@ -29,11 +29,11 @@ interface Props {
  * component re-checking status.
  */
 
-const STATUS_PILL_CLASS: Record<Medication["status"], string> = {
-  active: "bg-emerald-100 text-emerald-800 ring-emerald-200",
-  paused: "bg-amber-100 text-amber-800 ring-amber-200",
-  discontinued: "bg-stone-200 text-stone-700 ring-stone-300",
-};
+// Neutral semantic tokens regardless of status — the green/amber register the
+// pill originally shipped with was the §7.2 anti-pattern (hardcoded color
+// literals; clinical-status color-coding before the palette work). Fixed
+// 2026-06-09 per the Phase D carryover; matches the Condition/Doctor headers.
+const STATUS_PILL_CLASS = "border border-border bg-muted text-muted-foreground";
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -98,8 +98,8 @@ export function MedicationDetailHeader({
               </div>
               <span
                 className={cn(
-                  "inline-flex w-fit items-baseline rounded-full px-2 py-0.5 text-[0.7em] font-medium uppercase tracking-wide ring-1",
-                  STATUS_PILL_CLASS[medication.status],
+                  "inline-flex w-fit items-baseline rounded-full px-2 py-0.5 text-[0.7em] font-medium uppercase tracking-wide",
+                  STATUS_PILL_CLASS,
                 )}
               >
                 {medication.status}
@@ -117,8 +117,8 @@ export function MedicationDetailHeader({
               ) : null}
               <span
                 className={cn(
-                  "inline-flex items-baseline rounded-full px-2 py-0.5 text-[0.55em] font-medium uppercase tracking-wide ring-1",
-                  STATUS_PILL_CLASS[medication.status],
+                  "inline-flex items-baseline rounded-full px-2 py-0.5 text-[0.55em] font-medium uppercase tracking-wide",
+                  STATUS_PILL_CLASS,
                 )}
               >
                 {medication.status}

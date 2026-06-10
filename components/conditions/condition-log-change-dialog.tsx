@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { Condition } from "@/db/schema";
+import { displayDoctorName } from "@/lib/doctor-display";
 import {
   conditionChangeFormSchema,
   type ConditionChangeFormValues,
@@ -373,7 +374,7 @@ export function ConditionLogChangeDialog({
                         value={field.value || undefined}
                         items={availableDoctors.map((d) => ({
                           value: d.id,
-                          label: `Dr ${d.name} · ${d.specialty}`,
+                          label: `${displayDoctorName(d.name)} · ${d.specialty}`,
                         }))}
                         onValueChange={field.onChange}
                       >
@@ -388,7 +389,7 @@ export function ConditionLogChangeDialog({
                           ) : (
                             availableDoctors.map((d) => (
                               <SelectItem key={d.id} value={d.id}>
-                                Dr {d.name} · {d.specialty}
+                                {displayDoctorName(d.name)} · {d.specialty}
                               </SelectItem>
                             ))
                           )}

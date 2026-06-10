@@ -1,6 +1,10 @@
-import { conditionQueries } from "@/db/queries/condition";
+import { ConditionDomainError, conditionQueries } from "@/db/queries/condition";
 import { apiError } from "@/lib/api/error";
-import { parseJsonBody, validateUuidParam } from "@/lib/api/route-helpers";
+import {
+  fieldErrorsFromReason,
+  parseJsonBody,
+  validateUuidParam,
+} from "@/lib/api/route-helpers";
 import { getCurrentPatient } from "@/lib/auth";
 import { errorCode, logger } from "@/lib/logger";
 import { updateConditionSchema } from "@/lib/schemas/api/condition";
@@ -61,7 +65,9 @@ export async function PATCH(req: Request, ctx: Ctx): Promise<Response> {
 
   const rejectedFields: Record<string, string> = {};
   for (const key of Object.keys(raw)) {
-    if (key in CLINICAL_FIELD_GUIDANCE) {
+    // Object.hasOwn, not `in`: `in` walks the prototype chain, so a body key
+    // like "constructor" would be misread as a guarded field.
+    if (Object.hasOwn(CLINICAL_FIELD_GUIDANCE, key)) {
       rejectedFields[key] = CLINICAL_FIELD_GUIDANCE[key];
     }
   }
@@ -93,6 +99,19 @@ export async function PATCH(req: Request, ctx: Ctx): Promise<Response> {
     }
     return Response.json({ condition });
   } catch (err) {
+    // update() scope-checks a PATCHed diagnosedBy (same guard as create).
+    if (
+      err instanceof ConditionDomainError &&
+      err.kind === "linked_entity_invalid"
+    ) {
+      return apiError(
+        "validation_failed",
+        "Invalid linked entity",
+        fieldErrorsFromReason(err.meta ?? {}, {
+          doctor_not_found: "Doctor not found in this patient's record.",
+        }),
+      );
+    }
     logger.error({
       op: "conditions.update",
       code: errorCode(err),

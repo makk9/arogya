@@ -3,10 +3,10 @@ import { notFound } from "next/navigation";
 
 import { AskAiButton } from "@/components/ask-ai-button";
 import { MEDICATIONS_LIST_SURFACE } from "@/lib/chat/surface-context";
+import { EntityListSections } from "@/components/entity-list-sections";
 import { MedicationCard } from "@/components/medications/medication-card";
 import { MedicationEmptyState } from "@/components/medications/medication-empty-state";
 import { MedicationFilters } from "@/components/medications/medication-filters";
-import { MedicationsList } from "@/components/medications/medications-list";
 import { buttonVariants } from "@/components/ui/button";
 import {
   medicationCategory,
@@ -172,13 +172,33 @@ export default async function MedicationsListPage({
           No medications match these filters.
         </p>
       ) : (
-        <MedicationsList
-          activeCount={activeCount}
-          pausedCount={pausedCount}
-          discontinuedCount={discontinuedCount}
-          activeCards={renderCards(groups.active)}
-          pausedCards={renderCards(groups.paused)}
-          discontinuedCards={renderCards(groups.discontinued)}
+        // Open-defaults per plan D4: ACTIVE expanded, PAUSED + DISCONTINUED
+        // collapsed.
+        <EntityListSections
+          idPrefix="medications"
+          sections={[
+            {
+              slug: "active",
+              label: "Active",
+              count: activeCount,
+              defaultOpen: true,
+              cards: renderCards(groups.active),
+            },
+            {
+              slug: "paused",
+              label: "Paused",
+              count: pausedCount,
+              defaultOpen: false,
+              cards: renderCards(groups.paused),
+            },
+            {
+              slug: "discontinued",
+              label: "Discontinued",
+              count: discontinuedCount,
+              defaultOpen: false,
+              cards: renderCards(groups.discontinued),
+            },
+          ]}
         />
       )}
 

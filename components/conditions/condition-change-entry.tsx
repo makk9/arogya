@@ -4,6 +4,7 @@ import {
 } from "@/components/conditions/condition-options";
 import type { ConditionChange } from "@/db/schema";
 import { formatAbsoluteDate, formatRelative } from "@/lib/datetime";
+import { displayDoctorName } from "@/lib/doctor-display";
 
 export interface DoctorRef {
   name: string;
@@ -45,7 +46,7 @@ function renderDoctorPill(
   if (!doc) return <span className="text-muted-foreground">Dr (removed)</span>;
   return (
     <span>
-      <span className="text-muted-foreground">D</span> Dr {doc.name} ·{" "}
+      <span className="text-muted-foreground">D</span> {displayDoctorName(doc.name)} ·{" "}
       {doc.specialty}
     </span>
   );

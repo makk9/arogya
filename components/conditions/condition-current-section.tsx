@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import {
   CATEGORY_OPTIONS,
   SEVERITY_OPTIONS,
@@ -10,11 +12,15 @@ import { useMaybeConditionEdit } from "@/components/conditions/condition-edit-co
 import { useMaybeConditionLogChange } from "@/components/conditions/condition-log-change-context";
 import type { Condition, Doctor } from "@/db/schema";
 import { formatAbsoluteDate } from "@/lib/datetime";
+import { displayDoctorName } from "@/lib/doctor-display";
 
 interface Props {
+  patientId: string;
   condition: Condition;
   managingDoctor: Doctor | undefined;
   diagnosedByDoctor: Doctor | undefined;
+  /** The patient's doctors, for the diagnosedBy inline select. */
+  doctorOptions: ReadonlyArray<{ id: string; name: string; specialty: string }>;
 }
 
 /*
@@ -22,10 +28,12 @@ interface Props {
  * status + severity prominent; category / diagnosed date / diagnosing doctor /
  * managing doctor in the compact grid. Clones medication-current-section.tsx.
  *
- * In edit mode:
+ * Doctor refs are live Links to the doctor detail page (Phase D: the page now
+ * exists). In edit mode:
  *   - status, severity, managingDoctor stay read-only (change-logged — route
  *     through `+ Log a change`)
- *   - diagnosedBy stays read-only (doctor picker lands with the Doctor entity)
+ *   - diagnosedBy swaps to a doctor select (PATCH-editable; the server
+ *     scope-checks the uuid)
  *   - category swaps to an InlineField select; diagnosedOn to a date input
  *   - a single muted hint renders below the cards explaining where to log
  *     clinical changes; the hint is a button that opens the log-change dialog.
@@ -50,20 +58,31 @@ const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
   CATEGORY_OPTIONS.map((o) => [o.value, o.label]),
 );
 
-function DoctorValue({ doctor }: { doctor: Doctor | undefined }) {
+function DoctorValue({
+  patientId,
+  doctor,
+}: {
+  patientId: string;
+  doctor: Doctor | undefined;
+}) {
   if (!doctor) return <span className="text-muted-foreground">—</span>;
   return (
-    <span>
-      <span className="text-muted-foreground">D</span> Dr {doctor.name} ·{" "}
-      {doctor.specialty}
-    </span>
+    <Link
+      href={`/patient/${patientId}/doctors/${doctor.id}`}
+      className="underline-offset-4 hover:underline"
+    >
+      <span className="text-muted-foreground">D</span>{" "}
+      {displayDoctorName(doctor.name)} · {doctor.specialty}
+    </Link>
   );
 }
 
 export function ConditionCurrentSection({
+  patientId,
   condition,
   managingDoctor,
   diagnosedByDoctor,
+  doctorOptions,
 }: Props) {
   const editCtx = useMaybeConditionEdit();
   const editing = editCtx?.editing ?? false;
@@ -146,14 +165,28 @@ export function ConditionCurrentSection({
         </div>
         <div>
           <div className={FIELD_LABEL}>diagnosed by</div>
-          <div className="text-sm">
-            <DoctorValue doctor={diagnosedByDoctor} />
-          </div>
+          <ConditionInlineField
+            fieldKey="diagnosedBy"
+            value={condition.diagnosedBy}
+            variant="select-doctor"
+            required={false}
+            clearable
+            ariaLabel="Diagnosed by"
+            options={doctorOptions.map((d) => ({
+              value: d.id,
+              label: `${displayDoctorName(d.name)} · ${d.specialty}`,
+            }))}
+            displayValue={
+              <span className="text-sm">
+                <DoctorValue patientId={patientId} doctor={diagnosedByDoctor} />
+              </span>
+            }
+          />
         </div>
         <div>
           <div className={FIELD_LABEL}>managing doctor</div>
           <div className="text-sm">
-            <DoctorValue doctor={managingDoctor} />
+            <DoctorValue patientId={patientId} doctor={managingDoctor} />
           </div>
         </div>
       </div>

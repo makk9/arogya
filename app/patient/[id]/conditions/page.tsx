@@ -5,7 +5,7 @@ import { AskAiButton } from "@/components/ask-ai-button";
 import { ConditionCard } from "@/components/conditions/condition-card";
 import { ConditionEmptyState } from "@/components/conditions/condition-empty-state";
 import { ConditionFilters } from "@/components/conditions/condition-filters";
-import { ConditionsList } from "@/components/conditions/conditions-list";
+import { EntityListSections } from "@/components/entity-list-sections";
 import { STATUS_OPTIONS } from "@/components/conditions/condition-options";
 import { buttonVariants } from "@/components/ui/button";
 import { CONDITIONS_LIST_SURFACE } from "@/lib/chat/surface-context";
@@ -167,17 +167,47 @@ export default async function ConditionsListPage({
           No conditions match these filters.
         </p>
       ) : (
-        <ConditionsList
-          activeCount={groups.active.length}
-          controlledCount={groups.controlled.length}
-          inRemissionCount={groups.in_remission.length}
-          resolvedCount={groups.resolved.length}
-          suspectedCount={groups.suspected.length}
-          activeCards={renderCards(groups.active)}
-          controlledCards={renderCards(groups.controlled)}
-          inRemissionCards={renderCards(groups.in_remission)}
-          resolvedCards={renderCards(groups.resolved)}
-          suspectedCards={renderCards(groups.suspected)}
+        // Open-defaults per 6.4:1334: ACTIVE + CONTROLLED expanded;
+        // IN_REMISSION / RESOLVED / SUSPECTED collapsed.
+        <EntityListSections
+          idPrefix="conditions"
+          sections={[
+            {
+              slug: "active",
+              label: "Active",
+              count: groups.active.length,
+              defaultOpen: true,
+              cards: renderCards(groups.active),
+            },
+            {
+              slug: "controlled",
+              label: "Controlled",
+              count: groups.controlled.length,
+              defaultOpen: true,
+              cards: renderCards(groups.controlled),
+            },
+            {
+              slug: "in-remission",
+              label: "In remission",
+              count: groups.in_remission.length,
+              defaultOpen: false,
+              cards: renderCards(groups.in_remission),
+            },
+            {
+              slug: "resolved",
+              label: "Resolved",
+              count: groups.resolved.length,
+              defaultOpen: false,
+              cards: renderCards(groups.resolved),
+            },
+            {
+              slug: "suspected",
+              label: "Suspected",
+              count: groups.suspected.length,
+              defaultOpen: false,
+              cards: renderCards(groups.suspected),
+            },
+          ]}
         />
       )}
 

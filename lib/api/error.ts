@@ -4,7 +4,10 @@
  * Shape: { error: { code, message, details? } } — nested under `error`.
  * The spec lists four codes; `invalid_state_transition` (409) is the
  * project-locked extension for domain state-machine violations
- * (already-discontinued med, already-resolved condition, etc.).
+ * (already-discontinued med, already-resolved condition, etc.), and
+ * `delete_blocked` (409) is its sibling for deletions refused by a
+ * restrict-FK (e.g. a doctor with visits on file). Domain violations get
+ * their own codes rather than being bundled under validation_failed.
  */
 
 export type ApiErrorCode =
@@ -12,7 +15,8 @@ export type ApiErrorCode =
   | "not_found"
   | "unauthorized"
   | "server_error"
-  | "invalid_state_transition";
+  | "invalid_state_transition"
+  | "delete_blocked";
 
 const DEFAULT_STATUS_FOR_CODE: Record<ApiErrorCode, number> = {
   validation_failed: 400,
@@ -20,6 +24,7 @@ const DEFAULT_STATUS_FOR_CODE: Record<ApiErrorCode, number> = {
   unauthorized: 401,
   server_error: 500,
   invalid_state_transition: 409,
+  delete_blocked: 409,
 };
 
 export function apiError(

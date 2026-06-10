@@ -30,6 +30,7 @@ import {
   type MedicationChangeFormValues,
 } from "@/lib/schemas/forms/medication";
 import { formatAbsoluteDate } from "@/lib/datetime";
+import { displayDoctorName } from "@/lib/doctor-display";
 
 /*
  * `+ Log a change` dialog per design.md 6.5:1383. Writes a row to
@@ -389,7 +390,7 @@ export function MedicationLogChangeDialog({
                           ) : (
                             availableDoctors.map((d) => (
                               <SelectItem key={d.id} value={d.id}>
-                                Dr {d.name} · {d.specialty}
+                                {displayDoctorName(d.name)} · {d.specialty}
                               </SelectItem>
                             ))
                           )}
@@ -471,7 +472,7 @@ export function MedicationLogChangeDialog({
                           <SelectItem value="__none">None</SelectItem>
                           {visits.map((v) => (
                             <SelectItem key={v.id} value={v.id}>
-                              Dr {v.doctorName} ·{" "}
+                              {displayDoctorName(v.doctorName)} ·{" "}
                               {formatAbsoluteDate(v.visitDate)}
                             </SelectItem>
                           ))}

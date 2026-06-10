@@ -1,10 +1,13 @@
 "use client";
 
+import Link from "next/link";
+
 import { InlineField } from "@/components/medications/inline-field";
 import { useMaybeMedicationEdit } from "@/components/medications/medication-edit-context";
 import { useMaybeMedicationLogChange } from "@/components/medications/medication-log-change-context";
 import type { Condition, Doctor, Medication } from "@/db/schema";
 import { formatAbsoluteDate } from "@/lib/datetime";
+import { displayDoctorName } from "@/lib/doctor-display";
 
 export interface DoseInlineNote {
   oldValue: string;
@@ -12,6 +15,7 @@ export interface DoseInlineNote {
 }
 
 interface Props {
+  patientId: string;
   medication: Medication;
   prescribingDoctor: Doctor | undefined;
   treatsCondition: Condition | undefined;
@@ -43,6 +47,7 @@ function capitalize(s: string): string {
 }
 
 export function MedicationCurrentSection({
+  patientId,
   medication,
   prescribingDoctor,
   treatsCondition,
@@ -93,10 +98,15 @@ export function MedicationCurrentSection({
           <div className={FIELD_LABEL}>prescribing doctor</div>
           <div className="text-sm">
             {prescribingDoctor ? (
-              <span>
-                <span className="text-muted-foreground">D</span> Dr{" "}
-                {prescribingDoctor.name} · {prescribingDoctor.specialty}
-              </span>
+              // Live link now that the Doctor detail page exists (Phase D).
+              <Link
+                href={`/patient/${patientId}/doctors/${prescribingDoctor.id}`}
+                className="underline-offset-4 hover:underline"
+              >
+                <span className="text-muted-foreground">D</span>{" "}
+                {displayDoctorName(prescribingDoctor.name)} ·{" "}
+                {prescribingDoctor.specialty}
+              </Link>
             ) : (
               <span className="text-muted-foreground">—</span>
             )}

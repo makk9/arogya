@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import type { Condition, Doctor, Medication } from "@/db/schema";
+import { displayDoctorName } from "@/lib/doctor-display";
 
 interface MedicationCardProps {
   patientId: string;
@@ -28,7 +29,8 @@ export function MedicationCard({
 }: MedicationCardProps) {
   const lineTwoParts: string[] = [medication.currentFrequency];
   if (condition?.name) lineTwoParts.push(condition.name);
-  if (doctor) lineTwoParts.push(`Dr ${doctor.name} · ${doctor.specialty}`);
+  if (doctor)
+    lineTwoParts.push(`${displayDoctorName(doctor.name)} · ${doctor.specialty}`);
 
   return (
     <Link

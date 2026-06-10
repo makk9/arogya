@@ -27,19 +27,26 @@ import { cn } from "@/lib/utils";
  * failure, the inline error renders under the field and the local value is kept.
  *
  * Field set is the Condition non-clinical PATCH surface: name / category /
- * diagnosedOn / notes. status / severity / managingDoctor are change-logged
- * (route through `+ Log a change`), and diagnosedBy needs the doctor picker that
- * lands with the Doctor entity — none of those are editable here.
+ * diagnosedOn / diagnosedBy / notes. status / severity / managingDoctor are
+ * change-logged (route through `+ Log a change`) and are not editable here.
+ * diagnosedBy uses the select-doctor variant (options = the patient's doctors,
+ * passed by the caller) — settable since the Doctor entity landed.
  *
  * Skips the PATCH when the value hasn't changed from initial, or when a required
  * field is blanked. For clearable fields, an empty value PATCHes `null` (matches
- * the API schema's `.nullable()` treatment).
+ * the API schema's `.nullable()` treatment). The select-doctor variant exposes
+ * an explicit "—" row for that clear path.
  */
 
-type Variant = "text" | "textarea" | "date" | "select-category";
+type Variant = "text" | "textarea" | "date" | "select-category" | "select-doctor";
+
+// Sentinel for the select-doctor "no doctor" row — Base UI Selects can't hold
+// an empty-string value. Maps to "" before commit, which (clearable) PATCHes
+// null.
+const DOCTOR_NOT_SET = "__unset__";
 
 interface InlineFieldProps {
-  fieldKey: "name" | "category" | "diagnosedOn" | "notes";
+  fieldKey: "name" | "category" | "diagnosedOn" | "diagnosedBy" | "notes";
   value: string | null;
   variant: Variant;
   required: boolean;
@@ -49,6 +56,8 @@ interface InlineFieldProps {
   inputClassName?: string;
   placeholder?: string;
   ariaLabel: string;
+  /** Option rows for the select-doctor variant (value = doctor uuid). */
+  options?: ReadonlyArray<{ value: string; label: string }>;
 }
 
 interface ApiErrorBody {
@@ -73,6 +82,7 @@ export function ConditionInlineField({
   inputClassName,
   placeholder,
   ariaLabel,
+  options,
 }: InlineFieldProps) {
   const { editing, conditionId } = useConditionEdit();
   const router = useRouter();
@@ -148,6 +158,44 @@ export function ConditionInlineField({
           </SelectTrigger>
           <SelectContent>
             {CATEGORY_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      </div>
+    );
+  }
+
+  // Same commit-on-change shape as select-category; the sentinel row clears the
+  // field (clearable → PATCH null).
+  if (variant === "select-doctor") {
+    const doctorItems = [
+      { value: DOCTOR_NOT_SET, label: "—" },
+      ...(options ?? []),
+    ];
+    return (
+      <div className={cn("flex flex-col gap-1", className)}>
+        <Select
+          value={draft || DOCTOR_NOT_SET}
+          items={doctorItems}
+          disabled={pending}
+          onValueChange={(next) => {
+            const v = next === DOCTOR_NOT_SET || !next ? "" : next;
+            setDraft(v);
+            void commit(v);
+          }}
+        >
+          <SelectTrigger
+            aria-label={ariaLabel}
+            className={cn("w-full", inputClassName)}
+          >
+            <SelectValue placeholder={placeholder ?? "Select…"} />
+          </SelectTrigger>
+          <SelectContent>
+            {doctorItems.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}
               </SelectItem>

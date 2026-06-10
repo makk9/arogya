@@ -112,3 +112,29 @@ export function formatRelative(d: Date, now?: Date): string {
 export function formatRelativeAndAbsolute(d: Date, now?: Date): string {
   return `${formatRelative(d, now)} · ${formatAbsoluteDate(d)}`;
 }
+
+/**
+ * Duration since a past date, for §6.5's long-running-relationship computation
+ * ("first visit Mar 2018 · 8 years"). Whole units, approximate (30/365 days) —
+ * same precision contract as formatRelative. Returns null when the span is
+ * under a month (showing "0 months" next to a recent first-visit reads wrong)
+ * or when the date is in the future.
+ */
+export function formatDurationSince(d: Date | string, now?: Date): string | null {
+  let date: Date;
+  if (typeof d === "string") {
+    const [y, m, day] = d.split("-").map(Number);
+    date = new Date(y, m - 1, day);
+  } else {
+    date = d;
+  }
+  const ref = now ?? new Date();
+  const dayDiff = Math.floor(
+    (startOfDay(ref).getTime() - startOfDay(date).getTime()) / 86_400_000,
+  );
+  if (dayDiff < 30) return null;
+  const months = Math.floor(dayDiff / 30);
+  if (months < 12) return `${months} ${months === 1 ? "month" : "months"}`;
+  const years = Math.floor(dayDiff / 365);
+  return `${years} ${years === 1 ? "year" : "years"}`;
+}
