@@ -34,8 +34,8 @@ State entities (6.4 + 6.5 + `*_changes`):
 - [x] Condition — **COMPLETE** (API · form · list · detail · inline-edit · +Log a change · Delete · live `§ condition:` pill). 2nd proof the state template generalizes. Detail shipped `0f34d25`.
 - [x] Doctor — **COMPLETE** (API · form · list grouped by specialty · detail w/ backlinks · +Log a change [specialty/clinic] · Delete [409 when visits exist] · live `§ doctor:` pill). E2 + D2 unlocks landed with it (see Last Session).
 - [x] Allergy — **COMPLETE** (API · form · list grouped by status · detail · +Log a change [status/severity] · Delete · live `§ allergy:` pill). 4th proof; thin-spec calls in decisions.md 2026-06-10 (NOT a rail item — list is §6.10 profile-reached; no Linked context until Phase E insights).
-- [x] Lifestyle — **COMPLETE** (singleton: GET/PATCH-upsert `/api/lifestyle` + `/changes` · NO list/new/Add-form · §6.5:1403 narrative blocks + 4-col strip · 7 trend fields change-logged, first-population-via-PATCH then locked · live `§ lifestyle:profile` pill). **UNCOMMITTED — pending review.**
-- [x] FamilyHistory — **COMPLETE** (API · form · list grouped by relation [CHILDREN bucket added] · detail [NO History; name-match Linked context; H1=condition] · all-fields inline edit · Delete · live `§ family-history:` pill). **UNCOMMITTED — pending review.** State-entity column DONE.
+- [x] Lifestyle — **COMPLETE** (singleton: GET/PATCH-upsert `/api/lifestyle` + `/changes` · NO list/new/Add-form · §6.5:1403 narrative blocks + 4-col strip · 7 trend fields change-logged, first-population-via-PATCH then locked · live `§ lifestyle:profile` pill). Shipped `d1058ab`.
+- [x] FamilyHistory — **COMPLETE** (API · form · list grouped by relation [CHILDREN bucket added] · detail [NO History; name-match Linked context; H1=condition] · all-fields inline edit · Delete · live `§ family-history:` pill). Shipped `d1058ab`. **State-entity column DONE.**
 
 Event entities (6.6 + 6.7; no change logs):
 - [ ] Visit — richest; glyph result badges; month-grouped timeline
@@ -57,15 +57,15 @@ Extraction agent + upload pipeline + confirmation surface · Onboarding (agent +
 ---
 
 ### Last Session
-- 2026-06-10 (3) — **Lifestyle + FamilyHistory verticals COMPLETE — state-entity column done. ⚠️ UNCOMMITTED, pending user review** (~30 new files: `app/api/{lifestyle,family-history}/*`, full `db/queries/{lifestyle,family-history}.ts`, `lib/schemas/{api,forms}/*`, 11 `components/family-history/*` + 11 `components/lifestyle/*`, 4 pages, pill + surface-context edits). Both cloned off Allergy as template *variations*.
+- 2026-06-10 (3) — **Lifestyle + FamilyHistory verticals COMPLETE — state-entity column done.** User-reviewed + committed `d1058ab` (43 files: `app/api/{lifestyle,family-history}/*`, full `db/queries/{lifestyle,family-history}.ts`, `lib/schemas/{api,forms}/*`, 11 `components/family-history/*` + 11 `components/lifestyle/*`, 4 pages, pill + surface-context edits). Both cloned off Allergy as template *variations*.
 - **Key calls (decisions.md 2026-06-10 Lifestyle+FH entry):** §6.12 has NO Add-lifestyle form (spec gap) → **PATCH-upsert + first-population rule**: trend fields (7 §4:538 axes: 3 patterns + 4 enums) PATCH-able while null, locked after → `+ Log a change`; companions (dietRestrictions/stressContext/notes) always PATCH-able; first population logs NO change row; **no-op changes 409 on all 7 fields**; pattern dialog textareas prefill current text; no `…` menu (no delete story); intensity sub-line in Exercise block (strip locked at 4 cols). FH: H1=conditionName + relation pill; everything inline-editable (no change log → no History section, no refusal map; new `number` InlineField variant); CHILDREN bucket expanded (spec omits `child`); Linked context = render-time name match vs patient conditions, omitted when empty; bySlug reuses serializer's compound `familyHistorySlug()`.
 - **Verified:** `tsc`+`eslint` clean; **30-case curl E2E** (FH 16 + Lifestyle 14: upsert/lock/idempotent/companions/no-op-409/post-change-lock/by-slug/year-as-age-400); **30-step `/verify-ui` walkthrough green** (one ❌ was a test-selector bug, re-probed green) + both empty states probed post-cleanup. Console silent. Test rows cleaned (FH via API, lifestyle via SQL — no delete API by design).
-- **`/check` ran, user-reviewed; 3 fixes applied + re-verified** (FH linked-context ≥3-char match guard; FH form age ≤130 client refine; lifestyle lock error de-API-ified per 7.1). No blockers. **Found stale `ZZZ`/`ZZZ-smoke` conditions from EARLIER sessions in arogya-dev** (prior handoffs said cleaned) — left in place, awaiting user OK to delete.
+- **`/check` ran, user-reviewed; 3 fixes applied + re-verified** (FH linked-context ≥3-char match guard; FH form age ≤130 client refine; lifestyle lock error de-API-ified per 7.1). No blockers. Stale `ZZZ`/`ZZZ-smoke` conditions from EARLIER sessions found in arogya-dev — **deleted with user OK** (4 real conditions remain; gotcha: prior handoffs' "ZZZ cleaned" claims weren't fully true — re-verify cleanup with a query, don't trust the note).
 
 ### Next Steps
-1. **USER REVIEW + commit** of the Lifestyle/FamilyHistory work (explicitly uncommitted on request).
-2. **Then Visit** — first event entity; NEW 6.6 timeline + 6.7 detail template (unproven). Un-stubs Doctor's derived last-visit + delete-blocked path.
-3. After Visit: Lab/Symptom/Report/Journal/VitalReading parallelize, then Patient profile (6.10 — gives the Allergies list + Lifestyle page their spec'd entry links) + Insights surfaces (6.8/6.9, placeholder data).
+1. **Visit** — first event entity; NEW 6.6 timeline + 6.7 detail template (unproven). Un-stubs Doctor's derived last-visit + delete-blocked path.
+2. After Visit: Lab/Symptom/Report/Journal/VitalReading parallelize.
+3. Then Patient profile (6.10 — gives the Allergies list + Lifestyle page their spec'd entry links) + Insights surfaces (6.8/6.9, placeholder data).
 
 ### Open Questions / Blockers
 - **Condition active→active re-confirm (v1.5):** no-op status guard (409) also blocks re-confirming the *same* status with a fresh reason/date. Accepted for v1; decisions.md 2026-06-02.
