@@ -19,6 +19,23 @@ export const DOCTORS_LIST_SURFACE = "The user is viewing the full list of doctor
 
 export const ALLERGIES_LIST_SURFACE = "The user is viewing the full list of allergies.";
 
+export const FAMILY_HISTORY_LIST_SURFACE =
+  "The user is viewing the full list of family medical history entries.";
+
+// Singleton — no per-entity identifiers to interpolate; the vault context
+// already carries the full profile.
+export const LIFESTYLE_SURFACE =
+  "The user is viewing the patient's lifestyle profile (diet, exercise, sleep, stress, tobacco, alcohol).";
+
+export function familyHistorySurfaceContext(entry: {
+  relation: string;
+  relationSpecific: string | null;
+  conditionName: string;
+}): string {
+  const who = entry.relationSpecific ?? entry.relation;
+  return `The user is viewing the family history entry for ${who}: ${entry.conditionName}.`;
+}
+
 export function medicationSurfaceContext(medication: {
   name: string;
   currentDose: string;

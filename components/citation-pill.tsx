@@ -5,11 +5,16 @@
  * (`↗ source-name`) — distinguishable per design.md 6.2:1204-1205.
  *
  * Interactivity (Phase C item 7 + Phase D): vault `med`, `condition`, `doctor`,
- * and `allergy` pills are clickable and open a popover with an entity preview +
- * `View full →` link to the entity detail page (6.2:1206, 6.2:1216). Remaining
- * pills — vault entity types whose detail pages don't exist yet, and external
- * citations — stay inert spans, because a popover would dead-end. As more
- * detail pages land, add an entry to INTERACTIVE_ENTITY_CONFIGS.
+ * `allergy`, `family-history`, and `lifestyle` pills are clickable and open a
+ * popover with an entity preview + `View full →` link to the entity detail
+ * page (6.2:1206, 6.2:1216). Remaining pills — vault entity types whose detail
+ * pages don't exist yet (the event entities), and external citations — stay
+ * inert spans, because a popover would dead-end. As more detail pages land,
+ * add an entry to INTERACTIVE_ENTITY_CONFIGS.
+ *
+ * `lifestyle` is the odd one out: the slug is the fixed `profile` (singleton,
+ * serializers/lifestyle.ts), so its endpoint ignores the slug and hits the
+ * profile GET directly.
  *
  * (The med/condition pill pair was folded into the single config-driven
  * component below when the 3rd interactive entity — doctor — arrived, per the
@@ -31,6 +36,8 @@ import {
   CATEGORY_OPTIONS as ALLERGY_CATEGORY_OPTIONS,
 } from "@/components/allergies/allergy-options";
 import { STATUS_OPTIONS } from "@/components/conditions/condition-options";
+import { RELATION_LABEL } from "@/components/family-history/family-history-options";
+import { trendValueLabel } from "@/components/lifestyle/lifestyle-options";
 import {
   Popover,
   PopoverContent,
@@ -143,6 +150,29 @@ interface DoctorPreviewPayload {
   };
 }
 
+interface FamilyHistoryPreviewPayload {
+  entry: {
+    id: string;
+    patientId: string;
+    relation: string;
+    relationSpecific: string | null;
+    conditionName: string;
+    ageOfOnset: number | null;
+    outcome: string | null;
+  };
+}
+
+interface LifestylePreviewPayload {
+  profile: {
+    id: string;
+    patientId: string;
+    dietPattern: string | null;
+    exercisePattern: string | null;
+    sleepPattern: string | null;
+    stressLevel: string | null;
+  };
+}
+
 const INTERACTIVE_ENTITY_CONFIGS: Record<string, VaultEntityConfig> = {
   med: {
     endpoint: (slug) => `/api/medications/by-slug/${encodeURIComponent(slug)}`,
@@ -215,6 +245,48 @@ const INTERACTIVE_ENTITY_CONFIGS: Record<string, VaultEntityConfig> = {
         title: displayDoctorName(d.name),
         rightNote: d.specialty,
         lines: d.clinic ? [d.clinic] : [],
+      };
+    },
+  },
+  "family-history": {
+    endpoint: (slug) =>
+      `/api/family-history/by-slug/${encodeURIComponent(slug)}`,
+    notFoundCopy:
+      "This family history entry isn't in the record anymore. It may have been edited or removed since I wrote that response.",
+    extract: (json) => {
+      const { entry: e } = json as FamilyHistoryPreviewPayload;
+      const lines: string[] = [];
+      if (e.ageOfOnset !== null) lines.push(`Onset around age ${e.ageOfOnset}`);
+      if (e.outcome) lines.push(e.outcome);
+      return {
+        href: `/patient/${e.patientId}/family-history/${e.id}`,
+        title: e.conditionName,
+        rightNote:
+          e.relationSpecific ?? RELATION_LABEL[e.relation] ?? e.relation,
+        lines,
+      };
+    },
+  },
+  lifestyle: {
+    // Singleton — the slug is the fixed `profile`, so the endpoint ignores it.
+    endpoint: () => "/api/lifestyle",
+    notFoundCopy:
+      "There's no lifestyle profile in the record yet. It may have been referenced before anything was filled in.",
+    extract: (json) => {
+      const { profile: p } = json as LifestylePreviewPayload;
+      // A 3-line preview can't carry three narratives — show the first one or
+      // two that exist, truncated.
+      const lines = [p.dietPattern, p.exercisePattern, p.sleepPattern]
+        .filter((v): v is string => v !== null)
+        .slice(0, 2)
+        .map((v) => (v.length > 90 ? `${v.slice(0, 87)}…` : v));
+      return {
+        href: `/patient/${p.patientId}/lifestyle`,
+        title: "Lifestyle",
+        rightNote: p.stressLevel
+          ? `stress ${trendValueLabel("stressLevel", p.stressLevel).toLowerCase()}`
+          : null,
+        lines,
       };
     },
   },
