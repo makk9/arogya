@@ -16,7 +16,8 @@
 /**
  * Returns "today" as a YYYY-MM-DD string in the given IANA timezone.
  *
- * Per design.md 9.6:2803, date-only fields (started_on, discontinued_on, DOB,
+ * Per design.md §4:243 (Patient.timezone — "All timestamps interpret here")
+ * + §6.12:1842, date-only fields (started_on, discontinued_on, DOB,
  * etc.) should reflect the **patient's** local calendar date — not the user's
  * browser locale, and not UTC. A morning session in Pune logging an event for
  * "today" must store today's Pune date, not yesterday's UTC date.
@@ -37,7 +38,9 @@ export function todayInTimezone(timezone: string): string {
  * component, the browser's (i.e. the *user's*) timezone.
  *
  * Used for form date *defaults* (Started on, Changed on). This deliberately
- * deviates from design.md 9.6's patient-tz convention: an evening session in
+ * deviates from §6.12:1842's "default today in patient timezone" (and the
+ * §4:243 interpretive note) — though it ALIGNS with §9.6's display rule
+ * ("convert to user's local timezone"): an evening session in
  * the US was defaulting "Changed on" to tomorrow's Pune date, which read as
  * wrong to the person filling the form (user decision, 2026-06-10 —
  * decisions.md). The user can still backdate via the picker;

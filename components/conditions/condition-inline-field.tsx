@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
-import { CATEGORY_OPTIONS } from "@/components/conditions/condition-options";
+import { CATEGORY_OPTIONS, NOT_SET } from "@/components/conditions/condition-options";
 import { useConditionEdit } from "@/components/conditions/condition-edit-context";
 import { Input } from "@/components/ui/input";
 import {
@@ -40,10 +40,6 @@ import { cn } from "@/lib/utils";
 
 type Variant = "text" | "textarea" | "date" | "select-category" | "select-doctor";
 
-// Sentinel for the select-doctor "no doctor" row — Base UI Selects can't hold
-// an empty-string value. Maps to "" before commit, which (clearable) PATCHes
-// null.
-const DOCTOR_NOT_SET = "__unset__";
 
 interface InlineFieldProps {
   fieldKey: "name" | "category" | "diagnosedOn" | "diagnosedBy" | "notes";
@@ -176,17 +172,17 @@ export function ConditionInlineField({
   // field (clearable → PATCH null).
   if (variant === "select-doctor") {
     const doctorItems = [
-      { value: DOCTOR_NOT_SET, label: "—" },
+      { value: NOT_SET, label: "—" },
       ...(options ?? []),
     ];
     return (
       <div className={cn("flex flex-col gap-1", className)}>
         <Select
-          value={draft || DOCTOR_NOT_SET}
+          value={draft || NOT_SET}
           items={doctorItems}
           disabled={pending}
           onValueChange={(next) => {
-            const v = next === DOCTOR_NOT_SET || !next ? "" : next;
+            const v = next === NOT_SET || !next ? "" : next;
             setDraft(v);
             void commit(v);
           }}
