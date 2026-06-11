@@ -79,6 +79,7 @@ export function MedicationFilters() {
 
       <Select
         value={category}
+        items={CATEGORY_OPTIONS}
         onValueChange={(value) =>
           navigate({ category: value === ALL ? null : value })
         }

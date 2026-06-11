@@ -5,6 +5,7 @@ import {
 import type { ConditionChange } from "@/db/schema";
 import { formatAbsoluteDate, formatRelative } from "@/lib/datetime";
 import { displayDoctorName } from "@/lib/doctor-display";
+import { EntityTypeGlyph } from "@/components/entity-type-glyph";
 
 export interface DoctorRef {
   name: string;
@@ -46,7 +47,8 @@ function renderDoctorPill(
   if (!doc) return <span className="text-muted-foreground">Dr (removed)</span>;
   return (
     <span>
-      <span className="text-muted-foreground">D</span> {displayDoctorName(doc.name)} ·{" "}
+      <EntityTypeGlyph letter="D" />
+      {displayDoctorName(doc.name)} ·{" "}
       {doc.specialty}
     </span>
   );

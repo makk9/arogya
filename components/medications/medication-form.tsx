@@ -326,6 +326,7 @@ export function MedicationForm({
               render={({ field }) => (
                 <Select
                   value={field.value ?? "tablet"}
+                  items={FORM_OPTIONS}
                   onValueChange={field.onChange}
                 >
                   <SelectTrigger id="form" className="w-full">
@@ -377,7 +378,11 @@ export function MedicationForm({
             control={control}
             name="category"
             render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange}>
+              <Select
+                value={field.value}
+                items={CATEGORY_OPTIONS}
+                onValueChange={field.onChange}
+              >
                 <SelectTrigger id="category" className="w-full md:w-72">
                   <SelectValue />
                 </SelectTrigger>

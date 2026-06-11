@@ -8,6 +8,7 @@ import { useMaybeMedicationLogChange } from "@/components/medications/medication
 import type { Condition, Doctor, Medication } from "@/db/schema";
 import { formatAbsoluteDate } from "@/lib/datetime";
 import { displayDoctorName } from "@/lib/doctor-display";
+import { EntityTypeGlyph } from "@/components/entity-type-glyph";
 
 export interface DoseInlineNote {
   oldValue: string;
@@ -103,7 +104,7 @@ export function MedicationCurrentSection({
                 href={`/patient/${patientId}/doctors/${prescribingDoctor.id}`}
                 className="underline-offset-4 hover:underline"
               >
-                <span className="text-muted-foreground">D</span>{" "}
+                <EntityTypeGlyph letter="D" />
                 {displayDoctorName(prescribingDoctor.name)} ·{" "}
                 {prescribingDoctor.specialty}
               </Link>

@@ -1,4 +1,6 @@
 import { formatAbsoluteDate } from "@/lib/datetime";
+import { EntityTypeGlyph } from "@/components/entity-type-glyph";
+import { displayDoctorName } from "@/lib/doctor-display";
 
 export interface LinkedVisitRef {
   id: string;
@@ -27,8 +29,9 @@ export function MedicationLinkedContext({ linkedVisits }: Props) {
       <ul className="space-y-2">
         {linkedVisits.map((v) => (
           <li key={v.id} className="text-sm">
-            <span className="text-muted-foreground">V</span> Visit · Dr{" "}
-            {v.doctorName} · {formatAbsoluteDate(v.visitDate)}
+            <EntityTypeGlyph letter="V" />
+            Visit · {displayDoctorName(v.doctorName)} ·{" "}
+            {formatAbsoluteDate(v.visitDate)}
             {v.visitType ? (
               <span className="ml-2 text-muted-foreground">
                 · {v.visitType.replace(/_/g, " ")}

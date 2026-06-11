@@ -13,6 +13,7 @@ import { useMaybeConditionLogChange } from "@/components/conditions/condition-lo
 import type { Condition, Doctor } from "@/db/schema";
 import { formatAbsoluteDate } from "@/lib/datetime";
 import { displayDoctorName } from "@/lib/doctor-display";
+import { EntityTypeGlyph } from "@/components/entity-type-glyph";
 
 interface Props {
   patientId: string;
@@ -71,7 +72,7 @@ function DoctorValue({
       href={`/patient/${patientId}/doctors/${doctor.id}`}
       className="underline-offset-4 hover:underline"
     >
-      <span className="text-muted-foreground">D</span>{" "}
+      <EntityTypeGlyph letter="D" />
       {displayDoctorName(doctor.name)} · {doctor.specialty}
     </Link>
   );

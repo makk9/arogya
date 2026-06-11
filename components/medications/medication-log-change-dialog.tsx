@@ -241,6 +241,21 @@ export function MedicationLogChangeDialog({
     (d) => d.id !== currentPrescribingDoctorId,
   );
 
+  // `items` maps for the Selects below — Base UI's <SelectValue> renders the
+  // raw value (a uuid, for doctors/visits) on the trigger unless the root gets
+  // the value→label mapping. See decisions.md 2026-06-02 (Base UI Select).
+  const doctorItems = availableDoctors.map((d) => ({
+    value: d.id,
+    label: `${displayDoctorName(d.name)} · ${d.specialty}`,
+  }));
+  const visitItems = [
+    { value: "__none", label: "None" },
+    ...visits.map((v) => ({
+      value: v.id,
+      label: `${displayDoctorName(v.doctorName)} · ${formatAbsoluteDate(v.visitDate)}`,
+    })),
+  ];
+
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogContent className="max-w-lg">
@@ -290,6 +305,7 @@ export function MedicationLogChangeDialog({
                   render={({ field }) => (
                     <Select
                       value={field.value}
+                      items={FIELD_OPTIONS}
                       onValueChange={(next) => {
                         if (!next) return;
                         const nextField =
@@ -358,6 +374,7 @@ export function MedicationLogChangeDialog({
                       render={({ field }) => (
                         <Select
                           value={field.value || "paused"}
+                          items={[{ value: "paused", label: "Paused" }]}
                           onValueChange={field.onChange}
                         >
                           <SelectTrigger id="newValue" className="w-full">
@@ -378,7 +395,11 @@ export function MedicationLogChangeDialog({
                     control={control}
                     name="newValue"
                     render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
+                      <Select
+                        value={field.value || null}
+                        items={doctorItems}
+                        onValueChange={field.onChange}
+                      >
                         <SelectTrigger id="newValue" className="w-full">
                           <SelectValue placeholder="Select doctor…" />
                         </SelectTrigger>
@@ -461,6 +482,7 @@ export function MedicationLogChangeDialog({
                     render={({ field }) => (
                       <Select
                         value={field.value || "__none"}
+                        items={visitItems}
                         onValueChange={(v) =>
                           field.onChange(v === "__none" ? "" : v)
                         }

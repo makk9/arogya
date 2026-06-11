@@ -3,6 +3,7 @@ import Link from "next/link";
 import { STATUS_OPTIONS } from "@/components/conditions/condition-options";
 import type { Condition, Medication } from "@/db/schema";
 import { formatAbsoluteDate } from "@/lib/datetime";
+import { EntityTypeGlyph } from "@/components/entity-type-glyph";
 
 export interface LinkedMedRef {
   id: string;
@@ -118,7 +119,8 @@ export function DoctorLinkedContext({
         ))}
         {linkedVisits.map((v) => (
           <li key={v.id} className="text-sm">
-            <span className="text-muted-foreground">V</span> Visit ·{" "}
+            <EntityTypeGlyph letter="V" />
+            Visit ·{" "}
             {formatAbsoluteDate(v.visitDate)}
             {v.visitType ? (
               <span className="ml-2 text-muted-foreground">{v.visitType}</span>
