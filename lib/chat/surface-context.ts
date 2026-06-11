@@ -17,6 +17,8 @@ export const CONDITIONS_LIST_SURFACE = "The user is viewing the full list of con
 
 export const DOCTORS_LIST_SURFACE = "The user is viewing the full list of doctors.";
 
+export const ALLERGIES_LIST_SURFACE = "The user is viewing the full list of allergies.";
+
 export function medicationSurfaceContext(medication: {
   name: string;
   currentDose: string;
@@ -33,6 +35,19 @@ export function conditionSurfaceContext(condition: {
 }): string {
   const severityNote = condition.severity ? `, ${condition.severity}` : "";
   return `The user is viewing the condition record for ${condition.name}, currently ${condition.status}${severityNote}.`;
+}
+
+export function allergySurfaceContext(allergy: {
+  substance: string;
+  category: string;
+  status: string;
+  severity: string | null;
+}): string {
+  const severityNote =
+    allergy.severity && allergy.severity !== "unknown"
+      ? `, ${allergy.severity}`
+      : "";
+  return `The user is viewing the allergy record for ${allergy.substance} (${allergy.category}), currently ${allergy.status}${severityNote}.`;
 }
 
 export function doctorSurfaceContext(doctor: {

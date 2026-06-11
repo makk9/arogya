@@ -4,8 +4,8 @@
  * Visual citation pill. Two variants — vault (`§ entity-type:slug`) and external
  * (`↗ source-name`) — distinguishable per design.md 6.2:1204-1205.
  *
- * Interactivity (Phase C item 7 + Phase D): vault `med`, `condition`, and
- * `doctor` pills are clickable and open a popover with an entity preview +
+ * Interactivity (Phase C item 7 + Phase D): vault `med`, `condition`, `doctor`,
+ * and `allergy` pills are clickable and open a popover with an entity preview +
  * `View full →` link to the entity detail page (6.2:1206, 6.2:1216). Remaining
  * pills — vault entity types whose detail pages don't exist yet, and external
  * citations — stay inert spans, because a popover would dead-end. As more
@@ -25,6 +25,11 @@
 import Link from "next/link";
 import { useRef, useState, type ReactNode } from "react";
 
+import {
+  SEVERITY_OPTIONS as ALLERGY_SEVERITY_OPTIONS,
+  STATUS_OPTIONS as ALLERGY_STATUS_OPTIONS,
+  CATEGORY_OPTIONS as ALLERGY_CATEGORY_OPTIONS,
+} from "@/components/allergies/allergy-options";
 import { STATUS_OPTIONS } from "@/components/conditions/condition-options";
 import {
   Popover,
@@ -83,6 +88,17 @@ const CONDITION_STATUS_LABEL: Record<string, string> = Object.fromEntries(
   STATUS_OPTIONS.map((o) => [o.value, o.label]),
 );
 
+// Same type-only-import safety as condition-options (see allergy-options.ts).
+const ALLERGY_STATUS_LABEL: Record<string, string> = Object.fromEntries(
+  ALLERGY_STATUS_OPTIONS.map((o) => [o.value, o.label]),
+);
+const ALLERGY_SEVERITY_LABEL: Record<string, string> = Object.fromEntries(
+  ALLERGY_SEVERITY_OPTIONS.map((o) => [o.value, o.label]),
+);
+const ALLERGY_CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
+  ALLERGY_CATEGORY_OPTIONS.map((o) => [o.value, o.label]),
+);
+
 interface MedPreviewPayload {
   medication: {
     id: string;
@@ -102,6 +118,18 @@ interface ConditionPreviewPayload {
     name: string;
     status: string;
     severity: string | null;
+  };
+}
+
+interface AllergyPreviewPayload {
+  allergy: {
+    id: string;
+    patientId: string;
+    substance: string;
+    category: string;
+    severity: string | null;
+    status: string;
+    reaction: string | null;
   };
 }
 
@@ -147,6 +175,32 @@ const INTERACTIVE_ENTITY_CONFIGS: Record<string, VaultEntityConfig> = {
         title: c.name,
         rightNote: CONDITION_STATUS_LABEL[c.status] ?? c.status,
         lines: c.severity ? [c.severity] : [],
+      };
+    },
+  },
+  allergy: {
+    endpoint: (slug) => `/api/allergies/by-slug/${encodeURIComponent(slug)}`,
+    notFoundCopy:
+      "This allergy isn't in the record anymore. It may have been renamed or removed since I wrote that response.",
+    extract: (json) => {
+      const { allergy: a } = json as AllergyPreviewPayload;
+      const lines: string[] = [];
+      const categoryLabel = ALLERGY_CATEGORY_LABEL[a.category] ?? a.category;
+      // "unknown" severity is the default-when-absent (§4:261) — noise in a
+      // 3-line preview, so only a meaningful severity renders.
+      if (a.severity && a.severity !== "unknown") {
+        lines.push(
+          `${categoryLabel} · ${ALLERGY_SEVERITY_LABEL[a.severity] ?? a.severity}`,
+        );
+      } else {
+        lines.push(categoryLabel);
+      }
+      if (a.reaction) lines.push(a.reaction);
+      return {
+        href: `/patient/${a.patientId}/allergies/${a.id}`,
+        title: a.substance,
+        rightNote: ALLERGY_STATUS_LABEL[a.status] ?? a.status,
+        lines,
       };
     },
   },
