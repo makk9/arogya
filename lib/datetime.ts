@@ -33,6 +33,25 @@ export function todayInTimezone(timezone: string): string {
 }
 
 /**
+ * Returns "today" as YYYY-MM-DD in the runtime's local timezone — in a client
+ * component, the browser's (i.e. the *user's*) timezone.
+ *
+ * Used for form date *defaults* (Started on, Changed on). This deliberately
+ * deviates from design.md 9.6's patient-tz convention: an evening session in
+ * the US was defaulting "Changed on" to tomorrow's Pune date, which read as
+ * wrong to the person filling the form (user decision, 2026-06-10 —
+ * decisions.md). The user can still backdate via the picker;
+ * `todayInTimezone` remains for any future patient-clock semantics.
+ */
+export function todayLocal(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+/**
  * Returns "Apr 30, 2026" in browser locale. Accepts a Date or a YYYY-MM-DD
  * string. Date-only strings are parsed as local calendar dates (not UTC) —
  * `new Date("2026-04-30")` interprets the string as UTC midnight, which can

@@ -9,7 +9,6 @@ import type { Doctor } from "@/db/schema";
 
 interface Props {
   doctor: Doctor;
-  todayInPatientTz: string;
   children: ReactNode;
 }
 
@@ -20,11 +19,7 @@ interface Props {
  * and the History section button). No freeze branch: Doctor has no terminal
  * state, so Edit and `+ Log a change` are always available.
  */
-export function DoctorDetailShell({
-  doctor,
-  todayInPatientTz,
-  children,
-}: Props) {
+export function DoctorDetailShell({ doctor, children }: Props) {
   const [editing, setEditing] = useState(false);
   const [logChangeOpen, setLogChangeOpen] = useState(false);
 
@@ -48,7 +43,6 @@ export function DoctorDetailShell({
       <DoctorLogChangeDialog
         doctorId={doctor.id}
         doctorName={doctor.name}
-        todayInPatientTz={todayInPatientTz}
         open={logChangeOpen}
         onOpenChange={setLogChangeOpen}
       />

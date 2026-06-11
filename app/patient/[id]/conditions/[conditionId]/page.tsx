@@ -27,7 +27,6 @@ import { labResultQueries } from "@/db/queries/lab";
 import { medicationQueries } from "@/db/queries/medication";
 import { getCurrentPatient } from "@/lib/auth";
 import { conditionSurfaceContext } from "@/lib/chat/surface-context";
-import { todayInTimezone } from "@/lib/datetime";
 
 const conditionIdParam = z.string().uuid();
 const RECENT_LIMIT = 5;
@@ -113,7 +112,6 @@ export default async function ConditionDetailPage({
       : null;
 
   const notesText = condition.notes?.trim() ?? "";
-  const todayInPatientTz = todayInTimezone(patient.timezone);
 
   const doctorOptions: DoctorOption[] = doctors.map((d) => ({
     id: d.id,
@@ -126,7 +124,6 @@ export default async function ConditionDetailPage({
       <ConditionDetailShell
         condition={condition}
         doctors={doctorOptions}
-        todayInPatientTz={todayInPatientTz}
       >
         <ConditionDetailHeader
           patientId={patient.patientId}

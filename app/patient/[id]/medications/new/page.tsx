@@ -2,12 +2,10 @@ import { notFound } from "next/navigation";
 
 import { MedicationForm } from "@/components/medications/medication-form";
 import { getCurrentPatient } from "@/lib/auth";
-import { todayInTimezone } from "@/lib/datetime";
 
-// Server component. Resolves auth + patient timezone, then hands the form a
-// `todayInPatientTz` string so the StartedOn field defaults to the patient's
-// local date (per design.md 9.6:2803 — the patient's IANA tz is canonical for
-// date-only fields, not the user's browser tz).
+// Server component. Resolves auth + patient scope, then renders the Add
+// Medication form. The StartedOn today-default is computed in the form itself
+// (browser-local per decisions.md 2026-06-10) — no timezone plumbing here.
 
 export default async function NewMedicationPage({
   params,
@@ -17,8 +15,6 @@ export default async function NewMedicationPage({
   const { id } = await params;
   const patient = await getCurrentPatient();
   if (id !== patient.patientId) notFound();
-
-  const todayInPatientTz = todayInTimezone(patient.timezone);
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
@@ -34,10 +30,7 @@ export default async function NewMedicationPage({
       >
         / patient / {id.slice(0, 8)}… / medications / new
       </nav>
-      <MedicationForm
-        patientId={patient.patientId}
-        todayInPatientTz={todayInPatientTz}
-      />
+      <MedicationForm patientId={patient.patientId} />
     </main>
   );
 }

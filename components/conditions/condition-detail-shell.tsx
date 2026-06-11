@@ -13,7 +13,6 @@ import type { Condition } from "@/db/schema";
 interface Props {
   condition: Condition;
   doctors: ReadonlyArray<DoctorOption>;
-  todayInPatientTz: string;
   children: ReactNode;
 }
 
@@ -31,12 +30,7 @@ interface Props {
  * Condition has no terminal state (resolved → active is permitted), so Edit and
  * `+ Log a change` are always available regardless of status.
  */
-export function ConditionDetailShell({
-  condition,
-  doctors,
-  todayInPatientTz,
-  children,
-}: Props) {
+export function ConditionDetailShell({ condition, doctors, children }: Props) {
   const [editing, setEditing] = useState(false);
   const [logChangeOpen, setLogChangeOpen] = useState(false);
 
@@ -63,7 +57,6 @@ export function ConditionDetailShell({
         doctors={doctors}
         currentStatus={condition.status}
         currentManagingDoctorId={condition.managingDoctor}
-        todayInPatientTz={todayInPatientTz}
         open={logChangeOpen}
         onOpenChange={setLogChangeOpen}
       />

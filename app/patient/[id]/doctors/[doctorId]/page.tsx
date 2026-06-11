@@ -23,7 +23,6 @@ import { medicationQueries } from "@/db/queries/medication";
 import { visitQueries } from "@/db/queries/visit";
 import { getCurrentPatient } from "@/lib/auth";
 import { doctorSurfaceContext } from "@/lib/chat/surface-context";
-import { todayInTimezone } from "@/lib/datetime";
 
 const doctorIdParam = z.string().uuid();
 const RECENT_LIMIT = 5;
@@ -108,11 +107,10 @@ export default async function DoctorDetailPage({
       : null;
 
   const notesText = doctor.notes?.trim() ?? "";
-  const todayInPatientTz = todayInTimezone(patient.timezone);
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
-      <DoctorDetailShell doctor={doctor} todayInPatientTz={todayInPatientTz}>
+      <DoctorDetailShell doctor={doctor}>
         <DoctorDetailHeader
           patientId={patient.patientId}
           doctor={doctor}

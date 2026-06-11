@@ -29,7 +29,7 @@ import {
   medicationChangeFormSchema,
   type MedicationChangeFormValues,
 } from "@/lib/schemas/forms/medication";
-import { formatAbsoluteDate } from "@/lib/datetime";
+import { formatAbsoluteDate, todayLocal } from "@/lib/datetime";
 import { displayDoctorName } from "@/lib/doctor-display";
 
 /*
@@ -69,7 +69,6 @@ interface Props {
   visits: ReadonlyArray<VisitOption>;
   currentStatus: "active" | "paused" | "discontinued";
   currentPrescribingDoctorId: string | null;
-  todayInPatientTz: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -106,7 +105,6 @@ export function MedicationLogChangeDialog({
   visits,
   currentStatus,
   currentPrescribingDoctorId,
-  todayInPatientTz,
   open,
   onOpenChange,
 }: Props) {
@@ -118,7 +116,8 @@ export function MedicationLogChangeDialog({
     field: "dose",
     newValue: "",
     reason: "",
-    changedAt: todayInPatientTz,
+    // Browser-local "today" — user-tz form defaults per decisions.md 2026-06-10.
+    changedAt: todayLocal(),
     linkedVisitId: "",
   };
 

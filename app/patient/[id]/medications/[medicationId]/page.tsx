@@ -33,7 +33,6 @@ import {
 } from "@/db/queries/medication";
 import { visitQueries } from "@/db/queries/visit";
 import { getCurrentPatient } from "@/lib/auth";
-import { todayInTimezone } from "@/lib/datetime";
 
 const medicationIdParam = z.string().uuid();
 const RECENT_LIMIT = 5;
@@ -154,7 +153,6 @@ export default async function MedicationDetailPage({
 
   const notesText = medication.notes?.trim() ?? "";
   const showActionsMenu = medication.status !== "discontinued";
-  const todayInPatientTz = todayInTimezone(patient.timezone);
 
   // Flatten doctor + visit lists into the option shapes the log-change dialog
   // expects. All patient doctors / visits are surfaced — the dialog filters
@@ -182,7 +180,6 @@ export default async function MedicationDetailPage({
         medication={medication}
         doctors={doctorOptions}
         visits={visitOptions}
-        todayInPatientTz={todayInPatientTz}
       >
         <MedicationDetailHeader
           patientId={patient.patientId}

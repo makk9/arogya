@@ -15,7 +15,6 @@ interface Props {
   medication: Medication;
   doctors: ReadonlyArray<DoctorOption>;
   visits: ReadonlyArray<VisitOption>;
-  todayInPatientTz: string;
   children: ReactNode;
 }
 
@@ -37,7 +36,6 @@ export function MedicationDetailShell({
   medication,
   doctors,
   visits,
-  todayInPatientTz,
   children,
 }: Props) {
   const [editing, setEditing] = useState(false);
@@ -81,7 +79,6 @@ export function MedicationDetailShell({
           visits={visits}
           currentStatus={medication.status}
           currentPrescribingDoctorId={medication.prescribingDoctor}
-          todayInPatientTz={todayInPatientTz}
           open={logChangeOpen}
           onOpenChange={setLogChangeOpen}
         />

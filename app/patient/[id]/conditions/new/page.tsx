@@ -4,7 +4,7 @@ import { ConditionForm } from "@/components/conditions/condition-form";
 import { getCurrentPatient } from "@/lib/auth";
 
 // Server component. Resolves auth + patient scope, then renders the Add
-// Condition form. Unlike the medication new-page there's no `todayInPatientTz`
+// Condition form. There's no today-default
 // plumbing — the condition form's Diagnosed-on field has no today-default
 // (diagnoses are often historical or unknown; see design.md 6.12).
 

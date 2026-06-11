@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { todayLocal } from "@/lib/datetime";
 import { displayDoctorName } from "@/lib/doctor-display";
 import {
   doctorChangeFormSchema,
@@ -51,7 +52,6 @@ const FIELD_LABEL_CLASS =
 interface Props {
   doctorId: string;
   doctorName: string;
-  todayInPatientTz: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -80,7 +80,6 @@ const VALUE_PLACEHOLDER: Record<DoctorChangeFormValues["field"], string> = {
 export function DoctorLogChangeDialog({
   doctorId,
   doctorName,
-  todayInPatientTz,
   open,
   onOpenChange,
 }: Props) {
@@ -91,7 +90,8 @@ export function DoctorLogChangeDialog({
     field: "specialty",
     newValue: "",
     reason: "",
-    changedAt: todayInPatientTz,
+    // Browser-local "today" — user-tz form defaults per decisions.md 2026-06-10.
+    changedAt: todayLocal(),
   };
 
   const {

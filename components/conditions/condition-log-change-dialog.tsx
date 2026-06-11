@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { Condition } from "@/db/schema";
+import { todayLocal } from "@/lib/datetime";
 import { displayDoctorName } from "@/lib/doctor-display";
 import {
   conditionChangeFormSchema,
@@ -73,7 +74,6 @@ interface Props {
   doctors: ReadonlyArray<DoctorOption>;
   currentStatus: Condition["status"];
   currentManagingDoctorId: string | null;
-  todayInPatientTz: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -106,7 +106,6 @@ export function ConditionLogChangeDialog({
   doctors,
   currentStatus,
   currentManagingDoctorId,
-  todayInPatientTz,
   open,
   onOpenChange,
 }: Props) {
@@ -126,7 +125,8 @@ export function ConditionLogChangeDialog({
     field: "status",
     newValue: firstStatus,
     reason: "",
-    changedAt: todayInPatientTz,
+    // Browser-local "today" — user-tz form defaults per decisions.md 2026-06-10.
+    changedAt: todayLocal(),
   };
 
   const {

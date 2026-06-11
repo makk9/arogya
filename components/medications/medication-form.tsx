@@ -9,6 +9,7 @@ import {
   CATEGORY_OPTIONS,
   FORM_OPTIONS,
 } from "@/components/medications/medication-options";
+import { todayLocal } from "@/lib/datetime";
 import {
   medicationFormSchema,
   type MedicationFormValues,
@@ -51,7 +52,6 @@ import { Textarea } from "@/components/ui/textarea";
 
 interface MedicationFormProps {
   patientId: string;
-  todayInPatientTz: string;
 }
 
 // Field labels render in uppercase-mono tracking-wide to match design.md
@@ -79,7 +79,6 @@ function LabelHelper({ text }: { text: string }) {
 
 export function MedicationForm({
   patientId,
-  todayInPatientTz,
 }: MedicationFormProps) {
   const router = useRouter();
   const [bannerError, setBannerError] = useState<string | null>(null);
@@ -92,12 +91,11 @@ export function MedicationForm({
     currentFrequency: "",
     form: "tablet",
     // The StartedOn field renders as a native <input type="date"> in the
-    // user's browser locale. For a date column (not a moment) this is
-    // intentional — the user is picking a calendar day, not an instant. The
-    // default is "today" computed in the patient's IANA timezone (per
-    // design.md 9.6:2803) so a morning session in Pune doesn't pre-fill the
-    // prior UTC date.
-    startedOn: todayInPatientTz,
+    // user's browser locale — the user is picking a calendar day, not an
+    // instant. Defaults to browser-local "today" (user-tz form defaults per
+    // decisions.md 2026-06-10, superseding the 9.6 patient-tz default that
+    // pre-filled tomorrow's Pune date for an evening US session).
+    startedOn: todayLocal(),
     category: "allopathic",
     notes: "",
   };
