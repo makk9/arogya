@@ -5,12 +5,12 @@
  * (`↗ source-name`) — distinguishable per design.md 6.2:1204-1205.
  *
  * Interactivity (Phase C item 7 + Phase D): vault `med`, `condition`, `doctor`,
- * `allergy`, `family-history`, `lifestyle`, and `visit` pills are clickable and
- * open a popover with an entity preview + `View full →` link to the entity
- * detail page (6.2:1206, 6.2:1216). Remaining pills — vault entity types whose
- * detail pages don't exist yet (the other event entities), and external
- * citations — stay inert spans, because a popover would dead-end. As more
- * detail pages land, add an entry to INTERACTIVE_ENTITY_CONFIGS.
+ * `allergy`, `family-history`, `lifestyle`, `visit`, and `lab-report` pills are
+ * clickable and open a popover with an entity preview + `View full →` link to
+ * the entity detail page (6.2:1206, 6.2:1216). Remaining pills — vault entity
+ * types whose detail pages don't exist yet (the other event entities), and
+ * external citations — stay inert spans, because a popover would dead-end. As
+ * more detail pages land, add an entry to INTERACTIVE_ENTITY_CONFIGS.
  *
  * `lifestyle` is the odd one out: the slug is the fixed `profile` (singleton,
  * serializers/lifestyle.ts), so its endpoint ignores the slug and hits the
@@ -190,6 +190,19 @@ interface LifestylePreviewPayload {
   };
 }
 
+interface LabReportPreviewPayload {
+  report: {
+    id: string;
+    patientId: string;
+    reportDate: string;
+    reportType: string | null;
+    labName: string | null;
+    markerCount: number;
+    flaggedCount: number;
+    orderingDoctor: { name: string; specialty: string } | null;
+  };
+}
+
 const INTERACTIVE_ENTITY_CONFIGS: Record<string, VaultEntityConfig> = {
   med: {
     endpoint: (slug) => `/api/medications/by-slug/${encodeURIComponent(slug)}`,
@@ -312,6 +325,35 @@ const INTERACTIVE_ENTITY_CONFIGS: Record<string, VaultEntityConfig> = {
         // The slug IS the ISO date — readable as-is, matching the §6.7 title's
         // date-identity for visits.
         rightNote: v.visitDate,
+        lines,
+      };
+    },
+  },
+  "lab-report": {
+    endpoint: (slug) =>
+      `/api/lab-reports/by-slug/${encodeURIComponent(slug)}`,
+    notFoundCopy:
+      "This lab report isn't in the record anymore. It may have been edited or removed since I wrote that response.",
+    extract: (json) => {
+      const { report: r } = json as LabReportPreviewPayload;
+      const lines: string[] = [];
+      if (r.reportType && r.labName) lines.push(r.labName);
+      if (r.orderingDoctor) {
+        lines.push(
+          `Ordered by ${displayDoctorName(r.orderingDoctor.name)} · ${r.orderingDoctor.specialty}`,
+        );
+      }
+      lines.push(
+        r.flaggedCount > 0
+          ? `${r.markerCount} markers · ${r.flaggedCount} flagged`
+          : `${r.markerCount} ${r.markerCount === 1 ? "marker" : "markers"}`,
+      );
+      return {
+        href: `/patient/${r.patientId}/labs/${r.id}`,
+        title: r.reportType ?? r.labName ?? "Lab report",
+        // The slug IS the ISO report date — readable as-is, matching the §6.7
+        // detail's date identity.
+        rightNote: r.reportDate,
         lines,
       };
     },

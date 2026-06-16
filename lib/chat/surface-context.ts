@@ -30,6 +30,23 @@ export const LIFESTYLE_SURFACE =
 export const VISITS_LIST_SURFACE =
   "The user is viewing the visits timeline (all doctor visits).";
 
+export const LABS_LIST_SURFACE =
+  "The user is viewing the lab reports timeline (all lab reports and their markers).";
+
+export function labReportSurfaceContext(report: {
+  reportDate: string;
+  reportType: string | null;
+  labName: string | null;
+  flaggedCount: number;
+}): string {
+  const what = report.reportType ?? report.labName ?? "lab report";
+  const flagged =
+    report.flaggedCount > 0
+      ? ` (${report.flaggedCount} flagged marker${report.flaggedCount === 1 ? "" : "s"})`
+      : "";
+  return `The user is viewing the ${what} from ${report.reportDate}${flagged}.`;
+}
+
 export function visitSurfaceContext(visit: {
   visitDate: string;
   doctorName: string | null;
