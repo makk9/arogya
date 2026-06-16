@@ -209,7 +209,10 @@ export default async function MedicationDetailPage({
         />
 
         {linkedVisits.length > 0 ? (
-          <MedicationLinkedContext linkedVisits={linkedVisits} />
+          <MedicationLinkedContext
+            patientId={patient.patientId}
+            linkedVisits={linkedVisits}
+          />
         ) : null}
 
         <MedicationNotesSection notes={notesText} />

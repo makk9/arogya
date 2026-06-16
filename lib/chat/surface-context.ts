@@ -27,6 +27,19 @@ export const FAMILY_HISTORY_LIST_SURFACE =
 export const LIFESTYLE_SURFACE =
   "The user is viewing the patient's lifestyle profile (diet, exercise, sleep, stress, tobacco, alcohol).";
 
+export const VISITS_LIST_SURFACE =
+  "The user is viewing the visits timeline (all doctor visits).";
+
+export function visitSurfaceContext(visit: {
+  visitDate: string;
+  doctorName: string | null;
+  status: string;
+}): string {
+  const who = visit.doctorName ? ` with ${visit.doctorName}` : "";
+  const framing = visit.status === "scheduled" ? "upcoming " : "";
+  return `The user is viewing the ${framing}visit${who} on ${visit.visitDate}.`;
+}
+
 export function familyHistorySurfaceContext(entry: {
   relation: string;
   relationSpecific: string | null;

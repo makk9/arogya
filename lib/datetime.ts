@@ -136,6 +136,52 @@ export function formatRelativeAndAbsolute(d: Date, now?: Date): string {
 }
 
 /**
+ * Relative description at DAY granularity, for date-only values (visit_date,
+ * started_on, etc.) that carry no time-of-day. Unlike formatRelative, it never
+ * emits sub-day units: a calendar date anchored to local midnight would read as
+ * "20h ago" for anything dated earlier the same day, even though the user only
+ * picked a date — so a visit logged today must say "today", not "20h ago".
+ * Symmetric for future dates (scheduled visits).
+ *
+ *   today              → "today"
+ *   yesterday/tomorrow → "yesterday" / "tomorrow"
+ *   < 30 days          → "N days ago"   | "in N days"
+ *   < 12 months (~30d) → "N months ago" | "in N months"
+ *   else               → "N years ago"  | "in N years"
+ *
+ * Accepts a `YYYY-MM-DD` string (parsed as a local calendar date) or a Date
+ * (its local Y/M/D is used). Months/years approximate (30/365), same precision
+ * contract as formatRelative.
+ */
+export function formatRelativeDate(d: Date | string, now?: Date): string {
+  let date: Date;
+  if (typeof d === "string") {
+    const [y, m, day] = d.split("-").map(Number);
+    date = new Date(y, m - 1, day);
+  } else {
+    date = d;
+  }
+  const ref = now ?? new Date();
+  const dayDiff = Math.round(
+    (startOfDay(date).getTime() - startOfDay(ref).getTime()) / 86_400_000,
+  );
+
+  if (dayDiff === 0) return "today";
+  if (dayDiff === 1) return "tomorrow";
+  if (dayDiff === -1) return "yesterday";
+
+  const abs = Math.abs(dayDiff);
+  const phrase = (n: number, unit: string) =>
+    dayDiff > 0 ? `in ${n} ${unit}` : `${n} ${unit} ago`;
+
+  if (abs < 30) return phrase(abs, abs === 1 ? "day" : "days");
+  const months = Math.floor(abs / 30);
+  if (months < 12) return phrase(months, months === 1 ? "month" : "months");
+  const years = Math.floor(abs / 365);
+  return phrase(years, years === 1 ? "year" : "years");
+}
+
+/**
  * Duration since a past date, for §6.5's long-running-relationship computation
  * ("first visit Mar 2018 · 8 years"). Whole units, approximate (30/365 days) —
  * same precision contract as formatRelative. Returns null when the span is

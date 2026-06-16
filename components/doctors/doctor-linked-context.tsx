@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { STATUS_OPTIONS } from "@/components/conditions/condition-options";
+import { VISIT_TYPE_LABEL } from "@/components/visits/visit-options";
 import type { Condition, Medication } from "@/db/schema";
 import { formatAbsoluteDate } from "@/lib/datetime";
 import { EntityTypeGlyph } from "@/components/entity-type-glyph";
@@ -45,11 +46,10 @@ interface Props {
  * backlinks — derived at render time from FKs pointing AT this doctor, never
  * stored (Phase 3 tripwire). Plain link list with light context per 6.5:1382.
  *
- * Medications and conditions link to their detail pages with a status pill on
- * the right. Lab orders and visits render as inert rows — their detail pages
- * land later in Phase D (the `Link` wrapper joins then), and both lists stay
- * empty until those verticals ship a create path. The page omits this whole
- * section when all four lists are empty.
+ * Medications, conditions, and visits link to their detail pages. Lab orders
+ * render as inert rows — the Lab vertical lands later in Phase D (the `Link`
+ * wrapper joins then), and the list stays empty until it ships a create path.
+ * The page omits this whole section when all four lists are empty.
  */
 
 const MED_STATUS_LABEL: Record<Medication["status"], string> = {
@@ -119,12 +119,18 @@ export function DoctorLinkedContext({
         ))}
         {linkedVisits.map((v) => (
           <li key={v.id} className="text-sm">
-            <EntityTypeGlyph letter="V" />
-            Visit ·{" "}
-            {formatAbsoluteDate(v.visitDate)}
-            {v.visitType ? (
-              <span className="ml-2 text-muted-foreground">{v.visitType}</span>
-            ) : null}
+            <Link
+              href={`/patient/${patientId}/visits/${v.id}`}
+              className="underline-offset-4 hover:underline"
+            >
+              <EntityTypeGlyph letter="V" />
+              Visit · {formatAbsoluteDate(v.visitDate)}
+              {v.visitType ? (
+                <span className="ml-2 text-muted-foreground">
+                  {VISIT_TYPE_LABEL[v.visitType] ?? v.visitType}
+                </span>
+              ) : null}
+            </Link>
           </li>
         ))}
       </ul>

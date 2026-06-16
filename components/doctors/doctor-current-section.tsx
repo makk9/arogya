@@ -4,7 +4,11 @@ import { DoctorInlineField } from "@/components/doctors/doctor-inline-field";
 import { useMaybeDoctorEdit } from "@/components/doctors/doctor-edit-context";
 import { useMaybeDoctorLogChange } from "@/components/doctors/doctor-log-change-context";
 import type { Doctor } from "@/db/schema";
-import { formatAbsoluteDate, formatDurationSince, formatRelative } from "@/lib/datetime";
+import {
+  formatAbsoluteDate,
+  formatDurationSince,
+  formatRelativeDate,
+} from "@/lib/datetime";
 import { doctorInitials, maskPhone } from "@/lib/doctor-display";
 
 interface Props {
@@ -54,8 +58,7 @@ export function DoctorCurrentSection({ doctor, lastVisit }: Props) {
 
   const lastVisitParts: string[] = [];
   if (lastVisit) {
-    const [y, m, d] = lastVisit.split("-").map(Number);
-    lastVisitParts.push(formatRelative(new Date(y, m - 1, d)));
+    lastVisitParts.push(formatRelativeDate(lastVisit));
     lastVisitParts.push(formatAbsoluteDate(lastVisit));
   }
 

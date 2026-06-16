@@ -61,6 +61,11 @@ that isn't the surface under test may be created via `fetch` to the API.
 House rules:
 - Throwaway rows are **`ZZZ`-prefixed**; delete them all at the end;
   never mutate the user's real rows.
+- **Event entities (Visit/Lab/Symptom/…) have no name column** to carry a
+  `ZZZ` prefix — track the IDs you create in an array and delete ONLY those.
+  Never blanket-delete an event table (`for v of GET /api/visits`) when real
+  user rows may exist: that wiped a real Dr. Sharma visit on the Visit run
+  (2026-06-11). Tag your throwaways by ID, not by prefix.
 - Capture `page.on("console", …)` errors/warnings and report them — a
   silent console is itself a check (controlled-Select, hydration).
 - Copy screenshots to `~/Desktop/arogya-verify-shots/` and `open` it

@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import type { Doctor } from "@/db/schema";
-import { formatRelative } from "@/lib/datetime";
+import { formatRelativeDate } from "@/lib/datetime";
 import { displayDoctorName, doctorInitials } from "@/lib/doctor-display";
 
 interface DoctorCardProps {
@@ -31,8 +31,7 @@ export function DoctorCard({
   const lineTwoParts: string[] = [];
   if (doctor.clinic) lineTwoParts.push(doctor.clinic);
   if (lastVisit) {
-    const [y, m, d] = lastVisit.split("-").map(Number);
-    lineTwoParts.push(`last visit ${formatRelative(new Date(y, m - 1, d))}`);
+    lineTwoParts.push(`last visit ${formatRelativeDate(lastVisit)}`);
   }
 
   return (

@@ -5,12 +5,12 @@
  * (`↗ source-name`) — distinguishable per design.md 6.2:1204-1205.
  *
  * Interactivity (Phase C item 7 + Phase D): vault `med`, `condition`, `doctor`,
- * `allergy`, `family-history`, and `lifestyle` pills are clickable and open a
- * popover with an entity preview + `View full →` link to the entity detail
- * page (6.2:1206, 6.2:1216). Remaining pills — vault entity types whose detail
- * pages don't exist yet (the event entities), and external citations — stay
- * inert spans, because a popover would dead-end. As more detail pages land,
- * add an entry to INTERACTIVE_ENTITY_CONFIGS.
+ * `allergy`, `family-history`, `lifestyle`, and `visit` pills are clickable and
+ * open a popover with an entity preview + `View full →` link to the entity
+ * detail page (6.2:1206, 6.2:1216). Remaining pills — vault entity types whose
+ * detail pages don't exist yet (the other event entities), and external
+ * citations — stay inert spans, because a popover would dead-end. As more
+ * detail pages land, add an entry to INTERACTIVE_ENTITY_CONFIGS.
  *
  * `lifestyle` is the odd one out: the slug is the fixed `profile` (singleton,
  * serializers/lifestyle.ts), so its endpoint ignores the slug and hits the
@@ -38,6 +38,10 @@ import {
 import { STATUS_OPTIONS } from "@/components/conditions/condition-options";
 import { RELATION_LABEL } from "@/components/family-history/family-history-options";
 import { trendValueLabel } from "@/components/lifestyle/lifestyle-options";
+import {
+  STATUS_LABEL as VISIT_STATUS_LABEL,
+  VISIT_TYPE_LABEL,
+} from "@/components/visits/visit-options";
 import {
   Popover,
   PopoverContent,
@@ -162,6 +166,19 @@ interface FamilyHistoryPreviewPayload {
   };
 }
 
+interface VisitPreviewPayload {
+  visit: {
+    id: string;
+    patientId: string;
+    visitDate: string;
+    visitType: string | null;
+    status: string;
+    chiefComplaint: string | null;
+    summary: string | null;
+    doctor: { name: string; specialty: string } | null;
+  };
+}
+
 interface LifestylePreviewPayload {
   profile: {
     id: string;
@@ -263,6 +280,38 @@ const INTERACTIVE_ENTITY_CONFIGS: Record<string, VaultEntityConfig> = {
         title: e.conditionName,
         rightNote:
           e.relationSpecific ?? RELATION_LABEL[e.relation] ?? e.relation,
+        lines,
+      };
+    },
+  },
+  visit: {
+    endpoint: (slug) => `/api/visits/by-slug/${encodeURIComponent(slug)}`,
+    notFoundCopy:
+      "This visit isn't in the record anymore. It may have been edited or removed since I wrote that response.",
+    extract: (json) => {
+      const { visit: v } = json as VisitPreviewPayload;
+      const lines: string[] = [];
+      const facts = [
+        v.visitType ? (VISIT_TYPE_LABEL[v.visitType] ?? v.visitType) : null,
+        v.status !== "completed"
+          ? (VISIT_STATUS_LABEL[v.status] ?? v.status)
+          : null,
+      ].filter((f): f is string => f !== null);
+      if (facts.length > 0) lines.push(facts.join(" · "));
+      const narrative = v.chiefComplaint ?? v.summary;
+      if (narrative) {
+        lines.push(
+          narrative.length > 90 ? `${narrative.slice(0, 87)}…` : narrative,
+        );
+      }
+      return {
+        href: `/patient/${v.patientId}/visits/${v.id}`,
+        title: v.doctor
+          ? `Visit · ${displayDoctorName(v.doctor.name)}`
+          : "Visit",
+        // The slug IS the ISO date — readable as-is, matching the §6.7 title's
+        // date-identity for visits.
+        rightNote: v.visitDate,
         lines,
       };
     },

@@ -1497,7 +1497,7 @@ Reached from: tapping a card on an event timeline page, tapping a result badge o
 **Locked structural decisions:**
 
 - *No History section.* Events don't have change logs — a Visit on Apr 3 is what happened on Apr 3. Replaces History (from state template) with **Outcomes** (what changed because of this event).
-- *Capture context merged into header subtitle*, not a separate section. Clinic + visit type + duration for Visits; lab name + ordering doctor + received date for Labs; "written by you" for Journal.
+- *Capture context merged into header subtitle*, not a separate section. Clinic + visit type for Visits (no `duration` in the Phase 4 schema — see 6.12 Log-visit note); lab name + ordering doctor + received date for Labs; "written by you" for Journal.
 - *Per-entity section header names* rather than a generic `BODY` label. `NOTES FROM VISIT` / `MARKERS` / `ENTRY`. Warmer and contextually appropriate; the variation is intentional.
 - *Constrained content width* (~720–800px), document-like, consistent with state detail template.
 - *Inline-editable narrative bodies* (Visit notes, Journal content, Symptom descriptions) via the Edit button. **LabReport markers are read-only** — corrections via a `+ Log a correction` affordance with dashed-border styling that visually communicates "rare amendment, not primary edit."
@@ -1849,7 +1849,7 @@ Reached from: `+ Add` CTAs on state list pages, `+ Log` CTAs on event timeline p
 
 *Add family history:* Relation * (dropdown) · Relation specific (text) · Condition * (free text) · Age of onset · Outcome · Notes.
 
-*Log visit:* Doctor * (autocomplete with `+ Create new`) · Visit date * (default today) · Visit type · Duration · Summary / notes (markdown). v1.5 may add a "did this visit produce any of these?" outcomes section linking to event-creation forms.
+*Log visit:* Doctor * (autocomplete with `+ Create new`) · Visit date * (default today) · Visit type · Status (default Completed) · Chief complaint · Summary (markdown) · Diagnosis · Next steps (markdown) · Notes. *(Field set follows the locked Phase 4 Visit table — there is no `duration` column, so the earlier "Duration" draft is dropped; revisit as a schema addition in v1.5 if visit length proves worth capturing. Phase D Visit vertical, decisions.md 2026-06-11.)* v1.5 may add a "did this visit produce any of these?" outcomes section linking to event-creation forms.
 
 *Log symptom:* Symptom type * (autocomplete from existing SymptomTypes with `+ Create new`) · Date + time (default now) · Duration · Severity · Description (markdown) · Linked vital (autocomplete to existing readings) · Notes.
 
