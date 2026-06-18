@@ -6,12 +6,12 @@
  *
  * Interactivity (Phase C item 7 + Phase D): vault `med`, `condition`, `doctor`,
  * `allergy`, `family-history`, `lifestyle`, `visit`, `lab-report`, `symptom`
- * (the SymptomType), `symptom-episode`, and `report` pills are clickable and
- * open a popover with an entity preview + `View full →` link to the entity
- * detail page (6.2:1206, 6.2:1216). Remaining pills — vault entity types whose
- * detail pages don't exist yet (`vital` is create-only with no detail page;
- * journal not built), and external citations — stay inert spans, because a
- * popover would dead-end. As more detail pages land, add an entry to
+ * (the SymptomType), `symptom-episode`, `report`, and `journal` pills are
+ * clickable and open a popover with an entity preview + `View full →` link to
+ * the entity detail page (6.2:1206, 6.2:1216). Remaining pills — vault entity
+ * types whose detail pages don't exist yet (`vital` is create-only with no
+ * detail page), and external citations — stay inert spans, because a popover
+ * would dead-end. As more detail pages land, add an entry to
  * INTERACTIVE_ENTITY_CONFIGS.
  *
  * `lifestyle` is the odd one out: the slug is the fixed `profile` (singleton,
@@ -45,6 +45,7 @@ import {
   STATUS_LABEL as SYMPTOM_STATUS_LABEL,
 } from "@/components/symptoms/symptom-options";
 import { trendValueLabel } from "@/components/lifestyle/lifestyle-options";
+import { MOOD_LABEL } from "@/components/journal/journal-options";
 import { REPORT_TYPE_LABEL } from "@/components/reports/report-options";
 import {
   STATUS_LABEL as VISIT_STATUS_LABEL,
@@ -232,6 +233,17 @@ interface ReportPreviewPayload {
     reportType: string | null;
     outcomeCount: number;
     linkedDoctor: { name: string; specialty: string } | null;
+  };
+}
+
+interface JournalPreviewPayload {
+  entry: {
+    id: string;
+    patientId: string;
+    entryDate: string;
+    title: string | null;
+    mood: string | null;
+    preview: string;
   };
 }
 
@@ -470,6 +482,24 @@ const INTERACTIVE_ENTITY_CONFIGS: Record<string, VaultEntityConfig> = {
         // The slug IS the ISO report date — readable as-is, matching the §6.7
         // detail's date identity.
         rightNote: r.reportDate,
+        lines,
+      };
+    },
+  },
+  journal: {
+    endpoint: (slug) => `/api/journal/by-slug/${encodeURIComponent(slug)}`,
+    notFoundCopy:
+      "This journal entry isn't in the record anymore. It may have been edited or removed since I wrote that response.",
+    extract: (json) => {
+      const { entry: e } = json as JournalPreviewPayload;
+      const lines: string[] = [];
+      if (e.preview) lines.push(e.preview);
+      return {
+        href: `/patient/${e.patientId}/journal/${e.id}`,
+        title: e.title?.trim() || "(untitled)",
+        // The slug IS the ISO entry date — readable as-is, matching the §6.7
+        // detail's date identity. Mood (when set) rides the right note.
+        rightNote: e.mood ? (MOOD_LABEL[e.mood] ?? e.mood) : e.entryDate,
         lines,
       };
     },

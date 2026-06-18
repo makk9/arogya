@@ -39,6 +39,9 @@ export const SYMPTOMS_LIST_SURFACE =
 export const REPORTS_LIST_SURFACE =
   "The user is viewing the reports timeline (all uploaded documents — discharge summaries, doctor letters, prescriptions, imaging, etc.).";
 
+export const JOURNAL_LIST_SURFACE =
+  "The user is viewing the journal timeline (their own free-form dated notes about the patient).";
+
 export function symptomTypeSurfaceContext(type: {
   name: string;
   status: string;
@@ -91,6 +94,16 @@ export function reportSurfaceContext(report: {
 }): string {
   const typeNote = report.reportType ? ` (${report.reportType})` : "";
   return `The user is viewing the report "${report.title}"${typeNote} dated ${report.reportDate}.`;
+}
+
+export function journalSurfaceContext(entry: {
+  title: string | null;
+  entryDate: string;
+  mood: string | null;
+}): string {
+  const titled = entry.title ? `"${entry.title}"` : "an untitled entry";
+  const moodNote = entry.mood ? `, mood ${entry.mood}` : "";
+  return `The user is viewing the journal entry ${titled} from ${entry.entryDate}${moodNote}.`;
 }
 
 export function familyHistorySurfaceContext(entry: {
