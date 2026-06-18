@@ -33,6 +33,30 @@ export const VISITS_LIST_SURFACE =
 export const LABS_LIST_SURFACE =
   "The user is viewing the lab reports timeline (all lab reports and their markers).";
 
+export const SYMPTOMS_LIST_SURFACE =
+  "The user is viewing the symptoms timeline (symptom types grouped with their episodes).";
+
+export function symptomTypeSurfaceContext(type: {
+  name: string;
+  status: string;
+  episodeCount: number;
+}): string {
+  const episodes =
+    type.episodeCount > 0
+      ? ` (${type.episodeCount} ${type.episodeCount === 1 ? "episode" : "episodes"} logged)`
+      : "";
+  return `The user is viewing the symptom record for ${type.name}, currently ${type.status}${episodes}.`;
+}
+
+export function symptomEpisodeSurfaceContext(episode: {
+  symptomTypeName: string;
+  startedAt: string;
+  severity: string | null;
+}): string {
+  const severityNote = episode.severity ? `, ${episode.severity}` : "";
+  return `The user is viewing a ${episode.symptomTypeName} episode from ${episode.startedAt}${severityNote}.`;
+}
+
 export function labReportSurfaceContext(report: {
   reportDate: string;
   reportType: string | null;

@@ -14,12 +14,9 @@ import type {
 // lands — by the detail page's inline-edit primitive. Single source of truth so
 // label rewordings don't drift across surfaces. Mirrors `medication-options.ts`.
 
-// Sentinel for the optional Severity + Category selects. shadcn's `Select`
-// cannot hold an empty-string value, so the "no value chosen" row carries this
-// instead; the form's submit handler coerces it back to `undefined` (→ the
-// server stores null). See the form schema's note on the null-vs-`unknown`
-// distinction for severity.
-export const NOT_SET = "__unset__" as const;
+// Sentinel for optional selects — single source in lib/, re-exported here so
+// the many `@/components/conditions/condition-options` importers keep working.
+export { NOT_SET } from "@/lib/select-sentinel";
 
 export const STATUS_OPTIONS: ReadonlyArray<{
   value: (typeof conditionStatus.enumValues)[number];

@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { conditions, doctors, visits } from "@/db/schema";
+import { conditions, doctors, symptomEpisodes, symptomTypes, visits } from "@/db/schema";
 
 /**
  * Patient-scope existence checks for cross-entity FK targets, shared across
@@ -49,6 +49,34 @@ export async function visitInScope(
     .select({ id: visits.id })
     .from(visits)
     .where(and(eq(visits.id, visitId), eq(visits.patientId, patientId)))
+    .limit(1);
+  return row !== undefined;
+}
+
+export async function symptomTypeInScope(
+  patientId: string,
+  symptomTypeId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: symptomTypes.id })
+    .from(symptomTypes)
+    .where(
+      and(eq(symptomTypes.id, symptomTypeId), eq(symptomTypes.patientId, patientId)),
+    )
+    .limit(1);
+  return row !== undefined;
+}
+
+export async function symptomEpisodeInScope(
+  patientId: string,
+  episodeId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: symptomEpisodes.id })
+    .from(symptomEpisodes)
+    .where(
+      and(eq(symptomEpisodes.id, episodeId), eq(symptomEpisodes.patientId, patientId)),
+    )
     .limit(1);
   return row !== undefined;
 }

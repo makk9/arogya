@@ -5,12 +5,13 @@
  * (`↗ source-name`) — distinguishable per design.md 6.2:1204-1205.
  *
  * Interactivity (Phase C item 7 + Phase D): vault `med`, `condition`, `doctor`,
- * `allergy`, `family-history`, `lifestyle`, `visit`, and `lab-report` pills are
- * clickable and open a popover with an entity preview + `View full →` link to
- * the entity detail page (6.2:1206, 6.2:1216). Remaining pills — vault entity
- * types whose detail pages don't exist yet (the other event entities), and
- * external citations — stay inert spans, because a popover would dead-end. As
- * more detail pages land, add an entry to INTERACTIVE_ENTITY_CONFIGS.
+ * `allergy`, `family-history`, `lifestyle`, `visit`, `lab-report`, `symptom`
+ * (the SymptomType), and `symptom-episode` pills are clickable and open a
+ * popover with an entity preview + `View full →` link to the entity detail page
+ * (6.2:1206, 6.2:1216). Remaining pills — vault entity types whose detail pages
+ * don't exist yet (`vital` is create-only with no detail page; report / journal
+ * not built), and external citations — stay inert spans, because a popover would
+ * dead-end. As more detail pages land, add an entry to INTERACTIVE_ENTITY_CONFIGS.
  *
  * `lifestyle` is the odd one out: the slug is the fixed `profile` (singleton,
  * serializers/lifestyle.ts), so its endpoint ignores the slug and hits the
@@ -37,6 +38,11 @@ import {
 } from "@/components/allergies/allergy-options";
 import { STATUS_OPTIONS } from "@/components/conditions/condition-options";
 import { RELATION_LABEL } from "@/components/family-history/family-history-options";
+import {
+  BODY_AREA_LABEL as SYMPTOM_BODY_AREA_LABEL,
+  SEVERITY_LABEL as SYMPTOM_SEVERITY_LABEL,
+  STATUS_LABEL as SYMPTOM_STATUS_LABEL,
+} from "@/components/symptoms/symptom-options";
 import { trendValueLabel } from "@/components/lifestyle/lifestyle-options";
 import {
   STATUS_LABEL as VISIT_STATUS_LABEL,
@@ -200,6 +206,29 @@ interface LabReportPreviewPayload {
     markerCount: number;
     flaggedCount: number;
     orderingDoctor: { name: string; specialty: string } | null;
+  };
+}
+
+interface SymptomPreviewPayload {
+  symptom: {
+    id: string;
+    patientId: string;
+    name: string;
+    status: string;
+    bodyArea: string | null;
+    episodeCount: number;
+    linkedConditionName: string | null;
+  };
+}
+
+interface SymptomEpisodePreviewPayload {
+  episode: {
+    id: string;
+    patientId: string;
+    startedAt: string;
+    severity: string | null;
+    description: string | null;
+    symptomTypeName: string | null;
   };
 }
 
@@ -377,6 +406,52 @@ const INTERACTIVE_ENTITY_CONFIGS: Record<string, VaultEntityConfig> = {
         rightNote: p.stressLevel
           ? `stress ${trendValueLabel("stressLevel", p.stressLevel).toLowerCase()}`
           : null,
+        lines,
+      };
+    },
+  },
+  symptom: {
+    endpoint: (slug) => `/api/symptom-types/by-slug/${encodeURIComponent(slug)}`,
+    notFoundCopy:
+      "This symptom isn't in the record anymore. It may have been renamed or removed since I wrote that response.",
+    extract: (json) => {
+      const { symptom: s } = json as SymptomPreviewPayload;
+      const lines: string[] = [];
+      lines.push(
+        `${s.episodeCount} ${s.episodeCount === 1 ? "episode" : "episodes"} logged`,
+      );
+      if (s.bodyArea) lines.push(SYMPTOM_BODY_AREA_LABEL[s.bodyArea] ?? s.bodyArea);
+      if (s.linkedConditionName) lines.push(`Linked to ${s.linkedConditionName}`);
+      return {
+        href: `/patient/${s.patientId}/symptoms/types/${s.id}`,
+        title: s.name,
+        rightNote: SYMPTOM_STATUS_LABEL[s.status] ?? s.status,
+        lines,
+      };
+    },
+  },
+  "symptom-episode": {
+    endpoint: (slug) =>
+      `/api/symptom-episodes/by-slug/${encodeURIComponent(slug)}`,
+    notFoundCopy:
+      "This episode isn't in the record anymore. It may have been removed since I wrote that response.",
+    extract: (json) => {
+      const { episode: e } = json as SymptomEpisodePreviewPayload;
+      const lines: string[] = [];
+      if (e.severity) lines.push(SYMPTOM_SEVERITY_LABEL[e.severity] ?? e.severity);
+      if (e.description) {
+        lines.push(
+          e.description.length > 90
+            ? `${e.description.slice(0, 87)}…`
+            : e.description,
+        );
+      }
+      return {
+        href: `/patient/${e.patientId}/symptoms/${e.id}`,
+        title: e.symptomTypeName ?? "Symptom episode",
+        // The slug IS the ISO start date — readable as-is, matching the detail's
+        // date identity.
+        rightNote: e.startedAt.slice(0, 10),
         lines,
       };
     },

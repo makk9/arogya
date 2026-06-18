@@ -1,4 +1,5 @@
 import type { VitalReading } from "@/db/schema";
+import { formatVitalValue } from "@/lib/vitals";
 
 import {
   citationFor,
@@ -54,16 +55,4 @@ export function serializeVitalReadings(
   }
 
   return lines.join("\n").trimEnd();
-}
-
-function formatVitalValue(r: VitalReading): string {
-  const primary = r.valuePrimary;
-  const secondary = r.valueSecondary;
-  if (primary !== null && secondary !== null) {
-    return `${primary}/${secondary} ${r.unit}`;
-  }
-  if (primary !== null) {
-    return `${primary} ${r.unit}`;
-  }
-  return `— ${r.unit}`;
 }
