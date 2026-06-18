@@ -6,12 +6,13 @@
  *
  * Interactivity (Phase C item 7 + Phase D): vault `med`, `condition`, `doctor`,
  * `allergy`, `family-history`, `lifestyle`, `visit`, `lab-report`, `symptom`
- * (the SymptomType), and `symptom-episode` pills are clickable and open a
- * popover with an entity preview + `View full →` link to the entity detail page
- * (6.2:1206, 6.2:1216). Remaining pills — vault entity types whose detail pages
- * don't exist yet (`vital` is create-only with no detail page; report / journal
- * not built), and external citations — stay inert spans, because a popover would
- * dead-end. As more detail pages land, add an entry to INTERACTIVE_ENTITY_CONFIGS.
+ * (the SymptomType), `symptom-episode`, and `report` pills are clickable and
+ * open a popover with an entity preview + `View full →` link to the entity
+ * detail page (6.2:1206, 6.2:1216). Remaining pills — vault entity types whose
+ * detail pages don't exist yet (`vital` is create-only with no detail page;
+ * journal not built), and external citations — stay inert spans, because a
+ * popover would dead-end. As more detail pages land, add an entry to
+ * INTERACTIVE_ENTITY_CONFIGS.
  *
  * `lifestyle` is the odd one out: the slug is the fixed `profile` (singleton,
  * serializers/lifestyle.ts), so its endpoint ignores the slug and hits the
@@ -44,6 +45,7 @@ import {
   STATUS_LABEL as SYMPTOM_STATUS_LABEL,
 } from "@/components/symptoms/symptom-options";
 import { trendValueLabel } from "@/components/lifestyle/lifestyle-options";
+import { REPORT_TYPE_LABEL } from "@/components/reports/report-options";
 import {
   STATUS_LABEL as VISIT_STATUS_LABEL,
   VISIT_TYPE_LABEL,
@@ -218,6 +220,18 @@ interface SymptomPreviewPayload {
     bodyArea: string | null;
     episodeCount: number;
     linkedConditionName: string | null;
+  };
+}
+
+interface ReportPreviewPayload {
+  report: {
+    id: string;
+    patientId: string;
+    title: string;
+    reportDate: string;
+    reportType: string | null;
+    outcomeCount: number;
+    linkedDoctor: { name: string; specialty: string } | null;
   };
 }
 
@@ -426,6 +440,36 @@ const INTERACTIVE_ENTITY_CONFIGS: Record<string, VaultEntityConfig> = {
         href: `/patient/${s.patientId}/symptoms/types/${s.id}`,
         title: s.name,
         rightNote: SYMPTOM_STATUS_LABEL[s.status] ?? s.status,
+        lines,
+      };
+    },
+  },
+  report: {
+    endpoint: (slug) => `/api/reports/by-slug/${encodeURIComponent(slug)}`,
+    notFoundCopy:
+      "This report isn't in the record anymore. It may have been edited or removed since I wrote that response.",
+    extract: (json) => {
+      const { report: r } = json as ReportPreviewPayload;
+      const lines: string[] = [];
+      if (r.reportType) {
+        lines.push(REPORT_TYPE_LABEL[r.reportType] ?? r.reportType);
+      }
+      if (r.linkedDoctor) {
+        lines.push(
+          `From ${displayDoctorName(r.linkedDoctor.name)} · ${r.linkedDoctor.specialty}`,
+        );
+      }
+      if (r.outcomeCount > 0) {
+        lines.push(
+          `${r.outcomeCount} extracted ${r.outcomeCount === 1 ? "entry" : "entries"}`,
+        );
+      }
+      return {
+        href: `/patient/${r.patientId}/reports/${r.id}`,
+        title: r.title,
+        // The slug IS the ISO report date — readable as-is, matching the §6.7
+        // detail's date identity.
+        rightNote: r.reportDate,
         lines,
       };
     },

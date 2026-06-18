@@ -36,6 +36,9 @@ export const LABS_LIST_SURFACE =
 export const SYMPTOMS_LIST_SURFACE =
   "The user is viewing the symptoms timeline (symptom types grouped with their episodes).";
 
+export const REPORTS_LIST_SURFACE =
+  "The user is viewing the reports timeline (all uploaded documents — discharge summaries, doctor letters, prescriptions, imaging, etc.).";
+
 export function symptomTypeSurfaceContext(type: {
   name: string;
   status: string;
@@ -79,6 +82,15 @@ export function visitSurfaceContext(visit: {
   const who = visit.doctorName ? ` with ${visit.doctorName}` : "";
   const framing = visit.status === "scheduled" ? "upcoming " : "";
   return `The user is viewing the ${framing}visit${who} on ${visit.visitDate}.`;
+}
+
+export function reportSurfaceContext(report: {
+  title: string;
+  reportType: string | null;
+  reportDate: string;
+}): string {
+  const typeNote = report.reportType ? ` (${report.reportType})` : "";
+  return `The user is viewing the report "${report.title}"${typeNote} dated ${report.reportDate}.`;
 }
 
 export function familyHistorySurfaceContext(entry: {
