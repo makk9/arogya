@@ -206,3 +206,32 @@ export function formatDurationSince(d: Date | string, now?: Date): string | null
   const years = Math.floor(dayDiff / 365);
   return `${years} ${years === 1 ? "year" : "years"}`;
 }
+
+/**
+ * Whole-year age from a YYYY-MM-DD date of birth — calendar-correct (decrements
+ * if this year's birthday hasn't passed yet), not the 365-day approximation the
+ * relative-time helpers use, since a displayed age must match what a person
+ * would say. Drives the patient-profile subtitle (design.md 6.10:1671).
+ *
+ * `today` is the reference calendar date as a YYYY-MM-DD string — pass the
+ * patient's local today (`todayInTimezone`) so the age flips on the patient's
+ * birthday, not the server's. Omitted → the runtime's local date. Returns null
+ * for a future DOB.
+ */
+export function ageInYears(dob: string, today?: string): number | null {
+  const [y, m, d] = dob.split("-").map(Number);
+  let ry: number;
+  let rm: number;
+  let rd: number;
+  if (today) {
+    [ry, rm, rd] = today.split("-").map(Number);
+  } else {
+    const ref = new Date();
+    ry = ref.getFullYear();
+    rm = ref.getMonth() + 1;
+    rd = ref.getDate();
+  }
+  let age = ry - y;
+  if (rm < m || (rm === m && rd < d)) age -= 1;
+  return age < 0 ? null : age;
+}

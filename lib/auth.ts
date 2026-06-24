@@ -14,6 +14,12 @@ export type CurrentPatient = {
   // design.md 9.6:2803 — "Patient's local timezone, not the user's." v1 stub
   // mirrors the seed in db/seed.ts; v1.5 reads from patients.timezone.
   timezone: string;
+  // The user↔patient relationship label ("Father", "Mother", …) shown in the
+  // patient-profile subtitle (design.md 6.10:1671). It's a property of the
+  // account holder's link to the patient, not patient demographics, so it has
+  // no home in the locked `patients` schema — it lives here as stub identity
+  // alongside name/timezone. v1.5 reads it from the user↔patient join.
+  relationship: string;
 };
 
 export async function getCurrentUser(): Promise<CurrentUser> {
@@ -29,5 +35,6 @@ export async function getCurrentPatient(): Promise<CurrentPatient> {
     patientId: STUB_PATIENT_ID,
     name: "Ramesh Sharma",
     timezone: "Asia/Kolkata",
+    relationship: "Father",
   };
 }

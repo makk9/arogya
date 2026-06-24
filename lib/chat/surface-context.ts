@@ -42,6 +42,13 @@ export const REPORTS_LIST_SURFACE =
 export const JOURNAL_LIST_SURFACE =
   "The user is viewing the journal timeline (their own free-form dated notes about the patient).";
 
+export function patientProfileSurfaceContext(patient: {
+  name: string;
+  relationship: string;
+}): string {
+  return `The user is viewing the patient profile for ${patient.name} (their ${patient.relationship.toLowerCase()}) — identity, demographics, and basic medical profile.`;
+}
+
 export function symptomTypeSurfaceContext(type: {
   name: string;
   status: string;

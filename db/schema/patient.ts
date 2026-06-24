@@ -43,6 +43,11 @@ export const patients = pgTable("patients", {
   timezone: text("timezone").notNull(),
   familyHistory: text("family_history"),
   photoUrl: text("photo_url"),
+  // Free-form markdown editorial layer surfaced as the patient profile's NOTES
+  // section (design.md 6.10:1689). Distinct from `family_history` (a dead
+  // legacy text column — family history is its own first-class entity now,
+  // 6.10:1660). Added in Phase D for the patient-profile vertical.
+  notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .notNull()
     .defaultNow(),
