@@ -53,6 +53,11 @@ export const insights = pgTable(
     linkedEntities: jsonb("linked_entities").$type<InsightEntityRef[]>(),
     status: insightStatus("status").notNull().default("new"),
     dismissedReason: text("dismissed_reason"),
+    // §6.9:1629 — the user's editorial layer on an insight: free-form notes
+    // ("discussed with Dr. Sharma", "rechecking next week"). Distinct from the
+    // immutable AI `body`; the only user-authored prose the insight carries
+    // besides `dismissed_reason`. Inline-edited on the detail page, not logged.
+    notes: text("notes"),
     modelVersion: text("model_version").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()

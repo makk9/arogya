@@ -15,6 +15,13 @@
       "when": 1781784999392,
       "tag": "0001_tearful_mother_askani",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782352682264,
+      "tag": "0002_outgoing_gideon",
+      "breakpoints": true
     }
   ]
 }

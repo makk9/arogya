@@ -42,6 +42,17 @@ export const REPORTS_LIST_SURFACE =
 export const JOURNAL_LIST_SURFACE =
   "The user is viewing the journal timeline (their own free-form dated notes about the patient).";
 
+export const INSIGHTS_LIST_SURFACE =
+  "The user is viewing the insights feed (AI-generated patterns, risks, gaps, and trends across the record).";
+
+export function insightSurfaceContext(insight: {
+  title: string;
+  category: string;
+  status: string;
+}): string {
+  return `The user is viewing the insight "${insight.title}" (category: ${insight.category}, status: ${insight.status.replace("_", " ")}).`;
+}
+
 export function patientProfileSurfaceContext(patient: {
   name: string;
   relationship: string;

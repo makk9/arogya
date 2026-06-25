@@ -1,25 +1,17 @@
-import { and, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
-  allergies,
-  conditions,
-  doctors,
-  familyHistory,
   journalEntries,
-  labReports,
-  medications,
-  reports,
-  symptomEpisodes,
-  symptomTypes,
-  visits,
   type JournalEntry,
   type JournalLinkedEntity,
   type NewJournalEntry,
 } from "@/db/schema";
+import {
+  resolveEntityRefs,
+  type ResolvedEntityLink,
+} from "@/db/queries/entity-links";
 import { formatISODate } from "@/lib/agents/_shared/serializers/format";
-import { formatAbsoluteDate } from "@/lib/datetime";
-import { displayDoctorName } from "@/lib/doctor-display";
 
 // Columns editable via PATCH. No change-log split — JournalEntry is an event
 // entity (§6.7: no History; Edit corrects the row in place). No FK columns to
@@ -32,128 +24,12 @@ type JournalUpdate = Partial<
  * A `linked_entities` ref (§4:506 jsonb `{type,id}`) resolved to a navigable
  * pill — label + detail href. Refs are AI-tagged at write time (§6.12:1862,
  * Phase E), so this returns `[]` for every manually-entered entry until then.
+ *
+ * The per-type resolution itself lives in `db/queries/entity-links.ts` (shared
+ * with Insights); this is a structural alias kept so the journal components'
+ * `ResolvedJournalLink` imports stay valid.
  */
-export interface ResolvedJournalLink {
-  type: string;
-  id: string;
-  label: string;
-  href: string;
-}
-
-// Per-type resolution of a batch of ids → id → {label, href}. One query per
-// distinct type present in the refs (not per ref). Types without a detail page
-// (vital) are unhandled and silently dropped — the same posture as the
-// serializer filtering unresolved citations. Every select is patient-scoped, so
-// a foreign id can't surface another patient's row.
-async function resolveTypeBatch(
-  patientId: string,
-  type: string,
-  ids: string[],
-): Promise<Map<string, { label: string; href: string }>> {
-  const out = new Map<string, { label: string; href: string }>();
-  const base = (p: string) => `/patient/${patientId}/${p}`;
-
-  switch (type) {
-    case "med": {
-      const rows = await db
-        .select({ id: medications.id, name: medications.name })
-        .from(medications)
-        .where(and(eq(medications.patientId, patientId), inArray(medications.id, ids)));
-      for (const r of rows) out.set(r.id, { label: r.name, href: base(`medications/${r.id}`) });
-      break;
-    }
-    case "condition": {
-      const rows = await db
-        .select({ id: conditions.id, name: conditions.name })
-        .from(conditions)
-        .where(and(eq(conditions.patientId, patientId), inArray(conditions.id, ids)));
-      for (const r of rows) out.set(r.id, { label: r.name, href: base(`conditions/${r.id}`) });
-      break;
-    }
-    case "doctor": {
-      const rows = await db
-        .select({ id: doctors.id, name: doctors.name })
-        .from(doctors)
-        .where(and(eq(doctors.patientId, patientId), inArray(doctors.id, ids)));
-      for (const r of rows)
-        out.set(r.id, { label: displayDoctorName(r.name), href: base(`doctors/${r.id}`) });
-      break;
-    }
-    case "allergy": {
-      const rows = await db
-        .select({ id: allergies.id, substance: allergies.substance })
-        .from(allergies)
-        .where(and(eq(allergies.patientId, patientId), inArray(allergies.id, ids)));
-      for (const r of rows)
-        out.set(r.id, { label: r.substance, href: base(`allergies/${r.id}`) });
-      break;
-    }
-    case "visit": {
-      const rows = await db
-        .select({ id: visits.id, visitDate: visits.visitDate })
-        .from(visits)
-        .where(and(eq(visits.patientId, patientId), inArray(visits.id, ids)));
-      for (const r of rows)
-        out.set(r.id, {
-          label: `Visit · ${formatAbsoluteDate(r.visitDate)}`,
-          href: base(`visits/${r.id}`),
-        });
-      break;
-    }
-    case "lab-report": {
-      const rows = await db
-        .select({ id: labReports.id, reportType: labReports.reportType, labName: labReports.labName })
-        .from(labReports)
-        .where(and(eq(labReports.patientId, patientId), inArray(labReports.id, ids)));
-      for (const r of rows)
-        out.set(r.id, {
-          label: r.reportType ?? r.labName ?? "Lab report",
-          href: base(`labs/${r.id}`),
-        });
-      break;
-    }
-    case "report": {
-      const rows = await db
-        .select({ id: reports.id, title: reports.title })
-        .from(reports)
-        .where(and(eq(reports.patientId, patientId), inArray(reports.id, ids)));
-      for (const r of rows) out.set(r.id, { label: r.title, href: base(`reports/${r.id}`) });
-      break;
-    }
-    case "symptom": {
-      const rows = await db
-        .select({ id: symptomTypes.id, name: symptomTypes.name })
-        .from(symptomTypes)
-        .where(and(eq(symptomTypes.patientId, patientId), inArray(symptomTypes.id, ids)));
-      for (const r of rows)
-        out.set(r.id, { label: r.name, href: base(`symptoms/types/${r.id}`) });
-      break;
-    }
-    case "symptom-episode": {
-      const rows = await db
-        .select({ id: symptomEpisodes.id, startedAt: symptomEpisodes.startedAt })
-        .from(symptomEpisodes)
-        .where(and(eq(symptomEpisodes.patientId, patientId), inArray(symptomEpisodes.id, ids)));
-      for (const r of rows)
-        out.set(r.id, {
-          label: `Episode · ${formatAbsoluteDate(r.startedAt)}`,
-          href: base(`symptoms/${r.id}`),
-        });
-      break;
-    }
-    case "family-history": {
-      const rows = await db
-        .select({ id: familyHistory.id, conditionName: familyHistory.conditionName })
-        .from(familyHistory)
-        .where(and(eq(familyHistory.patientId, patientId), inArray(familyHistory.id, ids)));
-      for (const r of rows)
-        out.set(r.id, { label: r.conditionName, href: base(`family-history/${r.id}`) });
-      break;
-    }
-    // `vital` and any unknown type have no detail page → unresolved → dropped.
-  }
-  return out;
-}
+export type ResolvedJournalLink = ResolvedEntityLink;
 
 export const journalQueries = {
   // entryDate desc with createdAt tiebreaker — two same-day entries render in
@@ -237,26 +113,6 @@ export const journalQueries = {
     patientId: string,
     refs: JournalLinkedEntity[] | null | undefined,
   ): Promise<ResolvedJournalLink[]> {
-    if (!refs || refs.length === 0) return [];
-
-    const idsByType = new Map<string, string[]>();
-    for (const ref of refs) {
-      const arr = idsByType.get(ref.type) ?? [];
-      arr.push(ref.id);
-      idsByType.set(ref.type, arr);
-    }
-
-    const resolved = new Map<string, { label: string; href: string }>();
-    await Promise.all(
-      [...idsByType].map(async ([type, ids]) => {
-        const batch = await resolveTypeBatch(patientId, type, ids);
-        for (const [id, v] of batch) resolved.set(`${type}:${id}`, v);
-      }),
-    );
-
-    return refs.flatMap((ref) => {
-      const v = resolved.get(`${ref.type}:${ref.id}`);
-      return v ? [{ type: ref.type, id: ref.id, label: v.label, href: v.href }] : [];
-    });
+    return resolveEntityRefs(patientId, refs);
   },
 };
