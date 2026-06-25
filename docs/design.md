@@ -1604,7 +1604,7 @@ Reached from: tapping any insight card in the feed, the dashboard's Top Insight 
 
 **Locked structural decisions:**
 
-- *Status-change actions are prominent, not in a `…` menu.* `✓ Acknowledge` / `→ Mark acted on` / `✕ Dismiss` rendered as top-right buttons with visual weight matching use frequency — `Mark acted on` (the most-used) gets terra/clay tint as primary; the others are neutral.
+- *Status-change actions are prominent, not in a `…` menu.* `✓ Acknowledge` / `→ Mark acted on` / `✕ Dismiss` rendered as top-right buttons with visual weight matching use frequency — `Mark acted on` (the most-used) gets the **periwinkle accent** as primary fill; the others are neutral outlines. *(Was "terra/clay tint" pre-2026-05-31; superseded by the locked periwinkle/stone palette — terra and green were dropped from the system, see decisions.md + Phase 7.3.)*
 - *Five sections in fixed order:* Header → Body → Cited sources → Linked context → Notes.
 - *Constrained content width* (~720–800px), document-like.
 - *Triggered-by link surfaces in the subtitle* — `generated Apr 28 · triggered by Symptom: Dizziness · Apr 28 · category: pattern`. Clickable with the same red-underline accent as the page title.
@@ -1632,7 +1632,7 @@ Reached from: tapping any insight card in the feed, the dashboard's Top Insight 
 
 - *Page-title red underline accent* — used as a visual signature across surfaces. Same treatment for clickable-with-weight inline links (e.g., triggered-by link in subtitle).
 - *Citation slugs with date suffixes* (`§ symptom: dizziness/apr-6`) for specific episode references, vs. type-only references (`§ med: amlodipine`).
-- *Action button visual weight matches use frequency* — primary action (`Mark acted on`) gets warm/terra tint; supporting actions are neutral.
+- *Action button visual weight matches use frequency* — primary action (`Mark acted on`) gets the periwinkle accent fill; supporting actions are neutral. *(Originally "warm/terra tint"; see the §6.9 action-buttons note above — periwinkle/stone is the locked palette.)*
 - *Long slugs wrap gracefully* in breadcrumbs without truncation.
 
 **Documented behaviors:**
