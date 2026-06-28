@@ -20,7 +20,8 @@
     "citation-parser:check": "tsx scripts/check-citation-parser.ts",
     "citation-resolve:check": "tsx scripts/check-citation-pill-resolve.ts",
     "conditions-api:check": "tsx --conditions react-server --env-file=.env.local scripts/check-conditions-api.ts",
-    "units:check": "tsx scripts/check-units.ts"
+    "units:check": "tsx scripts/check-units.ts",
+    "lab-flag:check": "tsx scripts/check-lab-flag.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.77",

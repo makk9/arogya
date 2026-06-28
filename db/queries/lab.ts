@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, lt, ne } from "drizzle-orm";
+import { and, asc, desc, eq, lt, ne, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -260,22 +260,27 @@ export const labReportQueries = {
   },
 
   // §6.7 Linked context: "Previous lipid panels · N" — same report type,
-  // strictly earlier date, newest first. Returns [] when reportType is null
+  // strictly earlier date, newest first. Returns [] when reportType is null/blank
   // (can't group an untyped report).
+  //
+  // Match is normalized — lowercased, trimmed, internal whitespace collapsed —
+  // on BOTH sides, so trivial naming variations ("Lipid Panel" / "lipid  panel ")
+  // still group. It deliberately does NOT fuzzy-match genuinely different names.
   async previousPanelsOfType(
     patientId: string,
     reportType: string | null,
     beforeDate: string,
     excludeId: string,
   ): Promise<LabReport[]> {
-    if (!reportType) return [];
+    const normalized = reportType?.trim().toLowerCase().replace(/\s+/g, " ");
+    if (!normalized) return [];
     return db
       .select()
       .from(labReports)
       .where(
         and(
           eq(labReports.patientId, patientId),
-          eq(labReports.reportType, reportType),
+          sql`regexp_replace(lower(btrim(${labReports.reportType})), '[[:space:]]+', ' ', 'g') = ${normalized}`,
           lt(labReports.reportDate, beforeDate),
           ne(labReports.id, excludeId),
         ),

@@ -3,11 +3,18 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Controller, useFieldArray, useForm } from "react-hook-form";
+import {
+  Controller,
+  useFieldArray,
+  useForm,
+  useWatch,
+  type Control,
+} from "react-hook-form";
 
 import { NOT_SET } from "@/components/conditions/condition-options";
-import { FLAG_SELECT_ITEMS } from "@/components/labs/lab-options";
+import { FLAG_LABEL, FLAG_SELECT_ITEMS } from "@/components/labs/lab-options";
 import { todayLocal } from "@/lib/datetime";
+import { deriveFlag, flagContradictsRange } from "@/lib/labs";
 import { displayDoctorName } from "@/lib/doctor-display";
 import {
   EMPTY_MARKER_ROW,
@@ -81,6 +88,35 @@ function LabelHelper({ text }: { text: string }) {
 }
 
 const flagItems = FLAG_SELECT_ITEMS;
+
+/*
+ * Non-blocking sanity hint: watches one marker row and warns when the chosen
+ * flag contradicts the value vs the reference range (e.g. an in-range value
+ * flagged High). Advisory only — the lab's own flag wins, so it never blocks
+ * submit; `critical` is never second-guessed (panic tier, not range-derived).
+ */
+function MarkerFlagHint({
+  control,
+  index,
+}: {
+  control: Control<LabReportFormValues>;
+  index: number;
+}) {
+  const row = useWatch({ control, name: `results.${index}` });
+  if (!row) return null;
+  const { value, referenceLow, referenceHigh, flag } = row;
+  if (!flagContradictsRange(flag, value, referenceLow, referenceHigh)) {
+    return null;
+  }
+  const derived = deriveFlag(value, referenceLow, referenceHigh);
+  const looks = derived === "normal" ? "within range" : derived;
+  return (
+    <p className="mt-2 text-xs text-warning">
+      Flagged {FLAG_LABEL[flag as string] ?? flag}, but {value} looks {looks} for{" "}
+      {referenceLow || "?"}–{referenceHigh || "?"}. Double-check the flag.
+    </p>
+  );
+}
 
 export function LabReportForm({ patientId, doctors }: LabReportFormProps) {
   const router = useRouter();
@@ -420,6 +456,7 @@ export function LabReportForm({ patientId, doctors }: LabReportFormProps) {
                     Remove
                   </Button>
                 </div>
+                <MarkerFlagHint control={control} index={index} />
               </div>
             ))}
           </div>
