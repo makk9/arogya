@@ -1,11 +1,16 @@
+"use client";
+
+import { FLASH_MARKERS_EVENT } from "@/components/labs/lab-markers-section";
+
 /*
  * §6.7 Outcomes section for a lab report — "what came out of this report". For
  * labs that's the flagged-marker summary (`⚠ N markers flagged`) plus, in
  * Phase E, generated insights (warm-tinted). Insight generation is Phase E, so
- * v1 surfaces only the flagged count + a `View flagged markers →` link that
- * scrolls to the MARKERS table (§6.7 documented behavior — scroll, don't filter,
- * so normal markers stay visible alongside flagged ones). The brief row-flash
- * on arrival is deferred polish (flagged rows already carry a tint).
+ * v1 surfaces only the flagged count + a `View flagged markers ↑` link that
+ * scrolls UP to the MARKERS table (§6.7 documented behavior — scroll, don't
+ * filter, so normal markers stay visible alongside flagged ones) and briefly
+ * pulses the flagged rows via FLASH_MARKERS_EVENT. The arrow points up (not →)
+ * to signal same-page, not navigation.
  *
  * Parent omits the section when nothing flagged (events with no outcomes render
  * nothing, per the §6.5 omission rationale carried into §6.7).
@@ -48,9 +53,10 @@ export function LabOutcomesSection({ flaggedCount, criticalCount }: Props) {
         </span>
         <a
           href="#markers"
+          onClick={() => window.dispatchEvent(new CustomEvent(FLASH_MARKERS_EVENT))}
           className="shrink-0 text-xs text-link underline-offset-4 hover:underline"
         >
-          View flagged markers →
+          View flagged markers <span aria-hidden>↑</span>
         </a>
       </div>
     </section>

@@ -30,15 +30,18 @@ export const FLAG_SELECT_ITEMS: ReadonlyArray<{ value: string; label: string }> 
   [{ value: NOT_SET, label: "—" }, ...FLAG_OPTIONS.map((o) => ({ value: o.value, label: o.label }))];
 
 /*
- * §6.7 marker pills — the "SLIGHTLY HIGH / LOW / CRITICAL" register from the
- * sketch. The 4-value flag enum (normal/low/high/critical) has no
- * slightly-vs-severely gradation, so the non-critical out-of-range flags carry
- * the softer "Slightly" wording and critical stands alone. `normal` and null
- * render no pill. (Interpretation flagged in decisions.md.)
+ * §6.7 marker pills. Plain High / Low / Critical — matching clinical flag
+ * convention (HL7 H/L for out-of-range, HH/LL/"critical" for the panic tier)
+ * AND the create-form's own options (FLAG_OPTIONS), which the earlier "Slightly
+ * high/low" wording silently diverged from. Magnitude isn't encoded in the flag
+ * clinically — it's read from the value vs its reference range (shown in the
+ * MARKERS table), and the amber-vs-red color already carries mild-vs-critical.
+ * `normal` and null render no pill. (Wording change logged in decisions.md,
+ * 2026-06-28; supersedes the sketch's literal "SLIGHTLY HIGH" at §6.7:1532.)
  */
 export const FLAG_PILL_LABEL: Record<string, string> = {
-  low: "Slightly low",
-  high: "Slightly high",
+  low: "Low",
+  high: "High",
   critical: "Critical",
 };
 

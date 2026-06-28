@@ -36,10 +36,11 @@ export function formatReferenceRange(r: ValueFields): string | null {
 }
 
 /*
- * §6.7 flag pill — "amber △ warning glyph and SLIGHTLY HIGH / LOW / CRITICAL".
- * `critical` rides the `destructive` (red) register — a genuine alarm; the
- * non-critical out-of-range flags ride the `--warning` (amber) token, the
- * spec's "worth noting" register (added 2026-06-16, decisions.md). normal /
+ * §6.7 flag pill — amber △ warning glyph and HIGH / LOW / CRITICAL labels
+ * (clinical H/L + panic-tier convention; "Slightly" wording dropped 2026-06-28,
+ * decisions.md). `critical` rides the `destructive` (red) register — a genuine
+ * alarm; the non-critical out-of-range flags ride the `--warning` (amber) token,
+ * the spec's "worth noting" register (added 2026-06-16, decisions.md). normal /
  * null render nothing.
  */
 export function MarkerFlagPill({
