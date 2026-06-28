@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import {
   SEVERITY_OPTIONS,
   STATUS_OPTIONS,
@@ -13,6 +15,7 @@ export interface DoctorRef {
 }
 
 interface Props {
+  patientId: string;
   change: ConditionChange;
   doctorLookup: Record<string, DoctorRef>;
 }
@@ -41,16 +44,20 @@ const SEVERITY_LABEL: Record<string, string> = Object.fromEntries(
 function renderDoctorPill(
   uuid: string | null,
   lookup: Record<string, DoctorRef>,
+  patientId: string,
 ) {
   if (!uuid) return <>—</>;
   const doc = lookup[uuid];
   if (!doc) return <span className="text-muted-foreground">Dr (removed)</span>;
   return (
-    <span>
+    <Link
+      href={`/patient/${patientId}/doctors/${uuid}`}
+      className="underline-offset-4 hover:underline"
+    >
       <EntityTypeGlyph letter="D" />
       {displayDoctorName(doc.name)} ·{" "}
       {doc.specialty}
-    </span>
+    </Link>
   );
 }
 
@@ -63,18 +70,21 @@ function renderEnumValue(field: ConditionChange["field"], value: string) {
 function renderTransition(
   change: ConditionChange,
   doctorLookup: Record<string, DoctorRef>,
+  patientId: string,
 ) {
   if (change.field === "managing_doctor") {
     if (!change.oldValue) {
-      return <>set to {renderDoctorPill(change.newValue, doctorLookup)}</>;
+      return (
+        <>set to {renderDoctorPill(change.newValue, doctorLookup, patientId)}</>
+      );
     }
     return (
       <>
         <s className="text-muted-foreground">
-          {renderDoctorPill(change.oldValue, doctorLookup)}
+          {renderDoctorPill(change.oldValue, doctorLookup, patientId)}
         </s>
         {" → "}
-        {renderDoctorPill(change.newValue, doctorLookup)}
+        {renderDoctorPill(change.newValue, doctorLookup, patientId)}
       </>
     );
   }
@@ -96,7 +106,11 @@ function renderTransition(
   );
 }
 
-export function ConditionChangeEntry({ change, doctorLookup }: Props) {
+export function ConditionChangeEntry({
+  patientId,
+  change,
+  doctorLookup,
+}: Props) {
   return (
     <div className="grid grid-cols-[7rem_1fr] gap-3 border-l-2 border-border py-2 pl-4">
       <div className="font-mono text-xs leading-snug text-muted-foreground">
@@ -110,7 +124,7 @@ export function ConditionChangeEntry({ change, doctorLookup }: Props) {
           <span className="mr-2 font-mono text-xs text-muted-foreground">
             {FIELD_LABEL[change.field]}
           </span>
-          {renderTransition(change, doctorLookup)}
+          {renderTransition(change, doctorLookup, patientId)}
         </div>
         {change.reason ? (
           <div className="text-xs italic text-muted-foreground">

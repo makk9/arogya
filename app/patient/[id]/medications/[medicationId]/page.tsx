@@ -134,6 +134,7 @@ export default async function MedicationDetailPage({
   const recentEntries = changes.slice(0, RECENT_LIMIT).map((c) => (
     <MedicationChangeEntry
       key={c.id}
+      patientId={id}
       change={c}
       doctorLookup={doctorLookup}
       visitLookup={visitLookup}
@@ -144,6 +145,7 @@ export default async function MedicationDetailPage({
       ? changes.slice(RECENT_LIMIT).map((c) => (
           <MedicationChangeEntry
             key={c.id}
+            patientId={id}
             change={c}
             doctorLookup={doctorLookup}
             visitLookup={visitLookup}

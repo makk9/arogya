@@ -16,9 +16,8 @@ interface Props {
  * reader gets a peek without navigating.
  *
  * Allergies is intentionally absent — it lives in MEDICAL PROFILE (the
- * §6.10 duplication was resolved there). The "Recent insights" row is
- * text-only for now: the insights feed (§6.8/6.9) doesn't exist yet, so a
- * link would 404; it becomes a link when that page lands.
+ * §6.10 duplication was resolved there). The "Recent insights" row links to
+ * the insights feed (§6.8/6.9) now that it has shipped.
  */
 
 const SECTION_HEAD =
@@ -110,7 +109,7 @@ export function PatientAtAGlanceSection({ patientId, counts }: Props) {
           context={`${counts.recentVisits} in last 30 days`}
         />
         <GlanceRow
-          href={null}
+          href={`${base}/insights`}
           label="Recent insights"
           context={`${counts.newInsights} new`}
         />

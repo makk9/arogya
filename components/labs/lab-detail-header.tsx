@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { LabInlineField } from "@/components/labs/lab-inline-field";
 import { useMaybeLabEdit } from "@/components/labs/lab-edit-context";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { Button } from "@/components/ui/button";
 import type { Doctor, LabReport } from "@/db/schema";
 import { formatAbsoluteDate } from "@/lib/datetime";
@@ -43,22 +45,27 @@ export function LabDetailHeader({
 
   const title = report.reportType ?? report.labName ?? "Lab report";
 
-  const subtitleParts: string[] = [];
+  const subtitleParts: ReactNode[] = [];
   // Only show lab name in the subtitle when it isn't already the title.
   if (report.labName && report.reportType) subtitleParts.push(report.labName);
   if (orderingDoctor) {
-    subtitleParts.push(`ordered by ${displayDoctorName(orderingDoctor.name)}`);
+    subtitleParts.push(
+      <>
+        ordered by{" "}
+        <Link
+          href={`/patient/${patientId}/doctors/${orderingDoctor.id}`}
+          className="underline-offset-4 hover:underline"
+        >
+          {displayDoctorName(orderingDoctor.name)}
+        </Link>
+      </>,
+    );
   }
   subtitleParts.push(`received ${formatAbsoluteDate(report.reportDate)}`);
 
   return (
     <>
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {patientId.slice(0, 8)}… / labs / {report.reportDate}
-      </nav>
+      <Breadcrumb patientId={patientId} trail={[{ label: "labs", href: "labs" }, { label: report.reportDate }]} />
 
       <div className="mb-2 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
@@ -131,7 +138,12 @@ export function LabDetailHeader({
 
       {!editing ? (
         <p className="mt-2 text-sm text-muted-foreground">
-          {subtitleParts.join(" · ")}
+          {subtitleParts.map((part, i) => (
+            <span key={i}>
+              {i > 0 ? " · " : null}
+              {part}
+            </span>
+          ))}
         </p>
       ) : null}
     </>

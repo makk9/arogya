@@ -16,10 +16,9 @@ import type { VisitOutcomes } from "@/db/queries/visit";
  * dose/status medication change is the clinically loudest outcome; everything
  * else stays neutral.
  *
- * `href` is only set for entity types whose detail pages exist. Med changes and
- * lab reports link out; uploaded reports render as plain badges until the Report
- * vertical lands (Phase D remainder) — §6.6's "badges are clickable" applies
- * where there is somewhere to go.
+ * All three outcome kinds — med changes, lab reports, uploaded reports — link
+ * out to their detail pages now that every vertical has shipped, per §6.6's
+ * "badges are clickable."
  */
 
 export interface OutcomeItem {
@@ -107,9 +106,9 @@ export function buildOutcomeItems(
       glyph: "+",
       text: report.title,
       reason: null,
-      // No report detail page yet (Phase D remainder) — badge stays inert.
-      linkLabel: null,
-      href: null,
+      // Report detail page landed (Phase D Reports vertical) — link out to it.
+      linkLabel: "View report →",
+      href: `/patient/${patientId}/reports/${report.id}`,
       significant: false,
     });
   }

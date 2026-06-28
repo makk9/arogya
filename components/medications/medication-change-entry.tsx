@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import type { MedicationChange } from "@/db/schema";
 import { formatAbsoluteDate, formatRelative } from "@/lib/datetime";
 import { displayDoctorName } from "@/lib/doctor-display";
@@ -14,6 +16,7 @@ export interface VisitRef {
 }
 
 interface Props {
+  patientId: string;
   change: MedicationChange;
   doctorLookup: Record<string, DoctorRef>;
   visitLookup: Record<string, VisitRef>;
@@ -33,34 +36,41 @@ const FIELD_LABEL: Record<MedicationChange["field"], string> = {
 function renderDoctorPill(
   uuid: string | null,
   lookup: Record<string, DoctorRef>,
+  patientId: string,
 ) {
   if (!uuid) return <>—</>;
   const doc = lookup[uuid];
   if (!doc) return <span className="text-muted-foreground">Dr (removed)</span>;
   return (
-    <span>
+    <Link
+      href={`/patient/${patientId}/doctors/${uuid}`}
+      className="underline-offset-4 hover:underline"
+    >
       <EntityTypeGlyph letter="D" />
       {displayDoctorName(doc.name)} ·{" "}
       {doc.specialty}
-    </span>
+    </Link>
   );
 }
 
 function renderTransition(
   change: MedicationChange,
   doctorLookup: Record<string, DoctorRef>,
+  patientId: string,
 ) {
   if (change.field === "prescribing_doctor") {
     if (!change.oldValue) {
-      return <>set to {renderDoctorPill(change.newValue, doctorLookup)}</>;
+      return (
+        <>set to {renderDoctorPill(change.newValue, doctorLookup, patientId)}</>
+      );
     }
     return (
       <>
         <s className="text-muted-foreground">
-          {renderDoctorPill(change.oldValue, doctorLookup)}
+          {renderDoctorPill(change.oldValue, doctorLookup, patientId)}
         </s>
         {" → "}
-        {renderDoctorPill(change.newValue, doctorLookup)}
+        {renderDoctorPill(change.newValue, doctorLookup, patientId)}
       </>
     );
   }
@@ -77,6 +87,7 @@ function renderTransition(
 }
 
 export function MedicationChangeEntry({
+  patientId,
   change,
   doctorLookup,
   visitLookup,
@@ -98,18 +109,24 @@ export function MedicationChangeEntry({
           <span className="mr-2 font-mono text-xs text-muted-foreground">
             {FIELD_LABEL[change.field]}
           </span>
-          {renderTransition(change, doctorLookup)}
+          {renderTransition(change, doctorLookup, patientId)}
         </div>
         {change.reason ? (
           <div className="text-xs italic text-muted-foreground">
             &ldquo;{change.reason}&rdquo;
           </div>
         ) : null}
-        {linkedVisit ? (
+        {linkedVisit && change.linkedVisitId ? (
           <div className="text-xs text-muted-foreground">
-            Linked: <span className="text-foreground">V</span> Visit · Dr{" "}
-            {linkedVisit.doctorName} ·{" "}
-            {formatAbsoluteDate(linkedVisit.visitDate)}
+            Linked:{" "}
+            <Link
+              href={`/patient/${patientId}/visits/${change.linkedVisitId}`}
+              className="underline-offset-4 hover:underline"
+            >
+              <span className="text-foreground">V</span> Visit · Dr{" "}
+              {linkedVisit.doctorName} ·{" "}
+              {formatAbsoluteDate(linkedVisit.visitDate)}
+            </Link>
           </div>
         ) : null}
       </div>

@@ -46,10 +46,9 @@ interface Props {
  * backlinks — derived at render time from FKs pointing AT this doctor, never
  * stored (Phase 3 tripwire). Plain link list with light context per 6.5:1382.
  *
- * Medications, conditions, and visits link to their detail pages. Lab orders
- * render as inert rows — the Lab vertical lands later in Phase D (the `Link`
- * wrapper joins then), and the list stays empty until it ships a create path.
- * The page omits this whole section when all four lists are empty.
+ * All four kinds — medications, conditions, lab orders, visits — link to their
+ * detail pages now that every vertical has shipped. The page omits this whole
+ * section when all four lists are empty.
  */
 
 const MED_STATUS_LABEL: Record<Medication["status"], string> = {
@@ -108,13 +107,18 @@ export function DoctorLinkedContext({
         ))}
         {linkedLabOrders.map((l) => (
           <li key={l.id} className="text-sm">
-            <span className="text-muted-foreground">§</span>{" "}
-            {l.reportType ?? "Lab report"} ·{" "}
-            {formatAbsoluteDate(l.reportDate)}
-            {l.labName ? (
-              <span className="ml-2 text-muted-foreground">{l.labName}</span>
-            ) : null}
-            <span className="ml-2 text-muted-foreground">ordered</span>
+            <Link
+              href={`/patient/${patientId}/labs/${l.id}`}
+              className="min-w-0 underline-offset-4 hover:underline"
+            >
+              <span className="text-muted-foreground">§</span>{" "}
+              {l.reportType ?? "Lab report"} ·{" "}
+              {formatAbsoluteDate(l.reportDate)}
+              {l.labName ? (
+                <span className="ml-2 text-muted-foreground">{l.labName}</span>
+              ) : null}
+              <span className="ml-2 text-muted-foreground">ordered</span>
+            </Link>
           </li>
         ))}
         {linkedVisits.map((v) => (

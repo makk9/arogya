@@ -117,10 +117,16 @@ export function MedicationCurrentSection({
           <div className={FIELD_LABEL}>treats</div>
           <div className="text-sm">
             {treatsCondition ? (
-              <span>
+              // Live link now that the Condition detail page exists (Phase D).
+              // Keeps the `§` vault-reference glyph (not a letter badge) per
+              // §6.5:1410.
+              <Link
+                href={`/patient/${patientId}/conditions/${treatsCondition.id}`}
+                className="underline-offset-4 hover:underline"
+              >
                 <span className="text-muted-foreground">§</span>{" "}
                 {treatsCondition.name}
-              </span>
+              </Link>
             ) : (
               <span className="text-muted-foreground">—</span>
             )}

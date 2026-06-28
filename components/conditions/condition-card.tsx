@@ -31,11 +31,11 @@ const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
  *   line 2: since [date] · managed by [Dr · specialty]   [status pill]
  *   line 3: [N medications · N labs monitoring]
  *
- * The managing-doctor reference renders as inert text (no Link) this round —
- * the Doctor detail page lands later in Phase D; until then the link target
- * doesn't exist, mirroring how the Medication card treats its doctor/condition
- * refs. Pills are neutral (semantic tokens only): the brand accent is still
- * stone-only/deferred, so status/category are NOT color-coded here.
+ * The managing-doctor reference stays inert text — the whole card is a Link, so
+ * a nested doctor anchor would be invalid HTML. The doctor is reachable from the
+ * condition detail page instead (mirrors how the Medication card treats its
+ * doctor/condition refs). Pills are neutral (semantic tokens only): the brand
+ * accent is still stone-only/deferred, so status/category are NOT color-coded here.
  */
 export function ConditionCard({
   patientId,

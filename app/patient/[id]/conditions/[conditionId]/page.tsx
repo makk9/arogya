@@ -89,6 +89,7 @@ export default async function ConditionDetailPage({
     .filter((r) => r.linkedCondition === conditionId)
     .map((r) => ({
       id: r.id,
+      labReportId: r.labReportId,
       marker: r.marker,
       resultDate: r.resultDate,
       flag: r.flag,
@@ -98,13 +99,19 @@ export default async function ConditionDetailPage({
   // visibility. Collapse only when total > RECENT_LIMIT.
   const totalCount = changes.length;
   const recentEntries = changes.slice(0, RECENT_LIMIT).map((c) => (
-    <ConditionChangeEntry key={c.id} change={c} doctorLookup={doctorLookup} />
+    <ConditionChangeEntry
+      key={c.id}
+      patientId={id}
+      change={c}
+      doctorLookup={doctorLookup}
+    />
   ));
   const olderEntries =
     totalCount > RECENT_LIMIT
       ? changes.slice(RECENT_LIMIT).map((c) => (
           <ConditionChangeEntry
             key={c.id}
+            patientId={id}
             change={c}
             doctorLookup={doctorLookup}
           />

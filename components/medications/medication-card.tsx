@@ -15,11 +15,10 @@ interface MedicationCardProps {
  *   line 1: [Name] [brandName?] [dose]                    [↑ recent change]
  *   line 2: [frequency] · [condition] · [D doctor · specialty]
  *
- * Doctor and condition references render as inert plain text this round
- * (no Link). Their detail pages land in Phase D; until then the wiring stays
- * on the parent medication card (Phase C plan D2). The recent-change
- * indicator is deferred until we know what "recent" should mean in practice
- * (plan D5) — TODO below.
+ * Doctor and condition references stay inert plain text — the whole card is a
+ * Link, so nested anchors would be invalid HTML. Both are reachable from the
+ * medication detail page instead. The recent-change indicator is deferred until
+ * we know what "recent" should mean in practice (plan D5) — TODO below.
  */
 export function MedicationCard({
   patientId,

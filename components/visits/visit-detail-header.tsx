@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 import {
@@ -10,6 +11,7 @@ import {
 } from "@/components/visits/visit-options";
 import { VisitInlineField } from "@/components/visits/visit-inline-field";
 import { useMaybeVisitEdit } from "@/components/visits/visit-edit-context";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { Button } from "@/components/ui/button";
 import type { Doctor, Visit } from "@/db/schema";
 import { formatAbsoluteDate } from "@/lib/datetime";
@@ -65,12 +67,7 @@ export function VisitDetailHeader({
 
   return (
     <>
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {patientId.slice(0, 8)}… / visits / {visit.visitDate}
-      </nav>
+      <Breadcrumb patientId={patientId} trail={[{ label: "visits", href: "visits" }, { label: visit.visitDate }]} />
 
       <div className="mb-2 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
@@ -124,8 +121,18 @@ export function VisitDetailHeader({
           ) : (
             <h1 className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-heading text-2xl font-semibold leading-tight">
               <span className="border-b-2 border-destructive pb-1">
-                Visit · {doctor ? displayDoctorName(doctor.name) : "—"} ·{" "}
-                {formatAbsoluteDate(visit.visitDate)}
+                Visit ·{" "}
+                {doctor ? (
+                  <Link
+                    href={`/patient/${patientId}/doctors/${doctor.id}`}
+                    className="underline-offset-4 hover:underline"
+                  >
+                    {displayDoctorName(doctor.name)}
+                  </Link>
+                ) : (
+                  "—"
+                )}{" "}
+                · {formatAbsoluteDate(visit.visitDate)}
               </span>
               {typeLabel ? (
                 <span className="inline-flex items-baseline rounded-full border border-border bg-muted px-2 py-0.5 text-[0.55em] font-medium uppercase tracking-wide text-muted-foreground">

@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import type { VisitLinkedEpisode } from "@/db/queries/visit";
 import { formatAbsoluteDate } from "@/lib/datetime";
 
@@ -5,8 +7,7 @@ import { formatAbsoluteDate } from "@/lib/datetime";
  * The §6.7 Linked context section — temporal forward-links: events that came
  * after (or alongside) this visit. v1 surfaces the FK-linked symptom episodes
  * (symptom_episodes.linked_visit_id) with the §6.7 relative-to-page framing
- * ("Apr 6 · 3 days after visit"). Rows are plain text until the Symptom
- * vertical lands (no episode detail page to link to yet).
+ * ("Apr 6 · 3 days after visit"). Each row links to its episode detail page.
  *
  * Pure-temporal neighbors (episodes near the visit date without an FK) are
  * deliberately NOT queried — that inference belongs to the synthesis agent
@@ -15,6 +16,7 @@ import { formatAbsoluteDate } from "@/lib/datetime";
  */
 
 interface Props {
+  patientId: string;
   visitDate: string;
   episodes: VisitLinkedEpisode[];
 }
@@ -38,7 +40,11 @@ function relativeToVisit(episodeAt: Date, visitDate: string): string {
   return `${before} ${before === 1 ? "day" : "days"} before visit`;
 }
 
-export function VisitLinkedContextSection({ visitDate, episodes }: Props) {
+export function VisitLinkedContextSection({
+  patientId,
+  visitDate,
+  episodes,
+}: Props) {
   if (episodes.length === 0) return null;
 
   return (
@@ -51,9 +57,10 @@ export function VisitLinkedContextSection({ visitDate, episodes }: Props) {
           Symptom episodes linked to this visit · {episodes.length}
         </p>
         {episodes.map(({ episode, symptomTypeName }) => (
-          <div
+          <Link
             key={episode.id}
-            className="rounded-lg border border-border bg-card px-4 py-2.5 text-sm"
+            href={`/patient/${patientId}/symptoms/${episode.id}`}
+            className="block rounded-lg border border-border bg-card px-4 py-2.5 text-sm transition-colors hover:border-foreground/30 hover:bg-muted/40"
           >
             <span className="font-medium">{symptomTypeName}</span>
             <span className="text-muted-foreground">
@@ -61,7 +68,7 @@ export function VisitLinkedContextSection({ visitDate, episodes }: Props) {
               · {formatAbsoluteDate(episode.startedAt)} ·{" "}
               {relativeToVisit(episode.startedAt, visitDate)}
             </span>
-          </div>
+          </Link>
         ))}
       </div>
     </section>

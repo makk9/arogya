@@ -84,6 +84,7 @@ export default async function VisitDetailPage({
         <VisitOutcomesSection outcomes={outcomeItems} />
 
         <VisitLinkedContextSection
+          patientId={id}
           visitDate={visit.visitDate}
           episodes={episodes}
         />

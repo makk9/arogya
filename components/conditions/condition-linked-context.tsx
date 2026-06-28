@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { MarkerFlagPill } from "@/components/labs/marker-display";
 import type { LabResult, Medication } from "@/db/schema";
 import { formatAbsoluteDate } from "@/lib/datetime";
 
@@ -12,6 +13,7 @@ export interface LinkedMedRef {
 
 export interface LinkedLabRef {
   id: string;
+  labReportId: string;
   marker: string;
   resultDate: string;
   flag: LabResult["flag"];
@@ -29,15 +31,15 @@ interface Props {
  * (not preview cards) plus a status pill on the right where applicable.
  *
  * Medications link to their existing detail pages (`§ name · dose`) with their
- * status pill on the right. Lab markers render as inert text (`marker · date`)
- * — lab detail pages land later in Phase D; the `Link` wrapper joins then.
- * Per §6.7, the `△` glyph + a flag pill are reserved for genuinely flagged
- * markers (low / high / critical); a normal/unflagged marker shows neither.
- * Symptoms + visits deferred. The page omits this whole section when both lists
- * are empty (§6.5 LifestyleProfile precedent).
+ * status pill on the right. Lab markers link to their parent lab report's detail
+ * page (`marker · date`) — there is no per-marker page, so the report is the
+ * target. A flagged marker carries the shared `MarkerFlagPill` (the colored
+ * △ + SLIGHTLY HIGH / LOW / CRITICAL pill used in the §6.7 markers table); an
+ * unflagged marker shows nothing. Symptoms + visits deferred. The page omits
+ * this whole section when both lists are empty (§6.5 LifestyleProfile precedent).
  *
- * Pills are neutral semantic tokens (no color register) — the brand accent is
- * still stone-only/deferred (7.2 anti-pattern).
+ * The med status pill is a neutral semantic token; flag severity is the one
+ * place color is intentional (warning/destructive), matching the markers table.
  */
 
 const MED_STATUS_LABEL: Record<Medication["status"], string> = {
@@ -45,16 +47,6 @@ const MED_STATUS_LABEL: Record<Medication["status"], string> = {
   paused: "Paused",
   discontinued: "Discontinued",
 };
-
-const FLAG_LABEL: Record<string, string> = {
-  low: "Low",
-  high: "High",
-  critical: "Critical",
-};
-
-function isFlagged(flag: LabResult["flag"]): boolean {
-  return flag === "low" || flag === "high" || flag === "critical";
-}
 
 export function ConditionLinkedContext({
   patientId,
@@ -82,24 +74,21 @@ export function ConditionLinkedContext({
             <Pill>{MED_STATUS_LABEL[m.status]}</Pill>
           </li>
         ))}
-        {linkedLabs.map((l) => {
-          const flagged = isFlagged(l.flag);
-          return (
-            <li
-              key={l.id}
-              className="flex items-baseline justify-between gap-3 text-sm"
+        {linkedLabs.map((l) => (
+          <li
+            key={l.id}
+            className="flex items-baseline justify-between gap-3 text-sm"
+          >
+            <Link
+              href={`/patient/${patientId}/labs/${l.labReportId}`}
+              className="min-w-0 underline-offset-4 hover:underline"
             >
-              <span className="min-w-0">
-                {flagged ? (
-                  <span className="text-muted-foreground">△ </span>
-                ) : null}
-                {l.marker} · {formatAbsoluteDate(l.resultDate)}
-                <span className="ml-2 text-muted-foreground">monitoring</span>
-              </span>
-              {flagged && l.flag ? <Pill>{FLAG_LABEL[l.flag]}</Pill> : null}
-            </li>
-          );
-        })}
+              {l.marker} · {formatAbsoluteDate(l.resultDate)}
+              <span className="ml-2 text-muted-foreground">monitoring</span>
+            </Link>
+            <MarkerFlagPill flag={l.flag} />
+          </li>
+        ))}
       </ul>
     </section>
   );

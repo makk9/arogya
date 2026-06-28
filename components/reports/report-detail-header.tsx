@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 import {
@@ -8,6 +9,7 @@ import {
 } from "@/components/reports/report-options";
 import { ReportInlineField } from "@/components/reports/report-inline-field";
 import { useMaybeReportEdit } from "@/components/reports/report-edit-context";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { Button } from "@/components/ui/button";
 import type { Doctor, Report } from "@/db/schema";
 import { formatAbsoluteDate } from "@/lib/datetime";
@@ -50,9 +52,19 @@ export function ReportDetailHeader({
     ? (REPORT_TYPE_LABEL[report.reportType] ?? report.reportType)
     : null;
 
-  const subtitleParts: string[] = [formatAbsoluteDate(report.reportDate)];
+  const subtitleParts: ReactNode[] = [formatAbsoluteDate(report.reportDate)];
   if (linkedDoctor) {
-    subtitleParts.push(`from ${displayDoctorName(linkedDoctor.name)}`);
+    subtitleParts.push(
+      <>
+        from{" "}
+        <Link
+          href={`/patient/${patientId}/doctors/${linkedDoctor.id}`}
+          className="underline-offset-4 hover:underline"
+        >
+          {displayDoctorName(linkedDoctor.name)}
+        </Link>
+      </>,
+    );
   }
 
   const typeItems = REPORT_TYPE_OPTIONS.map((o) => ({
@@ -62,12 +74,7 @@ export function ReportDetailHeader({
 
   return (
     <>
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {patientId.slice(0, 8)}… / reports / {report.reportDate}
-      </nav>
+      <Breadcrumb patientId={patientId} trail={[{ label: "reports", href: "reports" }, { label: report.reportDate }]} />
 
       <div className="mb-2 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
@@ -159,7 +166,12 @@ export function ReportDetailHeader({
 
       {!editing ? (
         <p className="mt-2 text-sm text-muted-foreground">
-          {subtitleParts.join(" · ")}
+          {subtitleParts.map((part, i) => (
+            <span key={i}>
+              {i > 0 ? " · " : null}
+              {part}
+            </span>
+          ))}
         </p>
       ) : null}
     </>
