@@ -1529,7 +1529,7 @@ Reached from: tapping a card on an event timeline page, tapping a result badge o
 **Per-entity content emphasis:**
 
 - *Visit* — richest event type. Body (`NOTES FROM VISIT`): doctor's notes / discussion with bolded key numbers. Outcomes: result badges expanded into full rows with action description, italicized quoted reason, link-out to affected entity (`View medication →`, `View care plan →`, `View next visit →`). Linked context: forward-linked symptoms, lab orders, follow-ups, insights.
-- *LabReport* — most data-dense. Body (`MARKERS`): inline structured table with columns *Marker · Value · Reference range · Flag*. All markers shown; flagged ones use amber `△` warning glyph and `SLIGHTLY HIGH` / `LOW` / `CRITICAL` pills. `+ Log a correction` affordance in section header. Outcomes: count of flagged markers (`⚠ 3 markers flagged`), insights generated (warm-tinted accent). Linked context: monitored conditions, previous panels of same type.
+- *LabReport* — most data-dense. Body (`MARKERS`): inline structured table with columns *Marker · Value · Reference range · Flag*. All markers shown; flagged ones use amber `△` warning glyph and `HIGH` / `LOW` / `CRITICAL` pills (the "Slightly" wording from the original sketch was dropped 2026-06-28 — it has no clinical basis and diverged from the form's own labels; see decisions.md). `+ Log a correction` affordance in section header. Outcomes: count of flagged markers (`⚠ 3 markers flagged`), insights generated (warm-tinted accent). Linked context: monitored conditions, previous panels of same type.
 - *SymptomEpisode* — Body (`EPISODE NOTES` or similar): free-text description. Outcomes section may be renamed *"Captured at this episode"* and surfaces linked vital readings logged at the same time. Linked context: parent SymptomType with episode-count link, related episodes nearby in time.
 - *Report* — Body (`REPORT CONTENT`): rendered text or PDF preview. Outcomes: extracted entities (medications, conditions surfaced from the report). Linked context: linked visit, linked conditions.
 - *JournalEntry* — Body (`ENTRY`): rendered markdown with bolded key phrases. *No Outcomes section.* Linked context: two sub-sections — `LINKED ENTITIES · N` (entities the user tagged at write-time) and `OTHER JOURNAL ENTRIES FROM THIS MONTH · N` (sibling entries with relative-date subtitles like `13d ago`). *No Notes section.* Title-less entries render as `(untitled)` with first-line preview in linked-context references.
@@ -1549,7 +1549,7 @@ Reached from: tapping a card on an event timeline page, tapping a result badge o
 - `Edit` button toggles in-place editing of the Body section for narrative events.
 - LabReport `MARKERS` table is read-only; `+ Log a correction` opens an amendment form.
 - Outcomes-section items are clickable, each linking to the entity that was affected.
-- `View flagged markers →` on a Lab page **scrolls** to the markers table and briefly highlights flagged rows (rather than filtering, which would remove clinical context — seeing normal LDL alongside flagged HDL matters).
+- `View flagged markers ↑` on a Lab page **scrolls** to the markers table and briefly highlights (pulses) flagged rows (rather than filtering, which would remove clinical context — seeing normal LDL alongside flagged HDL matters). The arrow points **up**, not `→`: it's a same-page jump to the table above, not navigation to another page.
 - Linked-context items are clickable to navigate.
 - `…` menu contents: Delete, Export source (where applicable — Lab PDFs, uploaded reports), Discard.
 - Slugs in breadcrumbs auto-generated from title (Journal) or `[date]-[summary]` (Visit, Lab, etc.). Title-less Journal entries use `[date]-untitled-N`.
@@ -3002,17 +3002,19 @@ Milestone: a working state entity end-to-end, with chat → entity navigation, c
 
 Milestone: all wiki surfaces work for browsing and direct entity creation. Chat works for synthesis. Almost a complete app — onboarding, extraction, AI-driven flows still pending.
 
-**Phase E — AI-Driven Flows (the differentiating capabilities).** The flows that make arogya specifically arogya. Last because they depend on everything before:
+**Phase E — AI-Driven Flows (the differentiating capabilities).** The flows that make arogya specifically arogya. Last because they depend on everything before. Two foundational surfaces — the dashboard (6.1) and the full-screen chat + chat-session persistence (6.2/6.5) — are sequenced here as well: Phase 6 specs them, but no earlier phase was assigned to build them, and the agents below depend on them (onboarding exits to the dashboard; auto-titling and the doctor brief live in a persisted chat session). Recommended build order:
 
-1. Extraction agent — `lib/agents/extraction.ts` per Phase 5.4
+1. Extraction agent — `lib/agents/extraction.ts` per Phase 5.4 + router-on-every-input wiring per 5.5 (no surface prereq; also clears the dormant Phase B router)
 2. File upload pipeline — two-step signed URL flow per 9.4
-3. Extraction confirmation surface — split-panel UI per 6.11
-4. Onboarding interview — surface (6.3) + agent (5.8)
-5. Insight generator — agent (5.6) + fire-and-forget endpoint (9.3) + event-driven triggers
-6. Auto-titling — Haiku call after first AI response in chat sessions
-7. Doctor brief capability — synthesis agent variant + PDF export per 5.7
+3. Extraction confirmation surface — split-panel UI per 6.11; commit writes `source_report_id` and fires the debounced insight trigger
+4. Insight generator — agent (5.6) + fire-and-forget endpoint (9.3) + event-driven triggers; no surface change (feed 6.8 + detail 6.9 already shipped), validates against the seeded 1.3 demo vault and supersedes the seed insights; gives the commit/form-save triggers a live target
+5. Dashboard shell (6.1) — chat-centerpiece + status strip + suggested actions + recent-insights feed. The activation-banner *logic* is Phase F (incomplete-onboarding state); only the shell ships here. Required before onboarding, which exits to it
+6. Full-screen chat + chat-session persistence (6.2/6.5) — adds a `chat_sessions` (+ messages) table, a post-Phase-A schema addition that needs explicit sign-off before building. Wire the D2 chat deferrals here (grounding header + per-message `grounded in →`). Required before auto-titling and the doctor brief
+7. Onboarding interview — surface (6.3) + agent (5.8); depends on the dashboard (5)
+8. Auto-titling — Haiku call after first AI response in chat sessions; depends on chat-session persistence (6)
+9. Doctor brief capability — synthesis agent variant + PDF export per 5.7; lives in a chat session, depends on (6)
 
-Milestone: all 6 agents work, all 13 surfaces integrated.
+Milestone: all 6 agents work; the extraction-confirmation, dashboard, full-screen-chat, and onboarding surfaces are integrated on top of the Phase D surfaces; seed insights are retired; briefs export to PDF; chat sessions auto-title.
 
 **Phase F — Polish, Integration, Testing.** Final pass before "v1 done":
 
