@@ -33,7 +33,7 @@ export async function getCurrentUser(): Promise<CurrentUser> {
 export async function getCurrentPatient(): Promise<CurrentPatient> {
   return {
     patientId: STUB_PATIENT_ID,
-    name: "Ramesh Sharma",
+    name: "Relangi Mavayya",
     timezone: "Asia/Kolkata",
     relationship: "Father",
   };

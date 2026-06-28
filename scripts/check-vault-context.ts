@@ -20,7 +20,7 @@ async function main() {
     "output starts with the Patient section",
   );
   assert(
-    runA.includes("Ramesh Sharma"),
+    runA.includes("Relangi Mavayya"),
     "output contains the seeded patient name",
   );
   assert(
