@@ -8,6 +8,7 @@ import {
 } from "@/components/allergies/allergy-options";
 import { AllergyInlineField } from "@/components/allergies/allergy-inline-field";
 import { useMaybeAllergyEdit } from "@/components/allergies/allergy-edit-context";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { Button } from "@/components/ui/button";
 import type { Allergy } from "@/db/schema";
 import { formatAbsoluteDate } from "@/lib/datetime";
@@ -50,13 +51,7 @@ export function AllergyDetailHeader({ patientId, allergy, actionsSlot }: Props) 
 
   return (
     <>
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {patientId.slice(0, 8)}… / allergies /{" "}
-        {allergy.id.slice(0, 8)}…
-      </nav>
+      <Breadcrumb patientId={patientId} trail={[{ label: "allergies", href: "allergies" }, { label: `${allergy.id.slice(0, 8)}…` }]} />
 
       <div className="mb-2 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">

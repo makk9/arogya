@@ -1,6 +1,7 @@
 "use client";
 
 import { useMaybeLifestyleEdit } from "@/components/lifestyle/lifestyle-edit-context";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { formatRelativeAndAbsolute } from "@/lib/datetime";
 
@@ -25,12 +26,7 @@ export function LifestyleDetailHeader({ patientId, updatedAt }: Props) {
 
   return (
     <>
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {patientId.slice(0, 8)}… / lifestyle
-      </nav>
+      <Breadcrumb patientId={patientId} trail={[{ label: "lifestyle" }]} />
 
       <div className="mb-2 flex items-start justify-between gap-4">
         <h1 className="font-heading text-2xl font-semibold leading-tight">

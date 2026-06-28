@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { RELATION_LABEL } from "@/components/family-history/family-history-options";
 import { FamilyHistoryInlineField } from "@/components/family-history/family-history-inline-field";
 import { useMaybeFamilyHistoryEdit } from "@/components/family-history/family-history-edit-context";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { Button } from "@/components/ui/button";
 import type { FamilyHistoryEntry } from "@/db/schema";
 
@@ -42,13 +43,7 @@ export function FamilyHistoryDetailHeader({
 
   return (
     <>
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {patientId.slice(0, 8)}… / family-history /{" "}
-        {entry.id.slice(0, 8)}…
-      </nav>
+      <Breadcrumb patientId={patientId} trail={[{ label: "family-history", href: "family-history" }, { label: `${entry.id.slice(0, 8)}…` }]} />
 
       <div className="mb-2 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">

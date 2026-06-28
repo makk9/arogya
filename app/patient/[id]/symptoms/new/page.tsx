@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { Breadcrumb } from "@/components/breadcrumb";
 import { SymptomForm } from "@/components/symptoms/symptom-form";
 import { READING_TYPE_LABEL, formatVitalValue } from "@/components/vitals/vital-options";
 import { symptomTypeQueries } from "@/db/queries/symptom";
@@ -46,12 +47,7 @@ export default async function NewSymptomPage({
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {id.slice(0, 8)}… / symptoms / new
-      </nav>
+      <Breadcrumb patientId={id} trail={[{ label: "symptoms", href: "symptoms" }, { label: "new" }]} />
 
       <SymptomForm
         patientId={patient.patientId}

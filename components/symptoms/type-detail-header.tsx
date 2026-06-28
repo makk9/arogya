@@ -8,6 +8,7 @@ import {
 } from "@/components/symptoms/symptom-options";
 import { TypeInlineField } from "@/components/symptoms/type-inline-field";
 import { useMaybeTypeEdit } from "@/components/symptoms/type-edit-context";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { Button } from "@/components/ui/button";
 import type { SymptomType } from "@/db/schema";
 
@@ -36,12 +37,7 @@ export function TypeDetailHeader({
 
   return (
     <>
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {patientId.slice(0, 8)}… / symptoms / {type.name}
-      </nav>
+      <Breadcrumb patientId={patientId} trail={[{ label: "symptoms", href: "symptoms" }, { label: type.name }]} />
 
       <div className="mb-2 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">

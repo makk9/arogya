@@ -6,6 +6,7 @@ import { FamilyHistoryEmptyState } from "@/components/family-history/family-hist
 import { RELATION_GROUPS } from "@/components/family-history/family-history-options";
 import { EntityListSections } from "@/components/entity-list-sections";
 import { AskAiButton } from "@/components/ask-ai-button";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { buttonVariants } from "@/components/ui/button";
 import { FAMILY_HISTORY_LIST_SURFACE } from "@/lib/chat/surface-context";
 import type { FamilyHistoryEntry } from "@/db/schema";
@@ -53,12 +54,7 @@ export default async function FamilyHistoryListPage({
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {id.slice(0, 8)}… / family-history
-      </nav>
+      <Breadcrumb patientId={id} trail={[{ label: "family-history" }]} />
 
       <div className="mb-2 flex items-start justify-between gap-4">
         <h1 className="font-heading text-2xl font-semibold leading-tight">

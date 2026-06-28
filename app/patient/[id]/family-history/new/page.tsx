@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { Breadcrumb } from "@/components/breadcrumb";
 import { FamilyHistoryForm } from "@/components/family-history/family-history-form";
 import { getCurrentPatient } from "@/lib/auth";
 
@@ -17,12 +18,7 @@ export default async function NewFamilyHistoryPage({
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {id.slice(0, 8)}… / family-history / new
-      </nav>
+      <Breadcrumb patientId={id} trail={[{ label: "family-history", href: "family-history" }, { label: "new" }]} />
       <FamilyHistoryForm patientId={patient.patientId} />
     </main>
   );

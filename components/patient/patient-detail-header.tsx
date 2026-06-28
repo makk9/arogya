@@ -4,6 +4,7 @@ import { PatientAvatar } from "@/components/patient/patient-avatar";
 import { useMaybePatientEdit } from "@/components/patient/patient-edit-context";
 import { PatientInlineField } from "@/components/patient/patient-inline-field";
 import { PatientActionsMenu } from "@/components/patient/patient-actions-menu";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { Button } from "@/components/ui/button";
 import type { Patient } from "@/db/schema";
 
@@ -56,12 +57,7 @@ export function PatientDetailHeader({
 
   return (
     <>
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {patientId.slice(0, 8)}…
-      </nav>
+      <Breadcrumb patientId={patientId} />
 
       <div className="mb-2 flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-1 items-start gap-4">

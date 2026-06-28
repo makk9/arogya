@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 import { DoctorInlineField } from "@/components/doctors/doctor-inline-field";
 import { useMaybeDoctorEdit } from "@/components/doctors/doctor-edit-context";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { Button } from "@/components/ui/button";
 import type { Doctor } from "@/db/schema";
 import { displayDoctorName } from "@/lib/doctor-display";
@@ -30,12 +31,7 @@ export function DoctorDetailHeader({ patientId, doctor, actionsSlot }: Props) {
 
   return (
     <>
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {patientId.slice(0, 8)}… / doctors / {doctor.id.slice(0, 8)}…
-      </nav>
+      <Breadcrumb patientId={patientId} trail={[{ label: "doctors", href: "doctors" }, { label: `${doctor.id.slice(0, 8)}…` }]} />
 
       <div className="mb-2 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">

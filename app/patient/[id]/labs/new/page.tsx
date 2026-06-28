@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { Breadcrumb } from "@/components/breadcrumb";
 import { LabReportForm } from "@/components/labs/lab-report-form";
 import { doctorQueries } from "@/db/queries/doctor";
 import { getCurrentPatient } from "@/lib/auth";
@@ -24,12 +25,7 @@ export default async function NewLabReportPage({
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {id.slice(0, 8)}… / labs / new
-      </nav>
+      <Breadcrumb patientId={id} trail={[{ label: "labs", href: "labs" }, { label: "new" }]} />
 
       <LabReportForm
         patientId={patient.patientId}

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { Breadcrumb } from "@/components/breadcrumb";
 import { ConditionForm } from "@/components/conditions/condition-form";
 import { getCurrentPatient } from "@/lib/auth";
 
@@ -24,12 +25,7 @@ export default async function NewConditionPage({
         Patient ID truncated to first 8 chars + ellipsis — matches the medication
         new-page; becomes a friendly slug once Phase 6.10 (patient profile) ships.
       */}
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {id.slice(0, 8)}… / conditions / new
-      </nav>
+      <Breadcrumb patientId={id} trail={[{ label: "conditions", href: "conditions" }, { label: "new" }]} />
       <ConditionForm patientId={patient.patientId} />
     </main>
   );

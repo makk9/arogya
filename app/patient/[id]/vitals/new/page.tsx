@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { Breadcrumb } from "@/components/breadcrumb";
 import { VitalForm } from "@/components/vitals/vital-form";
 import { getCurrentPatient } from "@/lib/auth";
 
@@ -20,12 +21,7 @@ export default async function NewVitalReadingPage({
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {id.slice(0, 8)}… / vitals / new
-      </nav>
+      <Breadcrumb patientId={id} trail={[{ label: "vitals" }, { label: "new" }]} />
 
       <VitalForm patientId={patient.patientId} />
     </main>

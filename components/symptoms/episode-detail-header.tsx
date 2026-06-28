@@ -10,6 +10,7 @@ import {
   SEVERITY_OPTIONS,
   severityIsWarm,
 } from "@/components/symptoms/symptom-options";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { SymptomEpisode } from "@/db/schema";
@@ -77,13 +78,7 @@ export function EpisodeDetailHeader({
 
   return (
     <>
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {patientId.slice(0, 8)}… / symptoms /{" "}
-        {episode.startedAt.toISOString().slice(0, 10)}
-      </nav>
+      <Breadcrumb patientId={patientId} trail={[{ label: "symptoms", href: "symptoms" }, { label: episode.startedAt.toISOString().slice(0, 10) }]} />
 
       <div className="mb-2 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">

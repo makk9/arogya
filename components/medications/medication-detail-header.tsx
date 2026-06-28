@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 import { useMaybeMedicationEdit } from "@/components/medications/medication-edit-context";
 import { InlineField } from "@/components/medications/inline-field";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { Button } from "@/components/ui/button";
 import type { Medication } from "@/db/schema";
 import { formatAbsoluteDate } from "@/lib/datetime";
@@ -63,13 +64,7 @@ export function MedicationDetailHeader({
 
   return (
     <>
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {patientId.slice(0, 8)}… / medications /{" "}
-        {medication.id.slice(0, 8)}…
-      </nav>
+      <Breadcrumb patientId={patientId} trail={[{ label: "medications", href: "medications" }, { label: `${medication.id.slice(0, 8)}…` }]} />
 
       <div className="mb-2 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">

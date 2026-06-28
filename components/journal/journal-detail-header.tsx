@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { MOOD_LABEL, MOOD_OPTIONS } from "@/components/journal/journal-options";
 import { JournalInlineField } from "@/components/journal/journal-inline-field";
 import { useMaybeJournalEdit } from "@/components/journal/journal-edit-context";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { Button } from "@/components/ui/button";
 import type { JournalEntry } from "@/db/schema";
 import { formatAbsoluteDate } from "@/lib/datetime";
@@ -36,12 +37,7 @@ export function JournalDetailHeader({ patientId, entry, actionsSlot }: Props) {
 
   return (
     <>
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {patientId.slice(0, 8)}… / journal / {entry.entryDate}
-      </nav>
+      <Breadcrumb patientId={patientId} trail={[{ label: "journal", href: "journal" }, { label: entry.entryDate }]} />
 
       <div className="mb-2 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">

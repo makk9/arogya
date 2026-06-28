@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 
 import { AskAiButton } from "@/components/ask-ai-button";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { InsightBody } from "@/components/insights/insight-body";
 import { InsightCitedSourcesSection } from "@/components/insights/insight-cited-sources-section";
 import {
@@ -110,12 +111,7 @@ export default async function InsightDetailPage({
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {id.slice(0, 8)}… / insights / {insight.id.slice(0, 8)}…
-      </nav>
+      <Breadcrumb patientId={id} trail={[{ label: "insights", href: "insights" }, { label: `${insight.id.slice(0, 8)}…` }]} />
 
       <div className="mb-2 flex items-start justify-between gap-4">
         <h1 className="min-w-0 flex-1 font-heading text-2xl font-semibold leading-tight">

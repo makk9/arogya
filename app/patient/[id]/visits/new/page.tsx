@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { Breadcrumb } from "@/components/breadcrumb";
 import { VisitForm } from "@/components/visits/visit-form";
 import { buttonVariants } from "@/components/ui/button";
 import { doctorQueries } from "@/db/queries/doctor";
@@ -29,12 +30,7 @@ export default async function NewVisitPage({
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {id.slice(0, 8)}… / visits / new
-      </nav>
+      <Breadcrumb patientId={id} trail={[{ label: "visits", href: "visits" }, { label: "new" }]} />
 
       {doctors.length === 0 ? (
         <div>

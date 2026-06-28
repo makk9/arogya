@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { Breadcrumb } from "@/components/breadcrumb";
 import { MedicationForm } from "@/components/medications/medication-form";
 import { getCurrentPatient } from "@/lib/auth";
 
@@ -24,12 +25,7 @@ export default async function NewMedicationPage({
         in stub-auth state, and the route segment is unambiguous from context. When
         Phase 6.10 (patient profile) ships a friendly slug, this becomes a name.
       */}
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {id.slice(0, 8)}… / medications / new
-      </nav>
+      <Breadcrumb patientId={id} trail={[{ label: "medications", href: "medications" }, { label: "new" }]} />
       <MedicationForm patientId={patient.patientId} />
     </main>
   );

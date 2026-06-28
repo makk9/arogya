@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { Breadcrumb } from "@/components/breadcrumb";
 import { AllergyForm } from "@/components/allergies/allergy-form";
 import { getCurrentPatient } from "@/lib/auth";
 
@@ -19,12 +20,7 @@ export default async function NewAllergyPage({
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
-      <nav
-        aria-label="breadcrumb"
-        className="mb-6 font-mono text-xs text-muted-foreground"
-      >
-        / patient / {id.slice(0, 8)}… / allergies / new
-      </nav>
+      <Breadcrumb patientId={id} trail={[{ label: "allergies", href: "allergies" }, { label: "new" }]} />
       <AllergyForm patientId={patient.patientId} />
     </main>
   );
