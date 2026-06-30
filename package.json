@@ -19,6 +19,7 @@
     "router:check": "tsx --conditions react-server --env-file=.env.local scripts/check-router.ts",
     "extraction:check": "tsx --conditions react-server --env-file=.env.local scripts/check-extraction.ts",
     "file-pipeline:check": "tsx --conditions react-server --env-file=.env.local scripts/check-file-pipeline.ts",
+    "quick-log:check": "tsx --conditions react-server --env-file=.env.local scripts/check-quick-log.ts",
     "citation-parser:check": "tsx scripts/check-citation-parser.ts",
     "citation-resolve:check": "tsx scripts/check-citation-pill-resolve.ts",
     "conditions-api:check": "tsx --conditions react-server --env-file=.env.local scripts/check-conditions-api.ts",

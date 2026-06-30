@@ -37,3 +37,21 @@ export const renameChatSessionSchema = z.object({
 });
 
 export type RenameChatSessionRequest = z.infer<typeof renameChatSessionSchema>;
+
+// POST /api/chat/classify — the quick-log router (§5.5) running on every typed
+// chat input. Returns the intent so the client can branch: question → synthesis,
+// log → quick-log extraction, ambiguous → inline disambiguator.
+export const classifyRequestSchema = z.object({
+  input: z.string().min(1).max(4000),
+});
+
+export type ClassifyRequest = z.infer<typeof classifyRequestSchema>;
+
+// POST /api/chat/quick-log — free-text log path (§5.4 text-input mode). The text
+// is the extraction source; it lands on the §6.11 confirmation screen, never
+// auto-written.
+export const quickLogRequestSchema = z.object({
+  text: z.string().min(1).max(4000),
+});
+
+export type QuickLogRequest = z.infer<typeof quickLogRequestSchema>;

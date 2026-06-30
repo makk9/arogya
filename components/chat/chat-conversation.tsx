@@ -85,6 +85,9 @@ const SHORTCUTS = [
   },
 ] as const;
 
+// The router's three intents (§5.5), as returned by /api/chat/classify.
+type ChatIntent = "question" | "log" | "ambiguous";
+
 export interface InitialMessage {
   id: string;
   role: "user" | "assistant";
@@ -134,6 +137,12 @@ export function ChatConversation({
   const [title, setTitle] = useState<string | null>(initialTitle);
   const [input, setInput] = useState("");
   const [creating, setCreating] = useState(false);
+  // True while the router classify / quick-log network calls are in flight, so
+  // the input disables between send and the synthesis stream / navigation.
+  const [routing, setRouting] = useState(false);
+  // Holds the original text of an `ambiguous`-classified input awaiting the
+  // user's log-vs-ask choice (the §5.5 inline disambiguator). Null when none.
+  const [pending, setPending] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -175,7 +184,8 @@ export function ChatConversation({
     },
   });
 
-  const busy = status === "submitted" || status === "streaming" || creating;
+  const busy =
+    status === "submitted" || status === "streaming" || creating || routing;
   const isEmpty = messages.length === 0;
 
   // 6.2:1199 — follow-up chips appear only in the lull after the first reply
@@ -200,33 +210,96 @@ export function ChatConversation({
     return null;
   }, [title, messages]);
 
+  // Lazy session creation on the first send of a fresh draft (no empty orphan
+  // rows from merely opening the surface). Returns the id, or null on failure.
+  const ensureSession = useCallback(async (): Promise<string | null> => {
+    if (sessionId) return sessionId;
+    setCreating(true);
+    try {
+      const res = await fetch("/api/chat/sessions", { method: "POST" });
+      if (!res.ok) return null;
+      const body = (await res.json()) as { session: { id: string } };
+      setSessionId(body.session.id);
+      onSessionCreated(body.session.id);
+      return body.session.id;
+    } catch {
+      return null;
+    } finally {
+      setCreating(false);
+    }
+  }, [sessionId, onSessionCreated]);
+
+  // Question → synthesis stream (the existing path). Canned chips call this
+  // directly (they're definitionally questions); typed input reaches it via the
+  // router's `question` branch.
+  const runQuestion = useCallback(
+    async (text: string) => {
+      const sid = await ensureSession();
+      if (!sid) return;
+      sendMessage({ text }, { body: { sessionId: sid } });
+    },
+    [ensureSession, sendMessage],
+  );
+
+  // Log → quick-log extraction → confirmation screen (§5.5 → §6.11). A log is a
+  // data-entry action, not a chat turn, so it doesn't persist to the session;
+  // the user lands on the confirmation page to review before anything is written.
+  const runLog = useCallback(
+    async (text: string) => {
+      setRouting(true);
+      try {
+        const res = await fetch("/api/chat/quick-log", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        });
+        if (!res.ok) return;
+        const body = (await res.json()) as { extractionSessionId: string };
+        router.push(
+          `/patient/${patientId}/extract/${body.extractionSessionId}`,
+        );
+      } catch {
+        // Stay put on failure; the user can retry.
+      } finally {
+        setRouting(false);
+      }
+    },
+    [router, patientId],
+  );
+
+  // Typed input runs through the router first (§5.5 — every chat input).
+  // question → synthesis, log → quick-log, ambiguous → inline disambiguator. A
+  // classifier failure biases to question (wrong-route-to-chat is the cheap
+  // failure per §5.5).
   const submit = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
       if (!trimmed || busy) return;
+      setInput("");
+      setPending(null);
 
-      let sid = sessionId;
-      if (!sid) {
-        // Lazy session creation on the first message of a fresh draft.
-        setCreating(true);
-        try {
-          const res = await fetch("/api/chat/sessions", { method: "POST" });
-          if (!res.ok) return;
-          const body = (await res.json()) as { session: { id: string } };
-          sid = body.session.id;
-          setSessionId(sid);
-          onSessionCreated(sid);
-        } catch {
-          return;
-        } finally {
-          setCreating(false);
+      setRouting(true);
+      let intent: ChatIntent = "question";
+      try {
+        const res = await fetch("/api/chat/classify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ input: trimmed }),
+        });
+        if (res.ok) {
+          intent = ((await res.json()) as { intent: ChatIntent }).intent;
         }
+      } catch {
+        // Fall through as question.
+      } finally {
+        setRouting(false);
       }
 
-      sendMessage({ text: trimmed }, { body: { sessionId: sid } });
-      setInput("");
+      if (intent === "log") return void runLog(trimmed);
+      if (intent === "ambiguous") return setPending(trimmed);
+      return void runQuestion(trimmed);
     },
-    [busy, sessionId, onSessionCreated, sendMessage],
+    [busy, runLog, runQuestion],
   );
 
   function onSubmit(event: FormEvent) {
@@ -347,7 +420,7 @@ export function ChatConversation({
                     key={starter}
                     type="button"
                     disabled={busy}
-                    onClick={() => void submit(starter)}
+                    onClick={() => void runQuestion(starter)}
                     className="rounded-full border border-stone-300 px-3 py-1.5 text-sm text-stone-700 transition-colors hover:border-stone-400 hover:bg-stone-50 disabled:opacity-50"
                   >
                     {starter}
@@ -402,6 +475,54 @@ export function ChatConversation({
             </p>
           ) : null}
 
+          {/* 5.5 inline disambiguator — when the router can't confidently tell a
+              log from a question, ask one click rather than guess wrong. */}
+          {pending ? (
+            <div className="flex gap-3">
+              <span
+                aria-hidden
+                className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-600"
+              >
+                ✦
+              </span>
+              <div className="min-w-0 flex-1 rounded-lg border border-border bg-muted p-4">
+                <p className="text-sm text-foreground">
+                  Did you want to log that, or ask about it?
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  &ldquo;{pending}&rdquo;
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => {
+                      const text = pending;
+                      setPending(null);
+                      void runLog(text);
+                    }}
+                  >
+                    Log it
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => {
+                      const text = pending;
+                      setPending(null);
+                      void runQuestion(text);
+                    }}
+                  >
+                    Ask about it
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           {/* 6.2:1199 contextual follow-ups — only in the lull after the first
               reply. Indented to align under the AI message column. */}
           {showFollowUps ? (
@@ -411,7 +532,7 @@ export function ChatConversation({
                   key={followUp}
                   type="button"
                   disabled={busy}
-                  onClick={() => void submit(followUp)}
+                  onClick={() => void runQuestion(followUp)}
                   className="rounded-full border border-stone-300 px-3 py-1.5 text-sm text-stone-700 transition-colors hover:border-stone-400 hover:bg-stone-50 disabled:opacity-50"
                 >
                   {followUp}
@@ -434,7 +555,7 @@ export function ChatConversation({
               key={shortcut.label}
               type="button"
               disabled={busy}
-              onClick={() => void submit(shortcut.prompt)}
+              onClick={() => void runQuestion(shortcut.prompt)}
               className="rounded-full bg-stone-100 px-3 py-1 text-xs text-stone-600 transition-colors hover:bg-stone-200 disabled:opacity-50"
             >
               {shortcut.label}
