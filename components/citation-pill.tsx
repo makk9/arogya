@@ -4,15 +4,18 @@
  * Visual citation pill. Two variants — vault (`§ entity-type:slug`) and external
  * (`↗ source-name`) — distinguishable per design.md 6.2:1204-1205.
  *
- * Interactivity (Phase C item 7 + Phase D): vault `med`, `condition`, `doctor`,
- * `allergy`, `family-history`, `lifestyle`, `visit`, `lab-report`, `symptom`
- * (the SymptomType), `symptom-episode`, `report`, and `journal` pills are
- * clickable and open a popover with an entity preview + `View full →` link to
- * the entity detail page (6.2:1206, 6.2:1216). Remaining pills — vault entity
- * types whose detail pages don't exist yet (`vital` is create-only with no
- * detail page), and external citations — stay inert spans, because a popover
- * would dead-end. As more detail pages land, add an entry to
- * INTERACTIVE_ENTITY_CONFIGS.
+ * Interactivity (Phase C item 7 + Phase D + Phase E): vault `med`, `condition`,
+ * `doctor`, `allergy`, `family-history`, `lifestyle`, `visit`, `lab-report`,
+ * `lab-result`, `symptom` (the SymptomType), `symptom-episode`, `report`, and
+ * `journal` pills are clickable and open a popover with an entity preview +
+ * `View full →` link (6.2:1206, 6.2:1216). `lab-result` is the one type whose
+ * target isn't its own page — lab markers have no detail page, so the pill
+ * lands on the parent §6.7 lab report where the marker is shown.
+ *
+ * Remaining inert pills: `vital` (create-only, no detail page — the synthesis
+ * prompt cites `§ vital:bp` but there's nowhere to land) and external `↗`
+ * citations, both of which would dead-end a popover. As more detail pages land,
+ * add an entry to INTERACTIVE_ENTITY_CONFIGS.
  *
  * `lifestyle` is the odd one out: the slug is the fixed `profile` (singleton,
  * serializers/lifestyle.ts), so its endpoint ignores the slug and hits the
@@ -38,6 +41,7 @@ import {
   CATEGORY_OPTIONS as ALLERGY_CATEGORY_OPTIONS,
 } from "@/components/allergies/allergy-options";
 import { STATUS_OPTIONS } from "@/components/conditions/condition-options";
+import { FLAG_PILL_LABEL } from "@/components/labs/lab-options";
 import { RELATION_LABEL } from "@/components/family-history/family-history-options";
 import {
   BODY_AREA_LABEL as SYMPTOM_BODY_AREA_LABEL,
@@ -209,6 +213,21 @@ interface LabReportPreviewPayload {
     markerCount: number;
     flaggedCount: number;
     orderingDoctor: { name: string; specialty: string } | null;
+  };
+}
+
+interface LabResultPreviewPayload {
+  result: {
+    marker: string;
+    value: string | null;
+    valueText: string | null;
+    unit: string | null;
+    flag: string | null;
+    resultDate: string;
+    reportId: string;
+    reportPatientId: string;
+    reportType: string | null;
+    reportDate: string;
   };
 }
 
@@ -409,6 +428,35 @@ const INTERACTIVE_ENTITY_CONFIGS: Record<string, VaultEntityConfig> = {
         // The slug IS the ISO report date — readable as-is, matching the §6.7
         // detail's date identity.
         rightNote: r.reportDate,
+        lines,
+      };
+    },
+  },
+  "lab-result": {
+    endpoint: (slug) =>
+      `/api/lab-results/by-marker/${encodeURIComponent(slug)}`,
+    notFoundCopy:
+      "This lab marker isn't in the record anymore. The report it came from may have been edited or removed since I wrote that response.",
+    extract: (json) => {
+      const { result: r } = json as LabResultPreviewPayload;
+      // Lab results have no page of their own — land on the parent §6.7 report
+      // where the marker is shown in context.
+      const reading = [r.value ?? r.valueText, r.unit]
+        .filter((v): v is string => Boolean(v))
+        .join(" ");
+      const lines: string[] = [];
+      lines.push(
+        r.reportType
+          ? `${r.reportType} · ${r.reportDate}`
+          : `Lab report · ${r.reportDate}`,
+      );
+      if (r.flag && r.flag !== "normal") {
+        lines.push(FLAG_PILL_LABEL[r.flag] ?? r.flag);
+      }
+      return {
+        href: `/patient/${r.reportPatientId}/labs/${r.reportId}`,
+        title: r.marker,
+        rightNote: reading.length > 0 ? reading : null,
         lines,
       };
     },

@@ -151,12 +151,17 @@ export interface RunSynthesisParams {
   patientId: string;
   messages: ModelMessage[];
   surfaceContext?: string;
+  // Called once the stream completes with the full assistant text. The chat
+  // route uses this to persist the assistant turn into a chat session (E0b);
+  // the ephemeral drawer omits it. Persistence is the caller's concern, so
+  // synthesis only forwards the final text — it never touches the DB itself.
+  onFinish?: (assistantText: string) => void | Promise<void>;
 }
 
 export async function runSynthesis(
   params: RunSynthesisParams,
 ): Promise<StreamTextResult<ToolSet, never>> {
-  const { patientId, messages, surfaceContext } = params;
+  const { patientId, messages, surfaceContext, onFinish } = params;
 
   let vault: string;
   try {
@@ -188,5 +193,13 @@ export async function runSynthesis(
     },
     messages,
     maxOutputTokens: SYNTHESIS_MAX_OUTPUT_TOKENS,
+    // `text` is the full accumulated assistant markdown — exactly what we
+    // persist (citation pills live inline in the text). Fires after the stream
+    // resolves, so the route's UI response is never blocked on the DB write.
+    onFinish: onFinish
+      ? async ({ text }) => {
+          await onFinish(text);
+        }
+      : undefined,
   });
 }

@@ -11,7 +11,7 @@ import {
   type NewLabReport,
   type NewLabResult,
 } from "@/db/schema";
-import { formatISODate } from "@/lib/agents/_shared/serializers/format";
+import { formatISODate, slugify } from "@/lib/agents/_shared/serializers/format";
 import { conditionInScope, doctorInScope, visitInScope } from "./_shared";
 
 /*
@@ -326,6 +326,29 @@ export const labResultQueries = {
       .from(labResults)
       .where(eq(labResults.patientId, patientId))
       .orderBy(desc(labResults.resultDate), asc(labResults.marker));
+  },
+
+  // Resolves a `§ lab-result:<marker>` citation pill to its most-recent
+  // measurement and parent report. Lab results have no detail page of their
+  // own — the marker lives inside the §6.7 report — so the pill lands there.
+  // The serializer's labResultSlug marker-part is `slugify(markerNormalized ??
+  // marker)`; we match by reconstruction round-trip (the same approach the
+  // report/visit/journal bySlug helpers use), taking the most recent on a tie
+  // since `forPatient` is resultDate-desc ordered. The model often cites the
+  // short `lab-result:creatinine` form (no date), so matching on the marker
+  // alone — not marker+date — is the resilient choice.
+  async byMarkerSlug(
+    patientId: string,
+    markerSlug: string,
+  ): Promise<{ result: LabResult; report: LabReport } | null> {
+    const results = await labResultQueries.forPatient(patientId);
+    const match = results.find(
+      (r) => slugify(r.markerNormalized ?? r.marker) === markerSlug,
+    );
+    if (!match?.labReportId) return null;
+    const report = await labReportQueries.getById(patientId, match.labReportId);
+    if (!report) return null;
+    return { result: match, report };
   },
 
   // §6.7 `+ Log a correction` — amends a single marker in place. No

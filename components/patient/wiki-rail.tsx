@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { useChatDrawer } from "@/components/chat/chat-drawer-provider";
 import type { WikiCounts } from "@/db/queries/wiki-counts";
 import { cn } from "@/lib/utils";
 
@@ -15,8 +14,9 @@ import { cn } from "@/lib/utils";
  * Phase D scope / deviations (flagged in the handoff):
  *  - Dashboard (§6.1) is not built as a route, so it is omitted as a top-level
  *    item; the patient-switcher header links to the built profile home (§6.10).
- *  - Chat (§6.2 full-screen) is not built; the top-level "Chat" item opens the
- *    existing chat drawer instead, which is the conversational surface today.
+ *  - Chat (§6.2 full-screen) shipped in Phase E (E0b); the "Chat" item links to
+ *    it. The ephemeral Ask-AI drawer is kept for the floating per-entity-page
+ *    button only (ratified split, 2026-06-28 — see decisions.md).
  *  - RECENT group (§3) is omitted — it needs recency tracking not yet modeled.
  *  - The `⌘K · search wiki` footer renders as an inert hint: wiki search is
  *    explicitly v1-excluded (§10.1), so it signals the affordance's home
@@ -41,7 +41,6 @@ interface Props {
 
 export function WikiRail({ patientId, patientName, relationship, counts }: Props) {
   const pathname = usePathname();
-  const { openChat } = useChatDrawer();
   const base = `/patient/${patientId}`;
 
   const wikiItems: WikiItem[] = [
@@ -62,6 +61,7 @@ export function WikiRail({ patientId, patientName, relationship, counts }: Props
 
   const profileActive = pathname === base;
   const insightsActive = isActive("insights");
+  const chatActive = isActive("chat");
 
   return (
     <nav
@@ -101,13 +101,15 @@ export function WikiRail({ patientId, patientName, relationship, counts }: Props
         >
           Insights
         </Link>
-        <button
-          type="button"
-          onClick={openChat}
-          className="rounded-md px-3 py-1.5 text-left text-sm text-foreground/80 transition-colors hover:bg-muted/60"
+        <Link
+          href={`${base}/chat`}
+          className={cn(
+            "rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-muted/60",
+            chatActive ? "bg-muted font-medium" : "text-foreground/80",
+          )}
         >
           Chat
-        </button>
+        </Link>
       </div>
 
       {/* HEALTH WIKI */}

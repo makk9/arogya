@@ -12,3 +12,4 @@ export { symptomTypeQueries, symptomEpisodeQueries } from "./symptom";
 export { reportQueries } from "./report";
 export { journalQueries } from "./journal";
 export { insightQueries } from "./insight";
+export { chatQueries } from "./chat";

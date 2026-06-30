@@ -1189,7 +1189,7 @@ The full-screen chat surface where the user has substantive AI conversations wit
 - *Three-column layout.* Rail (wiki nav) · Chat history list (collapsible, `CHATS <`) · Conversation pane.
 - *Rail stays visible during chat.* No ChatGPT-style full-screen takeover. Chat is one surface among many; the wiki should be one click away.
 - *Message visuals.* User messages right-aligned in terra/clay-tinted bubbles. AI messages left-aligned with the AI author marker (`✦` four-pointed sparkle in a circle) on the left, plain text rendering, no avatar. Supports re-reading long conversations and visually distinguishes speakers without heavy chrome.
-- *Conversation header surfaces grounding.* Each conversation displays its title plus `grounded in: [entities] · N sources` underneath. Trust signaling at the top of every conversation.
+- *Conversation header.* Each conversation displays its title and a `…` session-actions menu. *(Originally this header also carried a `grounded in: [entities] · N sources` line under the title. That line was **dropped 2026-06-29 during E0b**: it duplicated the per-message `grounded in →` footer below and consumed header width for no added signal. Grounding now lives solely in that footer — see Locked citation behaviors. See decisions.md.)*
 - *Session actions menu in top-right.* Export, rename, delete via a `…` menu. Share is post-launch.
 
 **Locked input-surface decisions:**

@@ -13,3 +13,4 @@ export * from "./report";
 export * from "./journal";
 export * from "./insight";
 export * from "./extraction-session";
+export * from "./chat";
