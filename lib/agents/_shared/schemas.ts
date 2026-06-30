@@ -11,13 +11,22 @@ export const routerOutputSchema = z.object({
 });
 export type RouterOutput = z.infer<typeof routerOutputSchema>;
 
-// Extraction agent output — per design.md 5.4:763-777
+// Extraction agent output — per design.md 5.4:763-777, with the structured
+// `ambiguities` shape from 10.3:3208 (the §5.4 example showed flat strings; the
+// §6.11 confirmation UI needs {field,question,options} to drive inline-resolve
+// chips that block Confirm until answered). Field names follow the §5.4 example;
+// both sections doc-fixed to agree. Sign-off: decisions.md 2026-06-29.
+const extractionAmbiguitySchema = z.object({
+  field: z.string(),
+  question: z.string(),
+  options: z.array(z.string()),
+});
 const extractionEntitySchema = z.object({
   intent: z.enum(["create", "update", "uncertain"]),
   target_entity_type: z.string(),
   matched_entity_id: z.string().uuid().nullable(),
   extracted_data: z.record(z.string(), z.unknown()),
-  ambiguities: z.array(z.string()),
+  ambiguities: z.array(extractionAmbiguitySchema),
   source_excerpt: z.string(),
 });
 export const extractionOutputSchema = z.object({

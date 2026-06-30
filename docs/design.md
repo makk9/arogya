@@ -768,7 +768,11 @@ The harm-risk concern (the AI citing a bad source as authoritative for a medical
       "matched_entity_id": null | "<existing_uuid>",
       "extracted_data": { ...schema-matching fields... },
       "ambiguities": [
-        "Script says 'OD' — read as 'once daily,' could also mean 'right eye'"
+        {
+          "field": "current_frequency",
+          "question": "Script says 'OD' — I read it as once daily. Is that right?",
+          "options": ["once daily", "right eye"]
+        }
       ],
       "source_excerpt": "...the relevant portion of the source..."
     }
@@ -3200,12 +3204,13 @@ For the remaining agents, structural specs that Claude Code uses to compose actu
   - Confident match → suggest UPDATE on existing entity
   - Confident new → suggest CREATE new entity
   - Uncertain → flag as `needs your call`, surface ambiguity reasoning
-- *Output format:* JSON matching the Zod schema in `lib/agents/_shared/schemas.ts`. Per extracted entity:
-  - `type`: medication, lab_result, visit, etc.
-  - `bucket`: confident_match | confident_new | uncertain
-  - `extracted_fields`: the actual data
-  - `existing_entity_match`: id of matched entity (if applicable)
+- *Output format:* JSON matching the Zod schema in `lib/agents/_shared/schemas.ts`. Field names follow the §5.4 example (canonical). Per extracted entity:
+  - `target_entity_type`: medication, lab_report, visit, etc.
+  - `intent`: create (confident new) | update (confident match) | uncertain
+  - `extracted_data`: the actual data
+  - `matched_entity_id`: id of matched entity from the matching dictionary (set when `intent` is update/uncertain, else null)
   - `ambiguities`: array of `{ field, question, options }` for inline prompts (Phase 6.11 pattern)
+  - `source_excerpt`: the relevant verbatim portion of the source, for the reviewer to verify against
 - *Hard constraints:*
   - Never invent data not present in the source
   - When source is unreadable, return failure object with `quality: low | contrast: low | reason: "blurred photo, OCR confidence below threshold"`

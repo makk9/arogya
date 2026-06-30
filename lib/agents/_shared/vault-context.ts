@@ -229,3 +229,76 @@ export async function buildVaultContext(
   }
   return body;
 }
+
+/**
+ * Builds the extraction agent's "matching dictionary" per design.md 5.4:757 —
+ * the patient's existing match-or-create state entities as names + UUIDs, with
+ * NO change logs and NO event entities. Deliberately distinct from
+ * {@link buildVaultContext}: that serializer emits slug citations (`§ med:x`),
+ * not UUIDs, so it cannot satisfy the extraction output's `matched_entity_id`
+ * (a real uuid). This is the lightweight new-vs-update reasoning context — not
+ * the full vault — and lives here so it shares the canonical query layer rather
+ * than reading the DB directly (CLAUDE.md tripwire). Decision: decisions.md
+ * 2026-06-29.
+ *
+ * Per Phase 3 + 5.4:787, only state entities match-or-create. Time-series
+ * readings (vitals, labs) and events (visits, reports) are always create-new,
+ * so they're absent here by design — there's nothing to match against.
+ */
+export async function buildMatchingDictionary(
+  patientId: string,
+): Promise<string> {
+  const [medications, conditions, doctors, allergies] = await Promise.all([
+    medicationQueries.forPatient(patientId),
+    conditionQueries.forPatient(patientId),
+    doctorQueries.forPatient(patientId),
+    allergyQueries.forPatient(patientId),
+  ]);
+
+  const sections: string[] = [];
+
+  if (medications.length > 0) {
+    const lines = medications.map((m) => {
+      const brand = m.brandName ? ` (brand ${m.brandName})` : "";
+      const dose = [m.currentDose, m.currentFrequency]
+        .filter((v) => v && v.length > 0)
+        .join(", ");
+      const doseTail = dose.length > 0 ? ` — ${dose}` : "";
+      return `- ${m.name}${brand}${doseTail}, ${m.status} (id: ${m.id})`;
+    });
+    sections.push(["## Medications", ...lines].join("\n"));
+  }
+
+  if (conditions.length > 0) {
+    const lines = conditions.map(
+      (c) => `- ${c.name}, ${c.status} (id: ${c.id})`,
+    );
+    sections.push(["## Conditions", ...lines].join("\n"));
+  }
+
+  if (doctors.length > 0) {
+    const lines = doctors.map(
+      (d) => `- ${d.name} — ${d.specialty} (id: ${d.id})`,
+    );
+    sections.push(["## Doctors", ...lines].join("\n"));
+  }
+
+  if (allergies.length > 0) {
+    const lines = allergies.map(
+      (a) => `- ${a.substance}, ${a.status} (id: ${a.id})`,
+    );
+    sections.push(["## Allergies", ...lines].join("\n"));
+  }
+
+  if (sections.length === 0) {
+    return "# Existing records (matching dictionary)\n\nNo existing records yet — treat every extraction as a new entity (intent: \"create\").";
+  }
+
+  return [
+    "# Existing records (matching dictionary)",
+    "",
+    "These are the patient's existing match-or-create records. Use them to decide new-vs-update by clinical identity — brand vs. generic names, dose-bearing record names, spelling and transliteration variants — not exact string match. When an extraction matches one of these, set `matched_entity_id` to its id.",
+    "",
+    ...sections,
+  ].join("\n");
+}

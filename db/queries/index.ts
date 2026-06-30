@@ -13,3 +13,4 @@ export { reportQueries } from "./report";
 export { journalQueries } from "./journal";
 export { insightQueries } from "./insight";
 export { chatQueries } from "./chat";
+export { extractionSessionQueries } from "./extraction-session";
