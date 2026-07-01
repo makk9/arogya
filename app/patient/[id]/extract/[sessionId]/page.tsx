@@ -53,10 +53,12 @@ export default async function ExtractConfirmStubPage({
       />
 
       <div className="mb-6 rounded-md border border-dashed border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
-        <strong className="font-medium text-foreground">Stub screen.</strong>{" "}
-        The full §6.11 confirmation UI (ambiguity resolution, new-vs-update
-        toggles, per-card commit) arrives in E3. This view confirms the
-        extraction loop end-to-end.
+        <strong className="font-medium text-foreground">
+          Preview only — nothing here has been saved to the record yet.
+        </strong>{" "}
+        This is a stub. The full §6.11 confirmation UI (resolve ambiguities,
+        choose new-vs-update, and <em>commit</em>) arrives in E3 — that&apos;s
+        the step that actually writes to the vault.
       </div>
 
       <h1 className="text-2xl font-medium text-foreground">Review extraction</h1>
@@ -110,7 +112,11 @@ export default async function ExtractConfirmStubPage({
                     {e.target_entity_type}
                   </h3>
                   <span className="rounded-full bg-accent px-2 py-0.5 text-xs text-accent-foreground">
-                    {e.intent === "uncertain" ? "needs your call" : e.intent}
+                    {e.intent === "update"
+                      ? "would update existing"
+                      : e.intent === "create"
+                        ? "would add new"
+                        : "needs your call"}
                   </span>
                 </div>
 
@@ -143,10 +149,11 @@ export default async function ExtractConfirmStubPage({
 
                 {e.matched_entity_id ? (
                   <p className="mt-2 text-xs text-muted-foreground">
-                    matches existing entity{" "}
+                    would update existing entity{" "}
                     <span className="font-mono">
                       {e.matched_entity_id.slice(0, 8)}…
-                    </span>
+                    </span>{" "}
+                    (not yet applied)
                   </p>
                 ) : null}
               </article>

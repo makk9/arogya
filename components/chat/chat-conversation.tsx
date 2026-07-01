@@ -457,7 +457,10 @@ export function ChatConversation({
             )
           )}
 
-          {status === "submitted" ? (
+          {/* Thinking indicator — during synthesis (`submitted`) and during the
+              router classify / quick-log window (`routing`), so a log doesn't
+              feel frozen while it classifies + extracts before navigating. */}
+          {status === "submitted" || routing ? (
             <div className="flex gap-3 text-stone-500" aria-live="polite">
               <span
                 aria-hidden
@@ -465,7 +468,9 @@ export function ChatConversation({
               >
                 ✦
               </span>
-              <span className="pt-1">•••</span>
+              <span className="pt-1">
+                {routing ? "Reading that…" : "•••"}
+              </span>
             </div>
           ) : null}
 
