@@ -6,9 +6,10 @@ import { AgentError } from "@/lib/agents/_shared/errors";
 import { todayInTimezone } from "@/lib/datetime";
 import { errorCode, logger } from "@/lib/logger";
 
-// A short, human title for the placeholder Report holding the quick-log text;
+// A short, human title for the placeholder Report holding the quick-log text
+// (and, when the log came from a chat session, that session's fallback title);
 // refined by the user at the E3 confirmation commit.
-function titleFromText(text: string): string {
+export function titleFromText(text: string): string {
   const oneLine = text.trim().replace(/\s+/g, " ");
   return oneLine.length > 60 ? `${oneLine.slice(0, 59)}…` : oneLine;
 }

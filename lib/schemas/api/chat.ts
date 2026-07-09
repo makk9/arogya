@@ -52,6 +52,11 @@ export type ClassifyRequest = z.infer<typeof classifyRequestSchema>;
 // auto-written.
 export const quickLogRequestSchema = z.object({
   text: z.string().min(1).max(4000),
+  // The full-screen chat session the log was typed into. When present, the log
+  // is recorded as a user turn in that conversation (§6.2:1197 — logging lives
+  // in the chat, not a detour) so it echoes immediately, persists, and the user
+  // returns to it after confirming. Omitted by the (session-less) Ask-AI drawer.
+  sessionId: z.string().uuid().optional(),
 });
 
 export type QuickLogRequest = z.infer<typeof quickLogRequestSchema>;

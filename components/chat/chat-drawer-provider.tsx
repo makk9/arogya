@@ -17,8 +17,18 @@
  * `surfaceContext` rides each message's request body (sendMessage `body`), so
  * the surface tag tracks whichever page the user is on when they ask — one
  * thread, page-aware framing.
+ *
+ * Persistence + logging (2026-07-08): the drawer conversation is a real chat
+ * session, not an ephemeral one — it lazily creates a `chat_sessions` row on the
+ * first send, passes `sessionId` so `/api/chat` persists every turn + auto-titles
+ * (identical to full-screen chat), and so drawer conversations show up in the
+ * CHATS list. Typed input runs through the §5.5 router: `question` → synthesis,
+ * `log` → quick-log → the §6.11 confirmation screen (the drawer closes and the
+ * page navigates behind it; after commit the user returns to the page they were
+ * on). One conversation model across both surfaces — not two fragmented ones.
  */
 
+import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -78,7 +88,18 @@ function textOf(message: UIMessage): string {
     .join("");
 }
 
-export function ChatDrawerProvider({ children }: { children: ReactNode }) {
+// The router's three intents (§5.5), as returned by /api/chat/classify.
+type ChatIntent = "question" | "log" | "ambiguous";
+
+export function ChatDrawerProvider({
+  patientId,
+  children,
+}: {
+  patientId: string;
+  children: ReactNode;
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   // The surface the user is currently on. Pages publish it via `setSurface`
   // (the floating Ask AI button does this on mount + on route change), so each
@@ -88,9 +109,24 @@ export function ChatDrawerProvider({ children }: { children: ReactNode }) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const { messages, sendMessage, status, error } = useChat();
+  // The drawer's persisted chat session (lazy-created on first send, like the
+  // full-screen surface), plus the router/log in-flight flags.
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [routing, setRouting] = useState(false);
+  const [logging, setLogging] = useState(false);
+  // Original text of an `ambiguous`-classified input awaiting the log-vs-ask
+  // choice (the §5.5 inline disambiguator). Null when none.
+  const [pending, setPending] = useState<string | null>(null);
 
-  const busy = status === "submitted" || status === "streaming";
+  const { messages, sendMessage, setMessages, status, error } = useChat();
+
+  const busy =
+    status === "submitted" ||
+    status === "streaming" ||
+    creating ||
+    routing ||
+    logging;
   const isEmpty = messages.length === 0;
 
   useEffect(() => {
@@ -106,16 +142,127 @@ export function ChatDrawerProvider({ children }: { children: ReactNode }) {
     [openChat, setSurface],
   );
 
-  function submit(text: string) {
-    const trimmed = text.trim();
-    if (!trimmed || busy) return;
-    sendMessage({ text: trimmed }, { body: { surfaceContext: surfaceContextRef.current } });
-    setInput("");
-  }
+  // Lazy session creation on the first send (no empty orphan row from merely
+  // opening the drawer). Returns the id, or null on failure (send still works,
+  // just ephemeral).
+  const ensureSession = useCallback(async (): Promise<string | null> => {
+    if (sessionId) return sessionId;
+    setCreating(true);
+    try {
+      const res = await fetch("/api/chat/sessions", { method: "POST" });
+      if (!res.ok) return null;
+      const body = (await res.json()) as { session: { id: string } };
+      setSessionId(body.session.id);
+      return body.session.id;
+    } catch {
+      return null;
+    } finally {
+      setCreating(false);
+    }
+  }, [sessionId]);
+
+  // Question → synthesis (persisted when the session resolves). Canned starters
+  // call this directly (they're definitionally questions).
+  const runQuestion = useCallback(
+    async (text: string) => {
+      const sid = await ensureSession();
+      sendMessage(
+        { text },
+        { body: { sessionId: sid ?? undefined, surfaceContext: surfaceContextRef.current } },
+      );
+    },
+    [ensureSession, sendMessage],
+  );
+
+  // Log → quick-log extraction → §6.11 confirmation. The drawer closes (§6.11
+  // "NO floating Ask AI" during the review task) and the page navigates behind
+  // it; `returnTo` brings the user back to the page they were on after commit.
+  const runLog = useCallback(
+    async (text: string, alreadyEchoed = false) => {
+      if (!alreadyEchoed) {
+        setMessages((prev) => [
+          ...prev,
+          { id: `local-${Date.now()}`, role: "user", parts: [{ type: "text", text }] },
+        ]);
+      }
+      setLogging(true);
+      const sid = await ensureSession();
+      try {
+        const res = await fetch("/api/chat/quick-log", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, sessionId: sid ?? undefined }),
+        });
+        if (!res.ok) return;
+        const body = (await res.json()) as { extractionSessionId: string };
+        setOpen(false);
+        const returnTo = pathname ?? `/patient/${patientId}`;
+        router.push(
+          `/patient/${patientId}/extract/${body.extractionSessionId}?returnTo=${encodeURIComponent(returnTo)}`,
+        );
+      } catch {
+        // Stay put on failure; the user can retry.
+      } finally {
+        setLogging(false);
+      }
+    },
+    [ensureSession, setMessages, router, pathname, patientId],
+  );
+
+  // Typed input runs through the §5.5 router first. Echo immediately (before the
+  // classify round-trip) so the message never trails the indicator; the echo is
+  // pulled back for a question (sendMessage re-adds the real turn) or ambiguous
+  // (the disambiguator card shows the text).
+  const submit = useCallback(
+    async (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed || busy) return;
+      setInput("");
+      setPending(null);
+
+      const echoId = `local-${Date.now()}`;
+      setMessages((prev) => [
+        ...prev,
+        { id: echoId, role: "user", parts: [{ type: "text", text: trimmed }] },
+      ]);
+
+      setRouting(true);
+      let intent: ChatIntent = "question";
+      try {
+        const res = await fetch("/api/chat/classify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ input: trimmed }),
+        });
+        if (res.ok) intent = ((await res.json()) as { intent: ChatIntent }).intent;
+      } catch {
+        // Fall through as question.
+      } finally {
+        setRouting(false);
+      }
+
+      if (intent === "log") return void runLog(trimmed, true);
+      setMessages((prev) => prev.filter((m) => m.id !== echoId));
+      if (intent === "ambiguous") return setPending(trimmed);
+      return void runQuestion(trimmed);
+    },
+    [busy, runLog, runQuestion, setMessages],
+  );
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
-    submit(input);
+    void submit(input);
+  }
+
+  // Leave the current conversation and start a fresh one. The old session stays
+  // persisted (findable in the CHATS list); the next send lazily creates a new
+  // one. No-op mid-stream so a new thread can't orphan an in-flight reply.
+  function startNewConversation() {
+    if (busy) return;
+    setMessages([]);
+    setSessionId(null);
+    setPending(null);
+    setInput("");
   }
 
   return (
@@ -162,9 +309,21 @@ export function ChatDrawerProvider({ children }: { children: ReactNode }) {
             <SheetTitle className="flex items-center gap-2">
               <span aria-hidden>✦</span> Ask AI
             </SheetTitle>
-            <SheetClose className="text-sm text-stone-500 underline-offset-4 hover:text-stone-800 hover:underline">
-              Close
-            </SheetClose>
+            <div className="flex items-center gap-4">
+              {!isEmpty ? (
+                <button
+                  type="button"
+                  onClick={startNewConversation}
+                  disabled={busy}
+                  className="text-sm text-stone-500 underline-offset-4 hover:text-stone-800 hover:underline disabled:opacity-40"
+                >
+                  New chat
+                </button>
+              ) : null}
+              <SheetClose className="text-sm text-stone-500 underline-offset-4 hover:text-stone-800 hover:underline">
+                Close
+              </SheetClose>
+            </div>
           </SheetHeader>
 
           <div className="flex-1 space-y-6 overflow-y-auto px-4 py-6">
@@ -178,8 +337,9 @@ export function ChatDrawerProvider({ children }: { children: ReactNode }) {
                     <button
                       key={starter}
                       type="button"
-                      onClick={() => submit(starter)}
-                      className="rounded-full border border-stone-300 px-3 py-1.5 text-sm text-stone-700 transition-colors hover:border-stone-400 hover:bg-stone-50"
+                      disabled={busy}
+                      onClick={() => void runQuestion(starter)}
+                      className="rounded-full border border-stone-300 px-3 py-1.5 text-sm text-stone-700 transition-colors hover:border-stone-400 hover:bg-stone-50 disabled:opacity-50"
                     >
                       {starter}
                     </button>
@@ -207,7 +367,7 @@ export function ChatDrawerProvider({ children }: { children: ReactNode }) {
               )
             )}
 
-            {status === "submitted" ? (
+            {status === "submitted" || routing || logging ? (
               <div className="flex gap-3 text-stone-500" aria-live="polite">
                 <span
                   aria-hidden
@@ -215,7 +375,53 @@ export function ChatDrawerProvider({ children }: { children: ReactNode }) {
                 >
                   ✦
                 </span>
-                <span className="pt-1">•••</span>
+                <span className="pt-1">
+                  {logging
+                    ? "Logging that — taking you to review…"
+                    : routing
+                      ? "Reading that…"
+                      : "•••"}
+                </span>
+              </div>
+            ) : null}
+
+            {/* §5.5 inline disambiguator — when the router can't confidently tell
+                a log from a question, ask one click rather than guess wrong. */}
+            {pending ? (
+              <div className="rounded-lg border border-border bg-muted p-4">
+                <p className="text-sm text-foreground">
+                  Did you want to log that, or ask about it?
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  &ldquo;{pending}&rdquo;
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => {
+                      const text = pending;
+                      setPending(null);
+                      void runLog(text);
+                    }}
+                  >
+                    Log it
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => {
+                      const text = pending;
+                      setPending(null);
+                      void runQuestion(text);
+                    }}
+                  >
+                    Ask about it
+                  </Button>
+                </div>
               </div>
             ) : null}
 

@@ -14,6 +14,7 @@ import {
   TWO_VALUE_TYPES,
 } from "@/components/vitals/vital-options";
 import { vitalFormSchema, type VitalFormValues } from "@/lib/schemas/forms/vital";
+import { draftEnum, draftString, takeExtractionDraft } from "@/lib/extract/draft";
 
 import {
   AlertDialog,
@@ -78,7 +79,43 @@ function nowLocalDatetime(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// Maps an "Edit manually instead" extraction draft (§6.11). The agent extracts
+// type/value/unit/measured_at; a blood-pressure `value` like "152/95" splits
+// into primary/secondary. measured_at isn't prefilled (datetime-local tz
+// conversion) — the form keeps "now" for the user to adjust.
+const VITAL_TYPES = [
+  "blood_pressure", "weight", "blood_glucose", "temperature",
+  "heart_rate", "oxygen_saturation", "respiratory_rate", "other",
+] as const;
+
+function draftToVitalValues(
+  d: Record<string, unknown> | null,
+): Partial<VitalFormValues> {
+  if (!d) return {};
+  const out: Partial<VitalFormValues> = {};
+  const readingType = draftEnum(d.type, VITAL_TYPES);
+  if (readingType) out.readingType = readingType;
+  const rawValue = draftString(d.value);
+  if (rawValue) {
+    const effectiveType = readingType ?? "blood_pressure";
+    const bp = rawValue.match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
+    if (effectiveType === "blood_pressure" && bp) {
+      out.valuePrimary = bp[1];
+      out.valueSecondary = bp[2];
+    } else if (/^-?\d+(\.\d+)?$/.test(rawValue)) {
+      out.valuePrimary = rawValue;
+    }
+  }
+  const unit = draftString(d.unit);
+  if (unit) out.unit = unit;
+  else if (readingType && DEFAULT_UNIT[readingType]) out.unit = DEFAULT_UNIT[readingType];
+  const notes = draftString(d.notes);
+  if (notes) out.notes = notes;
+  return out;
+}
+
 export function VitalForm({ patientId }: VitalFormProps) {
+  const [draft] = useState(() => takeExtractionDraft("vital_reading"));
   const router = useRouter();
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -101,6 +138,7 @@ export function VitalForm({ patientId }: VitalFormProps) {
     context: "",
     flag: "",
     notes: "",
+    ...draftToVitalValues(draft),
   };
 
   const {

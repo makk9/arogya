@@ -15,6 +15,7 @@ import {
   symptomFormSchema,
   type SymptomFormValues,
 } from "@/lib/schemas/forms/symptom";
+import { draftEnum, draftString, takeExtractionDraft } from "@/lib/extract/draft";
 
 import {
   AlertDialog,
@@ -111,6 +112,28 @@ const SERVER_TO_FORM: Record<string, keyof SymptomFormValues> = {
   notes: "notes",
 };
 
+// Maps an "Edit manually instead" extraction draft (§6.11). The agent extracts
+// symptom (name)/started_at/severity/notes; the name creates a new type. Only
+// applied in the open "Log symptom" flow — a locked entry keeps its type.
+const SYMPTOM_SEVERITIES = ["mild", "moderate", "severe"] as const;
+
+function draftToSymptomValues(
+  d: Record<string, unknown> | null,
+): Partial<SymptomFormValues> {
+  if (!d) return {};
+  const out: Partial<SymptomFormValues> = {};
+  const name = draftString(d.symptom);
+  if (name) {
+    out.typeSelection = NEW_TYPE;
+    out.newTypeName = name;
+  }
+  const severity = draftEnum(d.severity, SYMPTOM_SEVERITIES);
+  if (severity) out.severity = severity;
+  const notes = draftString(d.notes);
+  if (notes) out.notes = notes;
+  return out;
+}
+
 export function SymptomForm({
   patientId,
   types,
@@ -122,6 +145,11 @@ export function SymptomForm({
   const [cancelOpen, setCancelOpen] = useState(false);
 
   const locked = lockedType != null;
+  // Only consume a draft in the open "Log symptom" flow — a locked entry (from a
+  // symptom's page) keeps that type, so it must not read/clear the draft.
+  const [draft] = useState(() =>
+    lockedType ? null : takeExtractionDraft("symptom_episode"),
+  );
   // Locked → return to that symptom's page (the user came from there and the new
   // episode shows up in its stream). Otherwise the timeline.
   const returnHref = lockedType
@@ -161,6 +189,7 @@ export function SymptomForm({
     relief: "",
     linkedVitalId: "",
     notes: "",
+    ...draftToSymptomValues(draft),
   };
 
   const {

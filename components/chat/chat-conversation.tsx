@@ -137,9 +137,12 @@ export function ChatConversation({
   const [title, setTitle] = useState<string | null>(initialTitle);
   const [input, setInput] = useState("");
   const [creating, setCreating] = useState(false);
-  // True while the router classify / quick-log network calls are in flight, so
-  // the input disables between send and the synthesis stream / navigation.
+  // True while the router classify call is in flight (input disables between
+  // send and the synthesis stream / navigation).
   const [routing, setRouting] = useState(false);
+  // True while a confirmed `log` is being extracted (the quick-log call), so the
+  // chat shows a distinct "Logging…" indicator before navigating to review.
+  const [logging, setLogging] = useState(false);
   // Holds the original text of an `ambiguous`-classified input awaiting the
   // user's log-vs-ask choice (the §5.5 inline disambiguator). Null when none.
   const [pending, setPending] = useState<string | null>(null);
@@ -170,7 +173,7 @@ export function ChatConversation({
     [initialMessages],
   );
 
-  const { messages, sendMessage, status, error } = useChat({
+  const { messages, sendMessage, setMessages, status, error } = useChat({
     messages: seeded,
     // No per-turn refetch: the CHATS list only needs refreshing when this
     // conversation's title lands. That happens once, shortly after the first
@@ -185,7 +188,11 @@ export function ChatConversation({
   });
 
   const busy =
-    status === "submitted" || status === "streaming" || creating || routing;
+    status === "submitted" ||
+    status === "streaming" ||
+    creating ||
+    routing ||
+    logging;
   const isEmpty = messages.length === 0;
 
   // 6.2:1199 — follow-up chips appear only in the lull after the first reply
@@ -241,30 +248,47 @@ export function ChatConversation({
     [ensureSession, sendMessage],
   );
 
-  // Log → quick-log extraction → confirmation screen (§5.5 → §6.11). A log is a
-  // data-entry action, not a chat turn, so it doesn't persist to the session;
-  // the user lands on the confirmation page to review before anything is written.
+  // Log → quick-log extraction → confirmation screen (§5.5 → §6.11). A log lives
+  // in the conversation (§6.2:1197): it's echoed as a user turn straight away
+  // (so it's visible during the several-second extraction), persisted to the
+  // session server-side (so the session survives + is findable), and the user is
+  // returned here after confirming via the `returnTo` param — not dumped on a
+  // detour they didn't come from.
   const runLog = useCallback(
-    async (text: string) => {
-      setRouting(true);
+    async (text: string, alreadyEchoed = false) => {
+      // Ensure the message is on screen. `submit` pre-echoes before classifying
+      // (so it paints the instant you hit Send); the disambiguator's "Log it"
+      // path has no prior echo, so add one here.
+      if (!alreadyEchoed) {
+        setMessages((prev) => [
+          ...prev,
+          { id: `local-${Date.now()}`, role: "user", parts: [{ type: "text", text }] },
+        ]);
+      }
+
+      setLogging(true);
+      const sid = await ensureSession();
       try {
         const res = await fetch("/api/chat/quick-log", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
+          body: JSON.stringify({ text, sessionId: sid ?? undefined }),
         });
         if (!res.ok) return;
         const body = (await res.json()) as { extractionSessionId: string };
+        const returnTo = sid
+          ? `/patient/${patientId}/chat/${sid}`
+          : `/patient/${patientId}/chat`;
         router.push(
-          `/patient/${patientId}/extract/${body.extractionSessionId}`,
+          `/patient/${patientId}/extract/${body.extractionSessionId}?returnTo=${encodeURIComponent(returnTo)}`,
         );
       } catch {
         // Stay put on failure; the user can retry.
       } finally {
-        setRouting(false);
+        setLogging(false);
       }
     },
-    [router, patientId],
+    [ensureSession, setMessages, router, patientId],
   );
 
   // Typed input runs through the router first (§5.5 — every chat input).
@@ -277,6 +301,16 @@ export function ChatConversation({
       if (!trimmed || busy) return;
       setInput("");
       setPending(null);
+
+      // Paint the user's message immediately — before the classify round-trip —
+      // so it never trails the "Reading that…" indicator. It's pulled back if
+      // the input turns out to be a question (sendMessage re-adds the real turn)
+      // or ambiguous (the disambiguator card shows the text instead).
+      const echoId = `local-${Date.now()}`;
+      setMessages((prev) => [
+        ...prev,
+        { id: echoId, role: "user", parts: [{ type: "text", text: trimmed }] },
+      ]);
 
       setRouting(true);
       let intent: ChatIntent = "question";
@@ -295,11 +329,12 @@ export function ChatConversation({
         setRouting(false);
       }
 
-      if (intent === "log") return void runLog(trimmed);
+      if (intent === "log") return void runLog(trimmed, true);
+      setMessages((prev) => prev.filter((m) => m.id !== echoId));
       if (intent === "ambiguous") return setPending(trimmed);
       return void runQuestion(trimmed);
     },
-    [busy, runLog, runQuestion],
+    [busy, runLog, runQuestion, setMessages],
   );
 
   function onSubmit(event: FormEvent) {
@@ -457,10 +492,11 @@ export function ChatConversation({
             )
           )}
 
-          {/* Thinking indicator — during synthesis (`submitted`) and during the
-              router classify / quick-log window (`routing`), so a log doesn't
-              feel frozen while it classifies + extracts before navigating. */}
-          {status === "submitted" || routing ? (
+          {/* Thinking indicator — synthesis (`submitted`), the router classify
+              window (`routing`), and the log-extraction window (`logging`), so a
+              log doesn't feel frozen while it classifies + extracts before
+              navigating, and reads as "logging" rather than a generic wait. */}
+          {status === "submitted" || routing || logging ? (
             <div className="flex gap-3 text-stone-500" aria-live="polite">
               <span
                 aria-hidden
@@ -469,7 +505,11 @@ export function ChatConversation({
                 ✦
               </span>
               <span className="pt-1">
-                {routing ? "Reading that…" : "•••"}
+                {logging
+                  ? "Logging that — taking you to review…"
+                  : routing
+                    ? "Reading that…"
+                    : "•••"}
               </span>
             </div>
           ) : null}

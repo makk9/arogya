@@ -26,7 +26,7 @@ export default async function PatientLayout({
   const counts = await wikiCounts(patient.patientId);
 
   return (
-    <ChatDrawerProvider>
+    <ChatDrawerProvider patientId={patient.patientId}>
       <div className="flex min-h-screen">
         <WikiRail
           patientId={patient.patientId}

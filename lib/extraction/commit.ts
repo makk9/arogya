@@ -1,0 +1,656 @@
+import "server-only";
+
+import {
+  allergyCategory,
+  allergySeverity,
+  allergyStatus,
+  conditionCategory,
+  conditionSeverity,
+  conditionStatus,
+  labResultFlag,
+  medicationCategory,
+  medicationForm,
+  symptomEpisodeSeverity,
+  vitalReadingType,
+  visitType,
+} from "@/db/schema";
+import {
+  allergyChangeQueries,
+  allergyQueries,
+  conditionChangeQueries,
+  conditionQueries,
+  doctorChangeQueries,
+  doctorQueries,
+  labReportQueries,
+  medicationChangeQueries,
+  medicationQueries,
+  symptomEpisodeQueries,
+  symptomTypeQueries,
+  visitQueries,
+  vitalQueries,
+} from "@/db/queries";
+import type { NewLabResultInput } from "@/db/queries/lab";
+import type { CommitCardInput, CommitEntityType } from "@/lib/schemas/api/extract-commit";
+
+/**
+ * Server-side commit for the E3 extraction confirmation surface (§6.11 / §5.4).
+ *
+ * This is the ONLY place extraction output becomes vault rows. Extraction never
+ * auto-writes (§5.4:752 tripwire); commit runs only from the human-reviewed
+ * confirmation screen, per card. Each committed entity carries `source_report_id`
+ * back to the originating Report (§5.4:796 "source link persists on the entity
+ * page"), for the seven entity types whose schema carries that column — doctors
+ * and allergies don't (Phase A groundwork), so those commit without a backlink.
+ *
+ * Two design rules shape the mapping:
+ *  - Never fabricate (§5.4:794). A field the agent didn't extract stays null; an
+ *    enum value we can't recognise is dropped, not guessed. Required-but-absent
+ *    clinical fields (a medication with no dose) block the card with a plain-
+ *    language ask rather than inventing a value.
+ *  - Entity-type write model (§5.4:791). Event entities (lab / vital / visit /
+ *    symptom) are ALWAYS create-new; only state entities (medication / condition
+ *    / doctor / allergy) can be an `update`, applied through their change-log +
+ *    PATCH helpers so the change-log tripwire (append a *_changes row; update
+ *    current_* in place) is never bypassed.
+ */
+
+export interface CommitContext {
+  patientId: string;
+  userId: string;
+  // The originating Report — becomes `source_report_id` on committed entities.
+  reportId: string;
+  // Patient-local `YYYY-MM-DD`, the fallback for a required date the agent left
+  // out (a lab/visit with no date on the page). ISO datetime fallback for the
+  // timestamptz event clocks (vital / symptom).
+  today: string;
+  nowIso: string;
+}
+
+export interface CommitCardResult {
+  ok: boolean;
+  entityType: CommitEntityType;
+  entityId?: string;
+  // Voice-compliant, user-facing (§7.1) — rendered on the card when a commit is
+  // blocked. Speaks as "I", never "As an AI", never blames the user.
+  error?: string;
+}
+
+/**
+ * A per-card commit refusal the user can act on inline — a missing required
+ * field, an unmatchable reference. Distinct from an unexpected throw (which the
+ * endpoint maps to a generic server error and logs). The message is shown
+ * verbatim on the card, so it follows brand voice.
+ */
+class CommitBlocked extends Error {}
+
+// ---- value coercion --------------------------------------------------------
+// The agent emits snake_case string fields (§5.4:763). These narrow untyped
+// jsonb values to the exact column/enum shapes, dropping anything unrecognised
+// rather than coercing blindly.
+
+type Data = Record<string, unknown>;
+
+function str(v: unknown): string | undefined {
+  if (typeof v !== "string") return undefined;
+  const t = v.trim();
+  return t.length > 0 ? t : undefined;
+}
+
+function enumMember<T extends string>(
+  v: unknown,
+  values: readonly T[],
+): T | undefined {
+  const s = str(v);
+  if (s === undefined) return undefined;
+  const normalized = s.toLowerCase().replace(/\s+/g, "_");
+  return values.find((x) => x === s || x === normalized);
+}
+
+function dateOnly(v: unknown): string | undefined {
+  const s = str(v);
+  return s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : undefined;
+}
+
+function numericStr(v: unknown): string | undefined {
+  if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  const s = str(v);
+  return s && /^-?\d+(\.\d+)?$/.test(s) ? s : undefined;
+}
+
+// Coerce the agent's timestamp for a timestamptz event clock. A bare date maps
+// to UTC midnight; anything unparseable falls back to "now" rather than
+// fabricating a time.
+function toDate(v: unknown, fallbackIso: string): Date {
+  const s = str(v);
+  if (!s) return new Date(fallbackIso);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(`${s}T00:00:00Z`);
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? new Date(fallbackIso) : d;
+}
+
+// "152/95" → { primary: "152", secondary: "95" }; a single number → primary only.
+function splitBloodPressure(v: unknown): {
+  primary?: string;
+  secondary?: string;
+} {
+  const s = str(v);
+  if (s) {
+    const m = s.match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
+    if (m) return { primary: m[1], secondary: m[2] };
+  }
+  const single = numericStr(v);
+  return single ? { primary: single } : {};
+}
+
+// "70-100" / "70 – 100" → {low,high}; "<100" → {high}; ">5" → {low}.
+function splitReferenceRange(v: unknown): { low?: string; high?: string } {
+  const s = str(v);
+  if (!s) return {};
+  const range = s.match(/^(-?\d+(?:\.\d+)?)\s*[-–]\s*(-?\d+(?:\.\d+)?)$/);
+  if (range) return { low: range[1], high: range[2] };
+  const lt = s.match(/^<\s*(-?\d+(?:\.\d+)?)$/);
+  if (lt) return { high: lt[1] };
+  const gt = s.match(/^>\s*(-?\d+(?:\.\d+)?)$/);
+  if (gt) return { low: gt[1] };
+  return {};
+}
+
+function joinNotes(...parts: Array<string | undefined>): string | null {
+  const kept = parts.filter((p): p is string => !!p && p.trim().length > 0);
+  return kept.length > 0 ? kept.join("\n\n") : null;
+}
+
+// A required clinical field the agent didn't extract — never invented. Units are
+// contextual (not a clinical value), so vitals get a sensible default by type.
+const VITAL_DEFAULT_UNIT: Record<string, string> = {
+  blood_pressure: "mmHg",
+  weight: "kg",
+  blood_glucose: "mg/dL",
+  temperature: "°C",
+  heart_rate: "bpm",
+  oxygen_saturation: "%",
+  respiratory_rate: "breaths/min",
+};
+
+// ---- CREATE per entity type ------------------------------------------------
+
+async function createMedication(
+  ctx: CommitContext,
+  data: Data,
+): Promise<string> {
+  const name = str(data.name);
+  const dose = str(data.current_dose) ?? str(data.dose);
+  const frequency = str(data.current_frequency) ?? str(data.frequency);
+  if (!name) throw new CommitBlocked("A medication needs a name — add one, then confirm.");
+  if (!dose || !frequency)
+    throw new CommitBlocked("A medication needs a dose and a frequency — fill those in, then confirm.");
+
+  const purpose = str(data.purpose);
+  const med = await medicationQueries.create({
+    patientId: ctx.patientId,
+    sourceReportId: ctx.reportId,
+    name,
+    brandName: str(data.brand_name) ?? null,
+    currentDose: dose,
+    currentFrequency: frequency,
+    // The agent doesn't emit category; default to the dominant case (§4). The
+    // free-text `purpose` can't become the UUID condition ref, so it's preserved
+    // in notes rather than dropped.
+    category: enumMember(data.category, medicationCategory.enumValues) ?? "allopathic",
+    form: enumMember(data.form, medicationForm.enumValues) ?? null,
+    startedOn: dateOnly(data.started_on) ?? null,
+    notes: joinNotes(str(data.notes), purpose ? `Purpose: ${purpose}` : undefined),
+  });
+  return med.id;
+}
+
+async function createCondition(
+  ctx: CommitContext,
+  data: Data,
+): Promise<string> {
+  const name = str(data.name);
+  if (!name) throw new CommitBlocked("A condition needs a name — add one, then confirm.");
+  const row = await conditionQueries.create({
+    patientId: ctx.patientId,
+    sourceReportId: ctx.reportId,
+    name,
+    status: enumMember(data.status, conditionStatus.enumValues),
+    severity: enumMember(data.severity, conditionSeverity.enumValues) ?? null,
+    category: enumMember(data.category, conditionCategory.enumValues) ?? null,
+    notes: str(data.notes) ?? null,
+  });
+  return row.id;
+}
+
+async function createDoctor(ctx: CommitContext, data: Data): Promise<string> {
+  const name = str(data.name);
+  const specialty = str(data.specialty);
+  if (!name) throw new CommitBlocked("This doctor needs a name — add one, then confirm.");
+  if (!specialty)
+    throw new CommitBlocked("This doctor needs a specialty — add it, then confirm.");
+  // No source_report_id / recorded_by column on doctors (Phase A) — commits
+  // without a backlink.
+  const row = await doctorQueries.create({
+    patientId: ctx.patientId,
+    name,
+    specialty,
+    notes: str(data.notes) ?? null,
+  });
+  return row.id;
+}
+
+async function createAllergy(ctx: CommitContext, data: Data): Promise<string> {
+  const substance = str(data.substance);
+  if (!substance)
+    throw new CommitBlocked("An allergy needs a substance — add it, then confirm.");
+  // No source_report_id / recorded_by column on allergies (Phase A). `category`
+  // is NOT NULL with no default (§4:259) and the agent doesn't emit it — default
+  // to "other".
+  const row = await allergyQueries.create({
+    patientId: ctx.patientId,
+    substance,
+    category: enumMember(data.category, allergyCategory.enumValues) ?? "other",
+    reaction: str(data.reaction) ?? null,
+    severity: enumMember(data.severity, allergySeverity.enumValues),
+    status: enumMember(data.status, allergyStatus.enumValues),
+    notes: str(data.notes) ?? null,
+  });
+  return row.id;
+}
+
+async function createLabReport(
+  ctx: CommitContext,
+  data: Data,
+): Promise<string> {
+  const rawResults = Array.isArray(data.results) ? data.results : [];
+  const results: NewLabResultInput[] = [];
+  for (const r of rawResults) {
+    if (typeof r !== "object" || r === null) continue;
+    const rr = r as Data;
+    const marker = str(rr.marker);
+    if (!marker) continue;
+    const numeric = numericStr(rr.value);
+    const ref = splitReferenceRange(rr.reference_range);
+    results.push({
+      marker,
+      value: numeric ?? null,
+      valueText: numeric ? null : (str(rr.value) ?? null),
+      unit: str(rr.unit) ?? null,
+      referenceLow: ref.low ?? null,
+      referenceHigh: ref.high ?? null,
+      flag: enumMember(rr.flag, labResultFlag.enumValues),
+    });
+  }
+
+  const orderingDoctor = str(data.ordering_doctor);
+  const report = await labReportQueries.create(
+    {
+      patientId: ctx.patientId,
+      sourceReportId: ctx.reportId,
+      reportDate: dateOnly(data.report_date) ?? ctx.today,
+      reportType: str(data.report_type) ?? null,
+      // The agent labels the panel `title`; the lab entity's stable name is
+      // `labName`. The free-text ordering doctor can't be the UUID `orderedBy`,
+      // so it's kept in notes.
+      labName: str(data.lab_name) ?? str(data.title) ?? null,
+      notes: joinNotes(
+        str(data.notes),
+        orderingDoctor ? `Ordering doctor: ${orderingDoctor}` : undefined,
+      ),
+    },
+    results,
+  );
+  return report.id;
+}
+
+async function createVitalReading(
+  ctx: CommitContext,
+  data: Data,
+): Promise<string> {
+  const readingType = enumMember(data.type, vitalReadingType.enumValues) ?? "other";
+  const { primary, secondary } =
+    readingType === "blood_pressure"
+      ? splitBloodPressure(data.value)
+      : { primary: numericStr(data.value), secondary: undefined };
+  if (!primary)
+    throw new CommitBlocked("This reading needs a number — add the value, then confirm.");
+
+  const unit = str(data.unit) ?? VITAL_DEFAULT_UNIT[readingType];
+  if (!unit)
+    throw new CommitBlocked("This reading needs a unit — add it, then confirm.");
+
+  const row = await vitalQueries.create({
+    patientId: ctx.patientId,
+    recordedBy: ctx.userId,
+    sourceReportId: ctx.reportId,
+    readingType,
+    recordedAt: toDate(data.measured_at, ctx.nowIso),
+    valuePrimary: primary,
+    valueSecondary: secondary ?? null,
+    unit,
+    notes: str(data.notes) ?? null,
+  });
+  return row.id;
+}
+
+async function createVisit(ctx: CommitContext, data: Data): Promise<string> {
+  // A visit's doctor is NOT NULL (§4:346) and the agent gives only a name. We
+  // match an existing in-scope doctor rather than fabricate one — an unmatched
+  // name blocks the card with a plain ask (add the doctor first).
+  const doctorName = str(data.doctor);
+  if (!doctorName)
+    throw new CommitBlocked("A visit needs its doctor — add the doctor's name, then confirm.");
+  const doctors = await doctorQueries.forPatient(ctx.patientId);
+  const match = doctors.find(
+    (d) => d.name.toLowerCase() === doctorName.toLowerCase(),
+  );
+  if (!match)
+    throw new CommitBlocked(
+      `I couldn't match a doctor named "${doctorName}". Add them under Doctors first, then confirm this visit.`,
+    );
+
+  const row = await visitQueries.create({
+    patientId: ctx.patientId,
+    sourceReportId: ctx.reportId,
+    doctorId: match.id,
+    visitDate: dateOnly(data.visit_date) ?? ctx.today,
+    visitType: enumMember(data.visit_type, visitType.enumValues),
+    chiefComplaint: str(data.reason) ?? null,
+    summary: str(data.summary) ?? null,
+    notes: str(data.notes) ?? null,
+  });
+  return row.id;
+}
+
+async function createSymptomEpisode(
+  ctx: CommitContext,
+  data: Data,
+): Promise<string> {
+  const symptomName = str(data.symptom);
+  if (!symptomName)
+    throw new CommitBlocked("A symptom needs a name — add one, then confirm.");
+
+  // Reuse an existing type of the same name so episodes group correctly; the
+  // agent gives a name, not a type id, and matched_entity_id would ambiguously
+  // reference either the type or a prior episode.
+  const types = await symptomTypeQueries.forPatient(ctx.patientId);
+  const existing = types.find(
+    (t) => t.name.toLowerCase() === symptomName.toLowerCase(),
+  );
+
+  const { episode } = await symptomEpisodeQueries.create(
+    ctx.patientId,
+    existing
+      ? { kind: "existing", symptomTypeId: existing.id }
+      : { kind: "new", name: symptomName },
+    {
+      startedAt: toDate(data.started_at, ctx.nowIso),
+      severity: enumMember(data.severity, symptomEpisodeSeverity.enumValues),
+      notes: str(data.notes) ?? null,
+      sourceReportId: ctx.reportId,
+      recordedBy: ctx.userId,
+    },
+  );
+  return episode.id;
+}
+
+// ---- UPDATE (state entities only) ------------------------------------------
+// Applied through the change-log + PATCH helpers so the change-log tripwire is
+// respected: a differing change-logged field appends a *_changes row and moves
+// current_* in place; plain fields PATCH. A card whose data matches the record
+// exactly is blocked (nothing to apply) rather than writing a no-op.
+
+const UPDATE_REASON = "Applied from an extracted document.";
+
+async function updateMedication(
+  ctx: CommitContext,
+  id: string,
+  data: Data,
+): Promise<string> {
+  const current = await medicationQueries.getById(ctx.patientId, id);
+  if (!current)
+    throw new CommitBlocked("I couldn't find that medication anymore — switch this card to “add new.”");
+
+  let applied = false;
+  const dose = str(data.current_dose) ?? str(data.dose);
+  const frequency = str(data.current_frequency) ?? str(data.frequency);
+  if (dose && dose !== current.currentDose) {
+    await medicationChangeQueries.create(ctx.patientId, id, {
+      field: "dose",
+      newValue: dose,
+      recordedBy: ctx.userId,
+      reason: UPDATE_REASON,
+    });
+    applied = true;
+  }
+  if (frequency && frequency !== current.currentFrequency) {
+    await medicationChangeQueries.create(ctx.patientId, id, {
+      field: "frequency",
+      newValue: frequency,
+      recordedBy: ctx.userId,
+      reason: UPDATE_REASON,
+    });
+    applied = true;
+  }
+  // brand / notes are plain PATCH fields on medications (not change-logged).
+  const patch: { brandName?: string; notes?: string } = {};
+  const brand = str(data.brand_name);
+  if (brand && brand !== current.brandName) patch.brandName = brand;
+  const notes = str(data.notes);
+  if (notes && notes !== current.notes)
+    patch.notes = joinNotes(current.notes ?? undefined, notes) ?? notes;
+  if (Object.keys(patch).length > 0) {
+    await medicationQueries.update(ctx.patientId, id, patch);
+    applied = true;
+  }
+
+  if (!applied)
+    throw new CommitBlocked("Nothing here differs from the medication on file — discard this card, or switch it to “add new.”");
+  return id;
+}
+
+async function updateCondition(
+  ctx: CommitContext,
+  id: string,
+  data: Data,
+): Promise<string> {
+  const current = await conditionQueries.getById(ctx.patientId, id);
+  if (!current)
+    throw new CommitBlocked("I couldn't find that condition anymore — switch this card to “add new.”");
+
+  let applied = false;
+  const status = enumMember(data.status, conditionStatus.enumValues);
+  if (status && status !== current.status) {
+    await conditionChangeQueries.create(ctx.patientId, id, {
+      field: "status",
+      newValue: status,
+      recordedBy: ctx.userId,
+      reason: UPDATE_REASON,
+    });
+    applied = true;
+  }
+  const severity = enumMember(data.severity, conditionSeverity.enumValues);
+  if (severity && severity !== current.severity) {
+    await conditionChangeQueries.create(ctx.patientId, id, {
+      field: "severity",
+      newValue: severity,
+      recordedBy: ctx.userId,
+      reason: UPDATE_REASON,
+    });
+    applied = true;
+  }
+  const notes = str(data.notes);
+  if (notes && notes !== current.notes) {
+    await conditionQueries.update(ctx.patientId, id, {
+      notes: joinNotes(current.notes ?? undefined, notes) ?? notes,
+    });
+    applied = true;
+  }
+
+  if (!applied)
+    throw new CommitBlocked("Nothing here differs from the condition on file — discard this card, or switch it to “add new.”");
+  return id;
+}
+
+async function updateAllergy(
+  ctx: CommitContext,
+  id: string,
+  data: Data,
+): Promise<string> {
+  const current = await allergyQueries.getById(ctx.patientId, id);
+  if (!current)
+    throw new CommitBlocked("I couldn't find that allergy anymore — switch this card to “add new.”");
+
+  let applied = false;
+  const status = enumMember(data.status, allergyStatus.enumValues);
+  if (status && status !== current.status) {
+    await allergyChangeQueries.create(ctx.patientId, id, {
+      field: "status",
+      newValue: status,
+      recordedBy: ctx.userId,
+      reason: UPDATE_REASON,
+    });
+    applied = true;
+  }
+  const severity = enumMember(data.severity, allergySeverity.enumValues);
+  if (severity && severity !== current.severity) {
+    await allergyChangeQueries.create(ctx.patientId, id, {
+      field: "severity",
+      newValue: severity,
+      recordedBy: ctx.userId,
+      reason: UPDATE_REASON,
+    });
+    applied = true;
+  }
+  const reactionOrNotes = joinNotes(
+    current.notes ?? undefined,
+    str(data.reaction) && str(data.reaction) !== current.reaction
+      ? `Reaction: ${str(data.reaction)}`
+      : undefined,
+    str(data.notes),
+  );
+  if (reactionOrNotes && reactionOrNotes !== current.notes) {
+    await allergyQueries.update(ctx.patientId, id, { notes: reactionOrNotes });
+    applied = true;
+  }
+
+  if (!applied)
+    throw new CommitBlocked("Nothing here differs from the allergy on file — discard this card, or switch it to “add new.”");
+  return id;
+}
+
+async function updateDoctor(
+  ctx: CommitContext,
+  id: string,
+  data: Data,
+): Promise<string> {
+  const current = await doctorQueries.getById(ctx.patientId, id);
+  if (!current)
+    throw new CommitBlocked("I couldn't find that doctor anymore — switch this card to “add new.”");
+
+  let applied = false;
+  const specialty = str(data.specialty);
+  if (specialty && specialty !== current.specialty) {
+    await doctorChangeQueries.create(ctx.patientId, id, {
+      field: "specialty",
+      newValue: specialty,
+      recordedBy: ctx.userId,
+      reason: UPDATE_REASON,
+    });
+    applied = true;
+  }
+  const notes = str(data.notes);
+  if (notes && notes !== current.notes) {
+    await doctorQueries.update(ctx.patientId, id, {
+      notes: joinNotes(current.notes ?? undefined, notes) ?? notes,
+    });
+    applied = true;
+  }
+
+  if (!applied)
+    throw new CommitBlocked("Nothing here differs from the doctor on file — discard this card, or switch it to “add new.”");
+  return id;
+}
+
+// State entities that support the `update` bucket. Event entities always
+// create-new (§5.4:791) — an `update` mode on one of them is coerced to create.
+const STATE_TYPES = new Set<CommitEntityType>([
+  "medication",
+  "condition",
+  "doctor",
+  "allergy",
+]);
+
+/**
+ * Commit one confirmation card to the vault. Returns a per-card result; a
+ * blocked commit (missing field, unmatchable ref, no-op update) resolves with
+ * `ok: false` + a voice-compliant `error` for the card to show. Unexpected
+ * failures throw for the endpoint to log + surface generically.
+ */
+export async function commitCard(
+  ctx: CommitContext,
+  card: CommitCardInput,
+): Promise<CommitCardResult> {
+  const { targetEntityType: type, data } = card;
+  const isUpdate =
+    card.mode === "update" &&
+    STATE_TYPES.has(type) &&
+    card.matchedEntityId !== null;
+
+  try {
+    let entityId: string;
+    if (isUpdate) {
+      const id = card.matchedEntityId as string;
+      switch (type) {
+        case "medication":
+          entityId = await updateMedication(ctx, id, data);
+          break;
+        case "condition":
+          entityId = await updateCondition(ctx, id, data);
+          break;
+        case "allergy":
+          entityId = await updateAllergy(ctx, id, data);
+          break;
+        case "doctor":
+          entityId = await updateDoctor(ctx, id, data);
+          break;
+        default:
+          // Unreachable: isUpdate is gated on STATE_TYPES.
+          throw new CommitBlocked("This type can't be updated — switch to “add new.”");
+      }
+    } else {
+      switch (type) {
+        case "medication":
+          entityId = await createMedication(ctx, data);
+          break;
+        case "condition":
+          entityId = await createCondition(ctx, data);
+          break;
+        case "doctor":
+          entityId = await createDoctor(ctx, data);
+          break;
+        case "allergy":
+          entityId = await createAllergy(ctx, data);
+          break;
+        case "lab_report":
+          entityId = await createLabReport(ctx, data);
+          break;
+        case "vital_reading":
+          entityId = await createVitalReading(ctx, data);
+          break;
+        case "visit":
+          entityId = await createVisit(ctx, data);
+          break;
+        case "symptom_episode":
+          entityId = await createSymptomEpisode(ctx, data);
+          break;
+      }
+    }
+    return { ok: true, entityType: type, entityId };
+  } catch (err) {
+    if (err instanceof CommitBlocked) {
+      return { ok: false, entityType: type, error: err.message };
+    }
+    throw err;
+  }
+}

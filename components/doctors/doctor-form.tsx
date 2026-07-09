@@ -9,6 +9,7 @@ import {
   doctorFormSchema,
   type DoctorFormValues,
 } from "@/lib/schemas/forms/doctor";
+import { draftString, takeExtractionDraft } from "@/lib/extract/draft";
 
 import {
   AlertDialog,
@@ -63,7 +64,24 @@ function LabelHelper({ text }: { text: string }) {
   );
 }
 
+// Maps an "Edit manually instead" extraction draft (§6.11). The agent extracts
+// name/specialty/notes for a doctor.
+function draftToDoctorValues(
+  d: Record<string, unknown> | null,
+): Partial<DoctorFormValues> {
+  if (!d) return {};
+  const out: Partial<DoctorFormValues> = {};
+  const name = draftString(d.name);
+  if (name) out.name = name;
+  const specialty = draftString(d.specialty);
+  if (specialty) out.specialty = specialty;
+  const notes = draftString(d.notes);
+  if (notes) out.notes = notes;
+  return out;
+}
+
 export function DoctorForm({ patientId }: DoctorFormProps) {
+  const [draft] = useState(() => takeExtractionDraft("doctor"));
   const router = useRouter();
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -78,6 +96,7 @@ export function DoctorForm({ patientId }: DoctorFormProps) {
     // visit to a long-standing doctor is usually historical, often unknown.
     firstVisit: "",
     notes: "",
+    ...draftToDoctorValues(draft),
   };
 
   const {

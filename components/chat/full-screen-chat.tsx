@@ -16,7 +16,7 @@
  *    id), so there's no prop→state sync to maintain.
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   ChatHistoryList,
@@ -59,6 +59,34 @@ export function FullScreenChat({
     } catch {
       // A failed refresh just leaves the list as-is; the next persist retries.
     }
+  }, []);
+
+  // Refetch on mount from the (always-fresh) API so the list reflects current DB
+  // state — not just what the server component rendered. This is what surfaces
+  // sessions started elsewhere, notably from the Ask-AI drawer on another route:
+  // the drawer persists to the same chat_sessions table, but this surface would
+  // otherwise only ever see the server-seeded `initialSessions` (frozen under
+  // stub auth's static rendering) plus its own in-session creates. The state
+  // update lands in the async callback (post-fetch), not synchronously.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/chat/sessions");
+        if (!res.ok || cancelled) return;
+        const body = (await res.json()) as {
+          sessions: { id: string; title: string | null }[];
+        };
+        if (!cancelled) {
+          setSessions(body.sessions.map((s) => ({ id: s.id, title: s.title })));
+        }
+      } catch {
+        // A failed refresh just leaves the server-seeded list in place.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const onSessionCreated = useCallback(

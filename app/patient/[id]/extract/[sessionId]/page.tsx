@@ -1,8 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Breadcrumb } from "@/components/breadcrumb";
-import { FilePreview } from "@/components/reports/file-preview";
+import { ExtractionConfirmation } from "@/components/extract/extraction-confirmation";
 import { extractionSessionQueries, reportQueries } from "@/db/queries";
 import { parseStoredExtractionOutput } from "@/lib/agents/extraction";
 import { getCurrentPatient } from "@/lib/auth";
@@ -13,20 +11,31 @@ import { getSignedUrl } from "@/lib/storage";
 export const runtime = "nodejs";
 
 /**
- * STUB extraction-confirmation page (E3 placeholder). The router's `log` branch
- * and the upload pipeline both land here; this renders enough to verify the
- * loop end-to-end — source preview + the parsed extractions — but is NOT the
- * §6.11 surface. E3 replaces it with the split-panel confirmation UI
- * (ambiguity chips, new-vs-update toggles, per-card Confirm/Discard, commit).
+ * §6.11 extraction confirmation surface (E3). Server component: loads the
+ * session + its Report, re-validates the stored extraction output (untyped
+ * jsonb → safe null on drift, never a cast), signs the source file for preview,
+ * and hands off to the client surface that does the review + commit. Reached
+ * from both the upload pipeline and the quick-log router (§6.11:1718).
  */
-export default async function ExtractConfirmStubPage({
+export default async function ExtractConfirmPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string; sessionId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id, sessionId } = await params;
   const { patientId } = await getCurrentPatient();
   if (id !== patientId) notFound();
+
+  // Where to go after commit/discard. Set by the chat log path so the user
+  // returns to the conversation they logged from (§6.2:1197). Accept only a
+  // same-origin absolute path (leading single slash, no `//` or scheme) to
+  // avoid an open-redirect; anything else falls back to the patient profile.
+  const rawReturn = (await searchParams).returnTo;
+  const candidate = Array.isArray(rawReturn) ? rawReturn[0] : rawReturn;
+  const returnTo =
+    candidate && /^\/[^/]/.test(candidate) ? candidate : undefined;
 
   const session = await extractionSessionQueries.getById(patientId, sessionId);
   if (!session) notFound();
@@ -34,140 +43,39 @@ export default async function ExtractConfirmStubPage({
   const report = await reportQueries.getById(patientId, session.reportId);
   const output = parseStoredExtractionOutput(session.extractionOutputJson);
   const extractions = output?.extractions ?? [];
-  const isFailure = session.status === "failed" || extractions.length === 0;
 
-  // Source: a quick-log Report carries the typed text in `content`; an uploaded
-  // Report carries a file path in `sourceFileUrl` (signed per-load).
-  const fileUrl = report?.sourceFileUrl
-    ? await getSignedUrl(report.sourceFileUrl)
-    : null;
+  // Source: a quick-log Report carries typed text in `content`; an uploaded
+  // Report carries a file path in `sourceFileUrl` (signed per-load, never
+  // stored). Fall through to "none" if neither is present.
+  let source:
+    | { kind: "text"; content: string }
+    | { kind: "file"; url: string; mimeType: string; filename: string }
+    | { kind: "none" } = { kind: "none" };
+  let sourceLabel = "this source";
+
+  if (report?.content) {
+    source = { kind: "text", content: report.content };
+    sourceLabel = "text input";
+  } else if (report?.sourceFileUrl) {
+    const url = await getSignedUrl(report.sourceFileUrl);
+    source = {
+      kind: "file",
+      url,
+      mimeType: mimeFromPath(report.sourceFileUrl),
+      filename: report.title,
+    };
+    sourceLabel = report.title;
+  }
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-10">
-      <Breadcrumb
-        patientId={patientId}
-        trail={[
-          { label: "extract" },
-          { label: `${sessionId.slice(0, 8)}…` },
-        ]}
-      />
-
-      <div className="mb-6 rounded-md border border-dashed border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
-        <strong className="font-medium text-foreground">
-          Preview only — nothing here has been saved to the record yet.
-        </strong>{" "}
-        This is a stub. The full §6.11 confirmation UI (resolve ambiguities,
-        choose new-vs-update, and <em>commit</em>) arrives in E3 — that&apos;s
-        the step that actually writes to the vault.
-      </div>
-
-      <h1 className="text-2xl font-medium text-foreground">Review extraction</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Session {sessionId.slice(0, 8)}… · status{" "}
-        <span className="font-mono">{session.status}</span> ·{" "}
-        {extractions.length} entit{extractions.length === 1 ? "y" : "ies"} found
-      </p>
-
-      <div className="mt-8 grid grid-cols-1 gap-8 md:grid-cols-[2fr_3fr]">
-        {/* Source panel */}
-        <section className="md:sticky md:top-6 md:self-start">
-          <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Source
-          </h2>
-          {report?.content ? (
-            <div className="rounded-lg border border-border bg-muted p-4 font-mono text-sm whitespace-pre-wrap text-foreground">
-              {report.content}
-            </div>
-          ) : fileUrl && report?.sourceFileUrl ? (
-            <FilePreview
-              url={fileUrl}
-              mimeType={mimeFromPath(report.sourceFileUrl)}
-              filename={report.title}
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">No source available.</p>
-          )}
-        </section>
-
-        {/* Extractions */}
-        <section className="flex flex-col gap-4">
-          {isFailure ? (
-            <div className="rounded-lg border border-dashed border-border p-6 text-center">
-              <p className="font-medium text-foreground">
-                I couldn&apos;t reliably read this
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                There wasn&apos;t enough here to extract. In E3 you&apos;ll be
-                able to try a different file or enter it manually.
-              </p>
-            </div>
-          ) : (
-            extractions.map((e, i) => (
-              <article
-                key={i}
-                className="rounded-lg border border-border bg-card p-4"
-              >
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {e.target_entity_type}
-                  </h3>
-                  <span className="rounded-full bg-accent px-2 py-0.5 text-xs text-accent-foreground">
-                    {e.intent === "update"
-                      ? "would update existing"
-                      : e.intent === "create"
-                        ? "would add new"
-                        : "needs your call"}
-                  </span>
-                </div>
-
-                {e.ambiguities.length > 0 ? (
-                  <ul className="mt-3 flex flex-col gap-2">
-                    {e.ambiguities.map((a, j) => (
-                      <li
-                        key={j}
-                        className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-foreground"
-                      >
-                        ⚠ {a.question}
-                        <span className="ml-1 text-muted-foreground">
-                          ({a.options.join(" · ")})
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-
-                <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-                  {Object.entries(e.extracted_data).map(([k, v]) => (
-                    <div key={k} className="contents">
-                      <dt className="text-muted-foreground">{k}</dt>
-                      <dd className="text-foreground">
-                        {typeof v === "object" ? JSON.stringify(v) : String(v)}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-
-                {e.matched_entity_id ? (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    would update existing entity{" "}
-                    <span className="font-mono">
-                      {e.matched_entity_id.slice(0, 8)}…
-                    </span>{" "}
-                    (not yet applied)
-                  </p>
-                ) : null}
-              </article>
-            ))
-          )}
-
-          <Link
-            href={`/patient/${patientId}/chat`}
-            className="text-sm text-link underline underline-offset-2"
-          >
-            ← Back to chat
-          </Link>
-        </section>
-      </div>
-    </main>
+    <ExtractionConfirmation
+      patientId={patientId}
+      sessionId={sessionId}
+      extractions={extractions}
+      status={session.status}
+      source={source}
+      sourceLabel={sourceLabel}
+      returnTo={returnTo}
+    />
   );
 }

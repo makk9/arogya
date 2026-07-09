@@ -1,7 +1,8 @@
+import { chatQueries } from "@/db/queries/chat";
 import { apiError } from "@/lib/api/error";
 import { parseJsonBody } from "@/lib/api/route-helpers";
 import { getCurrentPatient } from "@/lib/auth";
-import { processQuickLog } from "@/lib/chat/quick-log";
+import { processQuickLog, titleFromText } from "@/lib/chat/quick-log";
 import { errorCode, logger } from "@/lib/logger";
 import { quickLogRequestSchema } from "@/lib/schemas/api/chat";
 
@@ -34,6 +35,18 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   try {
+    // Record the log as a user turn in its chat session first (§6.2:1197), so
+    // it's persisted before the several-second extraction runs — the message
+    // survives the trip to the confirmation screen and the session shows up in
+    // the CHATS list. Scope-checked; a foreign/stale id is skipped, not fatal.
+    if (parsed.data.sessionId) {
+      const session = await chatQueries.getSession(patientId, parsed.data.sessionId);
+      if (session) {
+        await chatQueries.addMessage(session.id, "user", parsed.data.text);
+        await chatQueries.setTitleIfNull(session.id, titleFromText(parsed.data.text));
+      }
+    }
+
     const result = await processQuickLog({
       patientId,
       timezone,

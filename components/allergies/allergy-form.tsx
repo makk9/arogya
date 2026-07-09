@@ -14,6 +14,7 @@ import {
   allergyFormSchema,
   type AllergyFormValues,
 } from "@/lib/schemas/forms/allergy";
+import { draftEnum, draftString, takeExtractionDraft } from "@/lib/extract/draft";
 
 import {
   AlertDialog,
@@ -76,7 +77,34 @@ function LabelHelper({ text }: { text: string }) {
   );
 }
 
+// Maps an "Edit manually instead" extraction draft (§6.11). The agent extracts
+// substance/category/reaction/severity/status/notes for an allergy.
+const ALLERGY_CATEGORIES = ["drug", "food", "environmental", "other"] as const;
+const ALLERGY_SEVERITIES = ["mild", "moderate", "severe", "unknown"] as const;
+const ALLERGY_STATUSES = ["active", "resolved", "suspected", "disproved"] as const;
+
+function draftToAllergyValues(
+  d: Record<string, unknown> | null,
+): Partial<AllergyFormValues> {
+  if (!d) return {};
+  const out: Partial<AllergyFormValues> = {};
+  const substance = draftString(d.substance);
+  if (substance) out.substance = substance;
+  const category = draftEnum(d.category, ALLERGY_CATEGORIES);
+  if (category) out.category = category;
+  const reaction = draftString(d.reaction);
+  if (reaction) out.reaction = reaction;
+  const severity = draftEnum(d.severity, ALLERGY_SEVERITIES);
+  if (severity) out.severity = severity;
+  const status = draftEnum(d.status, ALLERGY_STATUSES);
+  if (status) out.status = status;
+  const notes = draftString(d.notes);
+  if (notes) out.notes = notes;
+  return out;
+}
+
 export function AllergyForm({ patientId }: AllergyFormProps) {
+  const [draft] = useState(() => takeExtractionDraft("allergy"));
   const router = useRouter();
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -90,6 +118,7 @@ export function AllergyForm({ patientId }: AllergyFormProps) {
     status: "active",
     firstNoted: "",
     notes: "",
+    ...draftToAllergyValues(draft),
   };
 
   const {

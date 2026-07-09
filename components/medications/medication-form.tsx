@@ -10,6 +10,7 @@ import {
   FORM_OPTIONS,
 } from "@/components/medications/medication-options";
 import { todayLocal } from "@/lib/datetime";
+import { takeExtractionDraft } from "@/lib/extract/draft";
 import {
   medicationFormSchema,
   type MedicationFormValues,
@@ -77,12 +78,57 @@ function LabelHelper({ text }: { text: string }) {
   );
 }
 
+// Maps an "Edit manually instead" extraction draft (§6.11) onto this form's
+// values. The draft carries the agent's snake_case fields (§5.4:763); each is
+// applied only when present and valid, so a partial/garbled extraction still
+// opens a usable form rather than an invalid one. Enum-typed fields (form,
+// category) are dropped unless they match a known value — never guessed.
+const MED_FORMS = ["tablet", "capsule", "liquid", "injection", "topical", "inhaler", "patch", "drops"];
+const MED_CATEGORIES = ["allopathic", "ayurvedic", "homeopathic", "supplement", "other"];
+
+function draftStr(v: unknown): string | undefined {
+  return typeof v === "string" && v.trim().length > 0 ? v.trim() : undefined;
+}
+
+function draftToMedicationValues(
+  d: Record<string, unknown> | null,
+): Partial<MedicationFormValues> {
+  if (!d) return {};
+  const out: Partial<MedicationFormValues> = {};
+  const name = draftStr(d.name);
+  if (name) out.name = name;
+  const brand = draftStr(d.brand_name);
+  if (brand) out.brandName = brand;
+  const dose = draftStr(d.current_dose) ?? draftStr(d.dose);
+  if (dose) out.currentDose = dose;
+  const freq = draftStr(d.current_frequency) ?? draftStr(d.frequency);
+  if (freq) out.currentFrequency = freq;
+  const form = draftStr(d.form)?.toLowerCase();
+  if (form && MED_FORMS.includes(form)) out.form = form as MedicationFormValues["form"];
+  const started = draftStr(d.started_on);
+  if (started && /^\d{4}-\d{2}-\d{2}$/.test(started)) out.startedOn = started;
+  const category = draftStr(d.category)?.toLowerCase();
+  if (category && MED_CATEGORIES.includes(category))
+    out.category = category as MedicationFormValues["category"];
+  const purpose = draftStr(d.purpose);
+  const notes = [draftStr(d.notes), purpose ? `Purpose: ${purpose}` : undefined]
+    .filter(Boolean)
+    .join("\n\n");
+  if (notes) out.notes = notes;
+  return out;
+}
+
 export function MedicationForm({
   patientId,
 }: MedicationFormProps) {
   const router = useRouter();
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
+
+  // Single-use read of an "Edit manually instead" hand-off draft (§6.11). Read
+  // once in a state initializer so React StrictMode's double-invoke doesn't
+  // consume-and-clear it before the values are applied.
+  const [draft] = useState(() => takeExtractionDraft("medication"));
 
   const defaultValues: MedicationFormValues = {
     name: "",
@@ -98,6 +144,7 @@ export function MedicationForm({
     startedOn: todayLocal(),
     category: "allopathic",
     notes: "",
+    ...draftToMedicationValues(draft),
   };
 
   const {

@@ -15,6 +15,7 @@ import {
   conditionFormSchema,
   type ConditionFormValues,
 } from "@/lib/schemas/forms/condition";
+import { draftEnum, draftString, takeExtractionDraft } from "@/lib/extract/draft";
 
 import {
   AlertDialog,
@@ -92,7 +93,30 @@ function LabelHelper({ text }: { text: string }) {
   );
 }
 
+// Maps an "Edit manually instead" extraction draft (§6.11) onto this form. Each
+// field applies only when present + valid; enum fields drop unless they match a
+// known value (never guessed). The agent extracts name/status/severity/notes.
+const CONDITION_STATUSES = ["active", "controlled", "in_remission", "resolved", "suspected"] as const;
+const CONDITION_SEVERITIES = ["mild", "moderate", "severe", "unknown"] as const;
+
+function draftToConditionValues(
+  d: Record<string, unknown> | null,
+): Partial<ConditionFormValues> {
+  if (!d) return {};
+  const out: Partial<ConditionFormValues> = {};
+  const name = draftString(d.name);
+  if (name) out.name = name;
+  const status = draftEnum(d.status, CONDITION_STATUSES);
+  if (status) out.status = status;
+  const severity = draftEnum(d.severity, CONDITION_SEVERITIES);
+  if (severity) out.severity = severity;
+  const notes = draftString(d.notes);
+  if (notes) out.notes = notes;
+  return out;
+}
+
 export function ConditionForm({ patientId }: ConditionFormProps) {
+  const [draft] = useState(() => takeExtractionDraft("condition"));
   const router = useRouter();
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -109,6 +133,7 @@ export function ConditionForm({ patientId }: ConditionFormProps) {
     // are often historical or unknown, so the native picker starts empty.
     diagnosedOn: "",
     notes: "",
+    ...draftToConditionValues(draft),
   };
 
   const {

@@ -71,6 +71,11 @@ export interface NewEpisodeInput {
   linkedVitalIds?: string[] | null;
   linkedVisitId?: string | null;
   notes?: string | null;
+  // Set by the E3 extraction commit (§5.4) so a committed episode backlinks to
+  // its source Report; null for direct entry. `recorded_by` is likewise set by
+  // extraction/auth callers — direct-entry routes leave it to the DB.
+  sourceReportId?: string | null;
+  recordedBy?: string | null;
 }
 
 // How an episode resolves its parent type: an existing type, or a new one
@@ -317,6 +322,8 @@ export const symptomEpisodeQueries = {
           linkedVitalIds: episode.linkedVitalIds ?? null,
           linkedVisitId: episode.linkedVisitId ?? null,
           notes: episode.notes ?? null,
+          sourceReportId: episode.sourceReportId ?? null,
+          ...(episode.recordedBy ? { recordedBy: episode.recordedBy } : {}),
         })
         .returning();
 

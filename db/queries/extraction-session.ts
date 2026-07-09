@@ -95,4 +95,36 @@ export const extractionSessionQueries = {
       .returning();
     return row ?? null;
   },
+
+  // Finalizes the E3 confirmation: flips both the session and its Report to
+  // "committed" in one transaction once the user has resolved every card
+  // (confirmed or discarded). Patient-scoped so a foreign session/report can't
+  // be finalized. The individual entity writes happen before this in the commit
+  // endpoint; this only marks the source-side bookkeeping done.
+  async markCommitted(params: {
+    sessionId: string;
+    reportId: string;
+    patientId: string;
+  }): Promise<void> {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(extractionSessions)
+        .set({ status: "committed" })
+        .where(
+          and(
+            eq(extractionSessions.id, params.sessionId),
+            eq(extractionSessions.patientId, params.patientId),
+          ),
+        );
+      await tx
+        .update(reports)
+        .set({ status: "committed" })
+        .where(
+          and(
+            eq(reports.id, params.reportId),
+            eq(reports.patientId, params.patientId),
+          ),
+        );
+    });
+  },
 };

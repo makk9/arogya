@@ -22,6 +22,7 @@ import {
   toResultPayload,
   type LabReportFormValues,
 } from "@/lib/schemas/forms/lab-report";
+import { draftDate, draftEnum, draftString, takeExtractionDraft } from "@/lib/extract/draft";
 
 import {
   AlertDialog,
@@ -118,7 +119,64 @@ function MarkerFlagHint({
   );
 }
 
+// Maps an "Edit manually instead" extraction draft (§6.11). The agent extracts
+// title/report_date/report_type/ordering_doctor + a results[] array of
+// {marker,value,unit,reference_range,flag}; `reference_range` ("70-100", "<100",
+// ">5") splits into low/high. ordering_doctor is a UUID picker in the form, so
+// it's left for the user to select.
+const LAB_FLAGS = ["normal", "low", "high", "critical"] as const;
+
+function splitReferenceRange(v: unknown): { low: string; high: string } {
+  const s = draftString(v);
+  if (!s) return { low: "", high: "" };
+  const range = s.match(/^(-?\d+(?:\.\d+)?)\s*[-–]\s*(-?\d+(?:\.\d+)?)$/);
+  if (range) return { low: range[1], high: range[2] };
+  const lt = s.match(/^<\s*(-?\d+(?:\.\d+)?)$/);
+  if (lt) return { low: "", high: lt[1] };
+  const gt = s.match(/^>\s*(-?\d+(?:\.\d+)?)$/);
+  if (gt) return { low: gt[1], high: "" };
+  return { low: "", high: "" };
+}
+
+function draftToLabValues(
+  d: Record<string, unknown> | null,
+): Partial<LabReportFormValues> {
+  if (!d) return {};
+  const out: Partial<LabReportFormValues> = {};
+  const reportDate = draftDate(d.report_date);
+  if (reportDate) out.reportDate = reportDate;
+  const reportType = draftString(d.report_type);
+  if (reportType) out.reportType = reportType;
+  const labName = draftString(d.lab_name) ?? draftString(d.title);
+  if (labName) out.labName = labName;
+  const notes = draftString(d.notes);
+  if (notes) out.notes = notes;
+
+  const rawResults = Array.isArray(d.results) ? d.results : [];
+  const rows = rawResults
+    .map((r) => {
+      if (typeof r !== "object" || r === null) return null;
+      const rr = r as Record<string, unknown>;
+      const marker = draftString(rr.marker);
+      if (!marker) return null;
+      const ref = splitReferenceRange(rr.reference_range);
+      return {
+        ...EMPTY_MARKER_ROW,
+        marker,
+        value: draftString(rr.value) ?? "",
+        unit: draftString(rr.unit) ?? "",
+        referenceLow: ref.low,
+        referenceHigh: ref.high,
+        flag: draftEnum(rr.flag, LAB_FLAGS) ?? EMPTY_MARKER_ROW.flag,
+      };
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null);
+  if (rows.length > 0) out.results = rows;
+  return out;
+}
+
 export function LabReportForm({ patientId, doctors }: LabReportFormProps) {
+  const [draft] = useState(() => takeExtractionDraft("lab_report"));
   const router = useRouter();
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -138,6 +196,7 @@ export function LabReportForm({ patientId, doctors }: LabReportFormProps) {
     orderedBy: "",
     notes: "",
     results: [{ ...EMPTY_MARKER_ROW }],
+    ...draftToLabValues(draft),
   };
 
   const {

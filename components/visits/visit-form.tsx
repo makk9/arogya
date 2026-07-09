@@ -16,6 +16,7 @@ import {
   visitFormSchema,
   type VisitFormValues,
 } from "@/lib/schemas/forms/visit";
+import { draftDate, draftEnum, draftString, takeExtractionDraft } from "@/lib/extract/draft";
 
 import {
   AlertDialog,
@@ -79,7 +80,35 @@ function LabelHelper({ text }: { text: string }) {
   );
 }
 
+// Maps an "Edit manually instead" extraction draft (§6.11). The agent extracts
+// visit_date/doctor/reason/summary/notes. `doctor` is a free-text name and the
+// form's Doctor field is a UUID picker, so it's left for the user to select
+// (per the "prefill plain fields, leave entity-links blank" rule).
+const VISIT_TYPES = [
+  "routine_followup", "new_consultation", "urgent", "specialist_referral",
+  "second_opinion", "telemedicine", "hospitalization", "surgery",
+] as const;
+
+function draftToVisitValues(
+  d: Record<string, unknown> | null,
+): Partial<VisitFormValues> {
+  if (!d) return {};
+  const out: Partial<VisitFormValues> = {};
+  const visitDate = draftDate(d.visit_date);
+  if (visitDate) out.visitDate = visitDate;
+  const visitType = draftEnum(d.visit_type, VISIT_TYPES);
+  if (visitType) out.visitType = visitType;
+  const reason = draftString(d.reason);
+  if (reason) out.chiefComplaint = reason;
+  const summary = draftString(d.summary);
+  if (summary) out.summary = summary;
+  const notes = draftString(d.notes);
+  if (notes) out.notes = notes;
+  return out;
+}
+
 export function VisitForm({ patientId, doctors }: VisitFormProps) {
+  const [draft] = useState(() => takeExtractionDraft("visit"));
   const router = useRouter();
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -106,6 +135,7 @@ export function VisitForm({ patientId, doctors }: VisitFormProps) {
     diagnosisText: "",
     nextSteps: "",
     notes: "",
+    ...draftToVisitValues(draft),
   };
 
   const {
