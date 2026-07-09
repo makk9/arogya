@@ -154,7 +154,6 @@ export default async function MedicationDetailPage({
       : null;
 
   const notesText = medication.notes?.trim() ?? "";
-  const showActionsMenu = medication.status !== "discontinued";
 
   // Flatten doctor + visit lists into the option shapes the log-change dialog
   // expects. All patient doctors / visits are surfaced — the dialog filters
@@ -187,12 +186,12 @@ export default async function MedicationDetailPage({
           patientId={patient.patientId}
           medication={medication}
           actionsSlot={
-            showActionsMenu ? (
-              <MedicationActionsMenu
-                medicationId={medication.id}
-                medicationName={medication.name}
-              />
-            ) : null
+            <MedicationActionsMenu
+              patientId={patient.patientId}
+              medicationId={medication.id}
+              medicationName={medication.name}
+              status={medication.status}
+            />
           }
         />
 

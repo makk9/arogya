@@ -3,6 +3,7 @@
 import { MoreHorizontal } from "lucide-react";
 import { useState } from "react";
 
+import { MedicationDeleteDialog } from "@/components/medications/medication-delete-dialog";
 import { MedicationDiscontinueDialog } from "@/components/medications/medication-discontinue-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,18 +14,29 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 interface Props {
+  patientId: string;
   medicationId: string;
   medicationName: string;
+  status: string;
 }
 
 /*
- * `…` menu per design.md 6.5:1384. Item 4 scope: Discontinue only. Item 5
- * adds Edit / Delete / Export. Page omits this entire component when
- * status === "discontinued" (locked refinement) — no need to ship a menu
- * that does nothing useful.
+ * `…` menu per design.md 6.5:1388 ("Discontinue, Resolve, Delete, Export").
+ * Discontinue is a logged state change and only applies while the med is active,
+ * so it hides once status === "discontinued". Delete removes the record outright
+ * and stays available in every state — a discontinued med is exactly what you'd
+ * want to remove. Resume (paused → active) is v1.5; Export is deferred.
  */
-export function MedicationActionsMenu({ medicationId, medicationName }: Props) {
+export function MedicationActionsMenu({
+  patientId,
+  medicationId,
+  medicationName,
+  status,
+}: Props) {
   const [discontinueOpen, setDiscontinueOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const canDiscontinue = status !== "discontinued";
 
   return (
     <>
@@ -42,8 +54,16 @@ export function MedicationActionsMenu({ medicationId, medicationName }: Props) {
           }
         />
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => setDiscontinueOpen(true)}>
-            Discontinue
+          {canDiscontinue ? (
+            <DropdownMenuItem onClick={() => setDiscontinueOpen(true)}>
+              Discontinue
+            </DropdownMenuItem>
+          ) : null}
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={() => setDeleteOpen(true)}
+          >
+            Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -53,6 +73,14 @@ export function MedicationActionsMenu({ medicationId, medicationName }: Props) {
         medicationName={medicationName}
         open={discontinueOpen}
         onOpenChange={setDiscontinueOpen}
+      />
+
+      <MedicationDeleteDialog
+        patientId={patientId}
+        medicationId={medicationId}
+        medicationName={medicationName}
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
       />
     </>
   );
