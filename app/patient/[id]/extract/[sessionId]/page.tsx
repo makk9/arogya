@@ -47,6 +47,13 @@ export default async function ExtractConfirmPage({
       ? chatCandidate
       : undefined;
 
+  // Set by the chat log path when the chat session was created solely for this
+  // log. On a full discard the surface removes that session so it doesn't linger
+  // as a titled empty conversation with a dangling user turn.
+  const rawNew = sp.newSession;
+  const newCandidate = Array.isArray(rawNew) ? rawNew[0] : rawNew;
+  const newChatSession = newCandidate === "1";
+
   const session = await extractionSessionQueries.getById(patientId, sessionId);
   if (!session) notFound();
 
@@ -87,6 +94,7 @@ export default async function ExtractConfirmPage({
       sourceLabel={sourceLabel}
       returnTo={returnTo}
       chatSessionId={chatSessionId}
+      newChatSession={newChatSession}
     />
   );
 }

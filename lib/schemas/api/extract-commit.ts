@@ -16,6 +16,10 @@ import { z } from "zod";
  * `finalize` is set by the client when this commit clears the last pending card,
  * so the endpoint flips the session + report to `committed` in the same request
  * (no separate "done" round-trip, no orphaned `ready_for_confirmation` row).
+ *
+ * `cards` may be EMPTY on a finalize-only call — the client sends `{cards: [],
+ * finalize: true}` when the user discards the last pending card after committing
+ * others, to close the session without re-writing the already-committed cards.
  */
 
 // The eight entity types the extraction agent can emit (§5.4:37-45).
@@ -41,7 +45,8 @@ export type CommitCardInput = z.infer<typeof commitCardSchema>;
 
 export const commitRequestSchema = z
   .object({
-    cards: z.array(commitCardSchema).min(1).max(50),
+    // Empty allowed for a finalize-only call (see header); otherwise 1–50 cards.
+    cards: z.array(commitCardSchema).max(50),
     finalize: z.boolean().default(false),
     // The chat session the log originated from. When present and this request
     // finalizes, the commit writes a "Logged ✓" assistant turn back to that

@@ -83,11 +83,26 @@ function LabelHelper({ text }: { text: string }) {
 // applied only when present and valid, so a partial/garbled extraction still
 // opens a usable form rather than an invalid one. Enum-typed fields (form,
 // category) are dropped unless they match a known value — never guessed.
-const MED_FORMS = ["tablet", "capsule", "liquid", "injection", "topical", "inhaler", "patch", "drops"];
-const MED_CATEGORIES = ["allopathic", "ayurvedic", "homeopathic", "supplement", "other"];
+//
+// Enum values are sourced from the shared options (the single source of truth,
+// typed against the real medication_form / medication_category enums) rather
+// than hardcoded — a stale copy previously dropped real values (`other`, `OTC`)
+// on prefill. Matched case-insensitively to the canonical value so a lowercased
+// `otc` still resolves to `OTC`.
+const MED_FORM_VALUES = FORM_OPTIONS.map((o) => o.value);
+const MED_CATEGORY_VALUES = CATEGORY_OPTIONS.map((o) => o.value);
 
 function draftStr(v: unknown): string | undefined {
   return typeof v === "string" && v.trim().length > 0 ? v.trim() : undefined;
+}
+
+function matchEnumValue<T extends string>(
+  raw: string | undefined,
+  values: readonly T[],
+): T | undefined {
+  if (!raw) return undefined;
+  const lower = raw.toLowerCase();
+  return values.find((v) => v.toLowerCase() === lower);
 }
 
 function draftToMedicationValues(
@@ -103,13 +118,12 @@ function draftToMedicationValues(
   if (dose) out.currentDose = dose;
   const freq = draftStr(d.current_frequency) ?? draftStr(d.frequency);
   if (freq) out.currentFrequency = freq;
-  const form = draftStr(d.form)?.toLowerCase();
-  if (form && MED_FORMS.includes(form)) out.form = form as MedicationFormValues["form"];
+  const form = matchEnumValue(draftStr(d.form), MED_FORM_VALUES);
+  if (form) out.form = form;
   const started = draftStr(d.started_on);
   if (started && /^\d{4}-\d{2}-\d{2}$/.test(started)) out.startedOn = started;
-  const category = draftStr(d.category)?.toLowerCase();
-  if (category && MED_CATEGORIES.includes(category))
-    out.category = category as MedicationFormValues["category"];
+  const category = matchEnumValue(draftStr(d.category), MED_CATEGORY_VALUES);
+  if (category) out.category = category;
   const purpose = draftStr(d.purpose);
   const notes = [draftStr(d.notes), purpose ? `Purpose: ${purpose}` : undefined]
     .filter(Boolean)

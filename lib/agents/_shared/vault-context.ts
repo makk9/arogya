@@ -131,7 +131,8 @@ export async function buildVaultContext(
     vitalReadings,
     symptomTypes,
     symptomEpisodes,
-    reportsRaw,
+    reportsAllRaw,
+    reportsTimelineRaw,
     journalEntries,
     insightsRaw,
   ] = await Promise.all([
@@ -152,9 +153,15 @@ export async function buildVaultContext(
     vitalQueries.forPatient(patientId),
     symptomTypeQueries.forPatient(patientId),
     symptomEpisodeQueries.forPatient(patientId),
-    // Real documents only — exclude the quick-log source stubs (§5.4), which are
-    // redundant with the entities they produced and would just add noise to the
-    // synthesis context. Same filter as the §6.6 timeline.
+    // TWO report reads, on purpose:
+    //  - forPatient (all) feeds ONLY the citation slug-index below. Every
+    //    chat-committed entity carries source_report_id → a quick-log stub;
+    //    dropping stubs from the index resolves those citations to
+    //    `§ unresolved:<uuid>` (breaks citation discipline / the north-star).
+    //  - forTimeline (real docs only) feeds the serialized Reports section —
+    //    stubs stay OUT of the AI's reading context (redundant with the entities
+    //    they produced), same filter as the §6.6 timeline + rail.
+    reportQueries.forPatient(patientId),
     reportQueries.forTimeline(patientId),
     journalQueries.forPatient(patientId),
     includeInsights === "none"
@@ -162,9 +169,12 @@ export async function buildVaultContext(
       : insightQueries.forPatient(patientId),
   ]);
 
-  const reports = reportsRaw.filter(
-    (r) => r.status === "ready" || r.status === "committed",
-  );
+  const readyOrCommitted = (r: { status: string }) =>
+    r.status === "ready" || r.status === "committed";
+  // Slug-index population — includes stubs so source_report_id citations resolve.
+  const reportsForCitation = reportsAllRaw.filter(readyOrCommitted);
+  // Serialized Reports section — real documents only (stubs excluded).
+  const reports = reportsTimelineRaw.filter(readyOrCommitted);
   const insights = insightsRaw.filter((i) => i.status !== "dismissed");
 
   // Slug deduplication: collisions get -2, -3 suffixes in stable id-ASC order.
@@ -202,7 +212,9 @@ export async function buildVaultContext(
   addAll(vitalReadings, vitalReadingSlug);
   addAll(symptomTypes, symptomTypeSlug);
   addAll(symptomEpisodes, symptomEpisodeSlug);
-  addAll(reports, reportSlug);
+  // Index ALL real reports (incl. quick-log stubs) so entity source_report_id
+  // citations resolve, even though only the timeline subset is serialized below.
+  addAll(reportsForCitation, reportSlug);
   addAll(journalEntries, journalEntrySlug);
   addAll(insights, insightSlug);
 

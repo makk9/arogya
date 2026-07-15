@@ -35,10 +35,18 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   try {
-    // Record the log as a user turn in its chat session first (§6.2:1197), so
-    // it's persisted before the several-second extraction runs — the message
-    // survives the trip to the confirmation screen and the session shows up in
-    // the CHATS list. Scope-checked; a foreign/stale id is skipped, not fatal.
+    const result = await processQuickLog({
+      patientId,
+      timezone,
+      text: parsed.data.text,
+    });
+
+    // Record the log as a user turn in its chat session only AFTER extraction
+    // succeeds (§6.2:1197). It's still persisted before we return, so it survives
+    // the client's navigation to the confirmation screen and the session shows up
+    // in the CHATS list — but writing it up-front left a dangling user turn +
+    // titled empty session behind whenever extraction (or the DB) failed.
+    // Scope-checked; a foreign/stale id is skipped, not fatal.
     if (parsed.data.sessionId) {
       const session = await chatQueries.getSession(patientId, parsed.data.sessionId);
       if (session) {
@@ -47,11 +55,6 @@ export async function POST(req: Request): Promise<Response> {
       }
     }
 
-    const result = await processQuickLog({
-      patientId,
-      timezone,
-      text: parsed.data.text,
-    });
     return Response.json(
       {
         reportId: result.reportId,

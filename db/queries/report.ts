@@ -4,8 +4,13 @@ import { db } from "@/db";
 import {
   conditions,
   extractionSessions,
+  journalEntries,
+  labReports,
   medications,
   reports,
+  symptomEpisodes,
+  visits,
+  vitalReadings,
   type Condition,
   type Medication,
   type NewReport,
@@ -78,13 +83,70 @@ async function assertLinkedRefsInScope(
   }
 }
 
+// A quick-log stub is REDUNDANT — and so hidden — only once it has produced a
+// source-linked entity: the medication/condition/etc. is the user-facing record,
+// the note is just its raw source. An entity-LESS stub (extraction failed, or
+// the whole confirmation was discarded) is NOT redundant with anything — hiding
+// it too would silently lose the note the user typed. So it stays visible.
+// `source_report_id` lives on 7 entity types (doctors + allergies don't carry
+// it); this is true iff NONE of them references the report.
+function hasNoSourceLinkedEntity() {
+  return and(
+    notExists(
+      db
+        .select({ one: medications.id })
+        .from(medications)
+        .where(eq(medications.sourceReportId, reports.id)),
+    ),
+    notExists(
+      db
+        .select({ one: conditions.id })
+        .from(conditions)
+        .where(eq(conditions.sourceReportId, reports.id)),
+    ),
+    notExists(
+      db
+        .select({ one: labReports.id })
+        .from(labReports)
+        .where(eq(labReports.sourceReportId, reports.id)),
+    ),
+    notExists(
+      db
+        .select({ one: vitalReadings.id })
+        .from(vitalReadings)
+        .where(eq(vitalReadings.sourceReportId, reports.id)),
+    ),
+    notExists(
+      db
+        .select({ one: symptomEpisodes.id })
+        .from(symptomEpisodes)
+        .where(eq(symptomEpisodes.sourceReportId, reports.id)),
+    ),
+    notExists(
+      db
+        .select({ one: visits.id })
+        .from(visits)
+        .where(eq(visits.sourceReportId, reports.id)),
+    ),
+    notExists(
+      db
+        .select({ one: journalEntries.id })
+        .from(journalEntries)
+        .where(eq(journalEntries.sourceReportId, reports.id)),
+    ),
+  );
+}
+
 /**
  * Shared WHERE for "real" reports — excludes the quick-log source stubs the
- * quick-log path creates to hold typed text (§5.4). A stub has an
- * extraction_session AND no source_file_url; an uploaded document (has a file)
- * and a manually-entered report (no extraction_session) both qualify as real.
- * Used by BOTH the §6.6 timeline (`forTimeline`) and the wiki-rail count
- * (`wikiCounts`) so the list and its badge count can never drift.
+ * quick-log path creates to hold typed text (§5.4), but ONLY once a stub has
+ * produced a source-linked entity (then the entity is the user-facing record and
+ * the note is redundant). A stub has an extraction_session AND no source_file_url;
+ * an uploaded document (has a file), a manually-entered report (no
+ * extraction_session), and an entity-LESS stub (failed/discarded — nothing
+ * references it, so its note would otherwise vanish) all qualify as real. Used by
+ * BOTH the §6.6 timeline (`forTimeline`) and the wiki-rail count (`wikiCounts`)
+ * so the list and its badge count can never drift.
  */
 export function realReportsWhere(patientId: string) {
   return and(
@@ -97,6 +159,7 @@ export function realReportsWhere(patientId: string) {
           .from(extractionSessions)
           .where(eq(extractionSessions.reportId, reports.id)),
       ),
+      hasNoSourceLinkedEntity(),
     ),
   );
 }

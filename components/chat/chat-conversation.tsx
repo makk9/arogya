@@ -146,6 +146,10 @@ export function ChatConversation({
   // Holds the original text of an `ambiguous`-classified input awaiting the
   // user's log-vs-ask choice (the §5.5 inline disambiguator). Null when none.
   const [pending, setPending] = useState<string | null>(null);
+  // Set to the log text when a quick-log request fails — surfaces an inline
+  // error + retry instead of silently stranding the echoed user turn. Null when
+  // none.
+  const [logError, setLogError] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -266,7 +270,12 @@ export function ChatConversation({
         ]);
       }
 
+      setLogError(null);
       setLogging(true);
+      // Captured before ensureSession: was this session created solely for this
+      // log? If so, a full discard downstream can clean it up rather than leave
+      // a titled empty session behind.
+      const hadSession = sessionId !== null;
       const sid = await ensureSession();
       try {
         const res = await fetch("/api/chat/quick-log", {
@@ -274,22 +283,28 @@ export function ChatConversation({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text, sessionId: sid ?? undefined }),
         });
-        if (!res.ok) return;
+        if (!res.ok) {
+          // Keep the echoed turn on screen and surface a retry — a silent return
+          // left the user's line dangling with no signal something went wrong.
+          setLogError(text);
+          return;
+        }
         const body = (await res.json()) as { extractionSessionId: string };
         const returnTo = sid
           ? `/patient/${patientId}/chat/${sid}`
           : `/patient/${patientId}/chat`;
         const chatParam = sid ? `&chatSessionId=${sid}` : "";
+        const newParam = sid && !hadSession ? "&newSession=1" : "";
         router.push(
-          `/patient/${patientId}/extract/${body.extractionSessionId}?returnTo=${encodeURIComponent(returnTo)}${chatParam}`,
+          `/patient/${patientId}/extract/${body.extractionSessionId}?returnTo=${encodeURIComponent(returnTo)}${chatParam}${newParam}`,
         );
       } catch {
-        // Stay put on failure; the user can retry.
+        setLogError(text);
       } finally {
         setLogging(false);
       }
     },
-    [ensureSession, setMessages, router, patientId],
+    [ensureSession, setMessages, router, patientId, sessionId],
   );
 
   // Typed input runs through the router first (§5.5 — every chat input).
@@ -302,6 +317,7 @@ export function ChatConversation({
       if (!trimmed || busy) return;
       setInput("");
       setPending(null);
+      setLogError(null);
 
       // Paint the user's message immediately — before the classify round-trip —
       // so it never trails the "Reading that…" indicator. It's pulled back if
@@ -518,6 +534,38 @@ export function ChatConversation({
             <p className="text-sm text-stone-500">
               Something interrupted that response. Try sending it again.
             </p>
+          ) : null}
+
+          {/* Quick-log failure — the echoed turn stays put; offer a retry so the
+              log isn't silently dropped. */}
+          {logError ? (
+            <div className="flex gap-3" aria-live="polite">
+              <span
+                aria-hidden
+                className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-600"
+              >
+                ✦
+              </span>
+              <div className="min-w-0 flex-1 rounded-lg border border-border bg-muted p-4">
+                <p className="text-sm text-foreground">
+                  I couldn&apos;t log that just now — something interrupted it.
+                </p>
+                <div className="mt-3">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => {
+                      const text = logError;
+                      setLogError(null);
+                      void runLog(text, true);
+                    }}
+                  >
+                    Try again
+                  </Button>
+                </div>
+              </div>
+            </div>
           ) : null}
 
           {/* 5.5 inline disambiguator — when the router can't confidently tell a

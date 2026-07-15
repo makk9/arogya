@@ -70,6 +70,10 @@ export interface ExtractionConfirmationProps {
   // The chat session the log came from — the commit writes a "Logged ✓" turn
   // back to it on finalize. Absent for the upload path.
   chatSessionId?: string;
+  // True when `chatSessionId` was created solely for this log. On a full discard
+  // (nothing committed) we delete it so it doesn't linger as a titled empty
+  // conversation with a dangling user turn.
+  newChatSession?: boolean;
 }
 
 function initialMode(intent: ExtractionEntity["intent"]): CardState["mode"] {
@@ -93,6 +97,7 @@ export function ExtractionConfirmation({
   sourceLabel,
   returnTo,
   chatSessionId,
+  newChatSession,
 }: ExtractionConfirmationProps) {
   const router = useRouter();
 
@@ -202,7 +207,9 @@ export function ExtractionConfirmation({
     }
   }
 
-  function discard(i: number) {
+  // Pure card-status mutation — no navigation. Used by the Discard handler below
+  // and by "Edit manually instead" (which navigates to the form itself).
+  function markDiscarded(i: number) {
     setCards((prev) => {
       const next = [...prev];
       next[i] = { ...next[i], status: "discarded" };
@@ -210,10 +217,55 @@ export function ExtractionConfirmation({
     });
   }
 
+  // Close out the review and leave the confirmation surface.
+  //  - If cards were committed, flush a finalize-only commit (empty `cards`) so
+  //    the session + report flip to `committed` instead of dangling in
+  //    `ready_for_confirmation` — otherwise the quick-log stub report stays
+  //    `extracting` and its committed entities' `source_report_id` citations
+  //    won't resolve. Then return to the chat the log came from.
+  //  - If nothing committed and the chat session was created solely for this
+  //    log, delete it (dangling turn + titled empty session) and land on the
+  //    chat index rather than the now-gone session.
+  async function endReview(anyCommitted: boolean) {
+    if (anyCommitted) {
+      try {
+        await fetch(`/api/extract/${sessionId}/commit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cards: [], finalize: true, chatSessionId }),
+        });
+      } catch {
+        // Non-fatal — the entities already wrote; navigate regardless.
+      }
+    } else if (newChatSession && chatSessionId) {
+      try {
+        await fetch(`/api/chat/sessions/${chatSessionId}`, { method: "DELETE" });
+      } catch {
+        // Non-fatal — navigate regardless.
+      }
+      router.push(`/patient/${patientId}/chat`);
+      router.refresh();
+      return;
+    }
+    router.push(returnTo ?? `/patient/${patientId}`);
+    router.refresh();
+  }
+
+  function discard(i: number) {
+    // Was this the last pending card? If so the review is over — don't strand
+    // the user on a page whose header controls have vanished (count → 0).
+    const stillPending = cards.some(
+      (c, idx) => idx !== i && c.status === "pending",
+    );
+    const anyCommitted = cards.some((c) => c.status === "committed");
+    markDiscarded(i);
+    if (!stillPending) void endReview(anyCommitted);
+  }
+
   function discardAll() {
-    // Return to the chat origin if we have one; else fall back to browser back.
-    if (returnTo) router.push(returnTo);
-    else router.back();
+    // Abandon every pending card — same end-of-review path as clearing the last
+    // one individually (finalize if some committed, else clean up + return).
+    void endReview(cards.some((c) => c.status === "committed"));
   }
 
   function setField(i: number, key: string, value: string) {
@@ -257,7 +309,9 @@ export function ExtractionConfirmation({
     if (isCommitType(entity.target_entity_type)) {
       writeExtractionDraft(entity.target_entity_type, cards[i].data);
       const segment = TYPE_META[entity.target_entity_type].segment;
-      discard(i);
+      // Mark discarded WITHOUT the end-of-review navigation — we're navigating to
+      // the manual form ourselves, not abandoning the review.
+      markDiscarded(i);
       router.push(`/patient/${patientId}/${segment}/new`);
     }
   }

@@ -87,6 +87,26 @@ export interface CommitCardResult {
  */
 class CommitBlocked extends Error {}
 
+// A state-machine violation raised by the query layer (e.g. a dose change routed
+// at an already-discontinued medication) surfaces as a `*DomainError` whose
+// `message` is a machine kind, not user copy. Left unconverted it bubbles out of
+// commitCard → the endpoint 500s → the sequential batch aborts AFTER earlier
+// cards already wrote, so a retry re-commits them (duplicate writes). Converting
+// it to a per-card block here keeps one bad card from taking down the batch.
+function isDomainError(err: unknown): err is Error {
+  return err instanceof Error && err.name.endsWith("DomainError");
+}
+
+// Voice-compliant copy (§7.1) for the domain-error kinds a commit can hit; the
+// `message` on these errors equals the kind (`super(kind)`). Anything unmapped
+// falls back to the generic line below.
+const DOMAIN_ERROR_COPY: Record<string, string> = {
+  medication_discontinued:
+    "This medication is already discontinued — it can't take further changes. Open it to edit it directly, or switch this card to “add new.”",
+  already_discontinued:
+    "This medication is already discontinued — nothing to change here.",
+};
+
 // ---- value coercion --------------------------------------------------------
 // The agent emits snake_case string fields (§5.4:763). These narrow untyped
 // jsonb values to the exact column/enum shapes, dropping anything unrecognised
@@ -682,6 +702,15 @@ export async function commitCard(
     if (err instanceof CommitBlocked) {
       return { ok: false, entityType: type, error: err.message };
     }
+    if (isDomainError(err)) {
+      return {
+        ok: false,
+        entityType: type,
+        error:
+          DOMAIN_ERROR_COPY[err.message] ??
+          "I couldn't apply this to the record as it stands — open the entity to make this change directly.",
+      };
+    }
     throw err;
   }
 }
@@ -695,13 +724,16 @@ function phraseForCard(card: CommitCardInput): string {
   switch (card.targetEntityType) {
     case "medication": {
       const name = s("name") ?? "medication";
+      const dose = s("current_dose") ?? s("dose");
+      const freq = s("current_frequency") ?? s("frequency");
       if (updating) {
         const status = enumMember(card.data.status, medicationStatus.enumValues);
         if (status === "discontinued") return `Discontinued ${name}`;
         if (status === "paused") return `Paused ${name}`;
-        return `Updated ${name}`;
+        const detail = [dose, freq].filter(Boolean).join(", ");
+        return `Updated ${name}${detail ? ` — now ${detail}` : ""}`;
       }
-      return `Added ${name}`;
+      return `Added ${name}${dose ? ` ${dose}` : ""}`;
     }
     case "condition":
       return `${updating ? "Updated" : "Added"} condition${s("name") ? `: ${s("name")}` : ""}`;
@@ -709,15 +741,33 @@ function phraseForCard(card: CommitCardInput): string {
       return `${updating ? "Updated" : "Added"} doctor${s("name") ? `: ${s("name")}` : ""}`;
     case "allergy":
       return `${updating ? "Updated" : "Added"} allergy${s("substance") ? `: ${s("substance")}` : ""}`;
-    case "lab_report":
-      return `Added a lab report${s("title") ? `: ${s("title")}` : ""}`;
+    case "lab_report": {
+      // Always a CREATE (labs are create-new, §5.4), so say "new" — a note meant
+      // to amend an existing lab produced a separate record, and the message
+      // shouldn't imply otherwise. Name the markers so it's specific.
+      const date = s("report_date");
+      const rawResults = Array.isArray(card.data.results) ? card.data.results : [];
+      const markers = rawResults
+        .map((r) => {
+          if (typeof r !== "object" || r === null) return null;
+          const rr = r as Data;
+          const marker = str(rr.marker);
+          if (!marker) return null;
+          return [marker, str(rr.value), str(rr.unit)].filter(Boolean).join(" ");
+        })
+        .filter((m): m is string => m !== null);
+      const label = s("title") ?? s("lab_name");
+      const head = `Added a new lab report${date ? ` (${date})` : ""}`;
+      const tail = markers.length > 0 ? ` — ${markers.join(", ")}` : label ? `: ${label}` : "";
+      return `${head}${tail}`;
+    }
     case "vital_reading": {
       const kind = (s("type") ?? "vital").replace(/_/g, " ");
       const value = s("value");
       return `Logged ${kind}${value ? ` ${value}` : ""}`;
     }
     case "visit":
-      return "Logged a visit";
+      return `Logged a visit${s("visit_date") ? ` (${s("visit_date")})` : ""}`;
     case "symptom_episode":
       return `Logged symptom${s("symptom") ? `: ${s("symptom")}` : ""}`;
   }
