@@ -31,6 +31,12 @@ const extractionEntitySchema = z.object({
 });
 export const extractionOutputSchema = z.object({
   extractions: z.array(extractionEntitySchema),
+  // Optional advisory shown on the §6.11 confirmation screen when the agent did
+  // something other than extract. Today's only use: the user asked to DELETE a
+  // record, which the agent can't do from chat — it returns no extraction for
+  // that and a voice-compliant `notice` telling them to remove it on the record's
+  // own page. Additive + optional; older stored outputs without it still parse.
+  notice: z.string().optional(),
 });
 export type ExtractionEntity = z.infer<typeof extractionEntitySchema>;
 export type ExtractionOutput = z.infer<typeof extractionOutputSchema>;

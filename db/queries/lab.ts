@@ -374,4 +374,35 @@ export const labResultQueries = {
       .returning();
     return row ?? null;
   },
+
+  // Appends new markers to an existing report — the extraction amendment path
+  // ("add creatinine 1.7 to the June 15 lab", §5.4/§6.7). A lab REPORT is
+  // create-new (§5.4), but adding a late/omitted marker to one report is an
+  // amendment, not a second draw. Callers pass the parent report's date so the
+  // appended rows share its `result_date`. Correcting an EXISTING marker's value
+  // is not done here — that's `correctResult` from the report's own Markers
+  // section; the commit layer only appends markers not already present.
+  async addResults(
+    patientId: string,
+    labReportId: string,
+    resultDate: string,
+    results: ReadonlyArray<NewLabResultInput>,
+  ): Promise<LabResult[]> {
+    if (results.length === 0) return [];
+    const rows: NewLabResult[] = results.map((r) => ({
+      labReportId,
+      patientId,
+      marker: r.marker,
+      markerNormalized: r.markerNormalized ?? null,
+      value: r.value ?? null,
+      valueText: r.valueText ?? null,
+      unit: r.unit ?? null,
+      referenceLow: r.referenceLow ?? null,
+      referenceHigh: r.referenceHigh ?? null,
+      flag: r.flag ?? null,
+      resultDate,
+      linkedCondition: r.linkedCondition ?? null,
+    }));
+    return db.insert(labResults).values(rows).returning();
+  },
 };

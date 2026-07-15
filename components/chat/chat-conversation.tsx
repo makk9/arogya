@@ -289,7 +289,29 @@ export function ChatConversation({
           setLogError(text);
           return;
         }
-        const body = (await res.json()) as { extractionSessionId: string };
+        const body = (await res.json()) as {
+          extractionSessionId?: string;
+          declined?: boolean;
+          notice?: string;
+        };
+        // Declined (e.g. a deletion the agent can't do): show its reply inline
+        // and stay in the chat — no confirmation detour. The turn is already
+        // persisted server-side; echo it optimistically here.
+        if (body.declined && body.notice) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `local-notice-${Date.now()}`,
+              role: "assistant",
+              parts: [{ type: "text", text: body.notice as string }],
+            },
+          ]);
+          // Refresh the CHATS list so a fresh session picks up its server-set
+          // title (this path doesn't navigate or stream, so nothing else does).
+          onPersisted();
+          return;
+        }
+        if (!body.extractionSessionId) return;
         const returnTo = sid
           ? `/patient/${patientId}/chat/${sid}`
           : `/patient/${patientId}/chat`;
@@ -304,7 +326,7 @@ export function ChatConversation({
         setLogging(false);
       }
     },
-    [ensureSession, setMessages, router, patientId, sessionId],
+    [ensureSession, setMessages, router, patientId, sessionId, onPersisted],
   );
 
   // Typed input runs through the router first (§5.5 — every chat input).

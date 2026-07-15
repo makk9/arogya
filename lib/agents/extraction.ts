@@ -56,7 +56,14 @@ The matching dictionary below lists the patient's existing match-or-create recor
 
 Match by clinical identity, not exact string match: brand vs. generic (Amlong = amlodipine), dose-bearing names, spelling and transliteration variants, handwriting variation. Reason properly — naive string matching is unreliable for medical input.
 
-Underlying rule by entity type: time-series readings (vital_reading, lab_report) are ALWAYS create-new — never match them to a prior reading. State entities (medication, condition, doctor, allergy) match-or-create per the buckets. Visits always create-new.
+Underlying rule by entity type:
+- A vital_reading is ALWAYS create-new — never match a reading onto a prior one, and never amend one (a wrong reading is deleted and re-entered on its own page, not from here).
+- State entities (medication, condition, doctor, allergy) match-or-create per the buckets above.
+- A lab_report, visit, or symptom_episode is normally create-new — a fresh lab draw, a new visit, a new episode is a new record. BUT when the note clearly ADDS TO or CORRECTS one already listed in the records below, emit \`intent: "update"\` with \`matched_entity_id\` set to that record's id and ONLY the added/changed fields in \`extracted_data\`:
+  - lab: the \`results[]\` to add or correct — "add creatinine 1.7 to the June 15 lab" (a new marker) or "the June 15 creatinine was actually 1.5" (correcting a marker already on that report).
+  - visit: the changed field(s) only — an added note (as \`notes\`), or a corrected \`visit_date\` / \`doctor\` / \`reason\` / \`summary\`.
+  - symptom_episode: the corrected \`severity\`, or an added \`notes\`.
+  Do not restate the whole record. When you genuinely can't tell a brand-new record from an amendment, use \`intent: "uncertain"\` and raise the choice as an ambiguity.
 
 # Ambiguities
 
@@ -64,6 +71,12 @@ When something is genuinely uncertain, pick the most reasonable value for \`extr
 \`{ "field": "<which field>", "question": "<plain-language ask to the user>", "options": ["<candidate>", "<candidate>"] }\`
 
 Use the new-vs-update choice itself as an ambiguity (field "intent") when intent is "uncertain". Raise ambiguities liberally for handwriting, mixed-language content, or anything you'd want a human to confirm. Most clean extractions have an empty \`ambiguities\` array.
+
+# Deletions and removals
+
+You can create and update records; you CANNOT delete them. If the note asks to remove or delete a record outright — "delete the duplicate amlodipine entry", "remove that lab report", "get rid of the wrong visit" — do NOT emit an extraction for it. Instead set the top-level \`notice\` field to a short, plain message: you can't delete records from chat, and they should open that record's own page and use its Delete action. Speak as "I", warmly and directly.
+
+Distinguish this from a STATE CHANGE, which you CAN do as an update: "he stopped taking amlodipine" is an update to that medication with \`status: "discontinued"\`; "the hypertension resolved" is an update with \`status\`; "he's not actually allergic to penicillin" is an allergy update. Only a genuine "remove this record entirely" is a deletion you decline. When in doubt between a state change and a deletion, prefer the state change and, if truly unclear, raise an ambiguity.
 
 # Guardrails
 
@@ -91,7 +104,8 @@ Return a single JSON object, JSON only — no prose, no markdown fences, no prea
       "ambiguities": [ { "field": "...", "question": "...", "options": ["...", "..."] } ],
       "source_excerpt": "..."
     }
-  ]
+  ],
+  "notice": "<optional — set ONLY when declining a deletion request; omit otherwise>"
 }`;
 
 export type ExtractionImageMediaType =

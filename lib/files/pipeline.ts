@@ -142,7 +142,9 @@ export async function processUpload(
       });
       output = result;
       // An empty array is a valid "couldn't read it" outcome (5.4:814), surfaced
-      // as the §6.11 failure state — not an error, but also not confirmable.
+      // as the §6.11 failure state — not an error, but also not confirmable. (The
+      // quick-log path also handles a `notice` decline here; an uploaded document
+      // can't ask to delete a record, so there's no notice branch to mirror.)
       failed = result.extractions.length === 0;
     }
   } catch (err) {

@@ -43,8 +43,10 @@ async function main(): Promise<void> {
       timezone,
       text,
     });
-    reportId = result.reportId;
     console.log(`processed in ${Date.now() - startedAt}ms`);
+    assert(result.kind === "confirm", "a loggable note yields a confirm outcome");
+    if (result.kind !== "confirm") return;
+    reportId = result.reportId;
 
     const session = await extractionSessionQueries.getById(
       STUB_PATIENT_ID,

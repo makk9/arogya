@@ -264,7 +264,7 @@ export async function buildMatchingDictionary(
   patientId: string,
   opts: { today?: string } = {},
 ): Promise<string> {
-  const [medications, conditions, doctors, allergies, labs, visits] =
+  const [medications, conditions, doctors, allergies, labs, visits, symptomTypes, symptomEpisodes] =
     await Promise.all([
       medicationQueries.forPatient(patientId),
       conditionQueries.forPatient(patientId),
@@ -272,6 +272,8 @@ export async function buildMatchingDictionary(
       allergyQueries.forPatient(patientId),
       labReportQueries.forPatient(patientId),
       visitQueries.forPatient(patientId),
+      symptomTypeQueries.forPatient(patientId),
+      symptomEpisodeQueries.forPatient(patientId),
     ]);
 
   const sections: string[] = [];
@@ -309,10 +311,11 @@ export async function buildMatchingDictionary(
     sections.push(["## Allergies", ...lines].join("\n"));
   }
 
-  // Recent EVENT records — CONTEXT ONLY (date resolution + duplicate avoidance),
-  // never match targets. Bounded to the most recent dozen each to stay lean:
-  // events are always create-new (§5.4), so dumping the full history would just
-  // cost tokens and dilute focus.
+  // Recent EVENT records — for date resolution AND amendment (§6.7): a new lab
+  // draw / visit is create-new, but a note can ADD to an existing one listed
+  // here (a marker to a lab, a note to a visit). Bounded to the most recent
+  // dozen each to stay lean — enough to resolve "the June 15 lab" without
+  // dumping full history.
   const doctorNameById = new Map(doctors.map((d) => [d.id, d.name]));
   const eventSections: string[] = [];
 
@@ -335,6 +338,20 @@ export async function buildMatchingDictionary(
       return `- Visit on ${v.visitDate}${doc ? ` with ${doc}` : ""} (id: ${v.id})`;
     });
     eventSections.push(["## Visits — recent", ...lines].join("\n"));
+  }
+
+  const symptomNameById = new Map(symptomTypes.map((t) => [t.id, t.name]));
+  const recentEpisodes = [...symptomEpisodes]
+    .sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1))
+    .slice(0, 12);
+  if (recentEpisodes.length > 0) {
+    const lines = recentEpisodes.map((e) => {
+      const name = symptomNameById.get(e.symptomTypeId) ?? "symptom";
+      const date = e.startedAt.toISOString().slice(0, 10);
+      const sev = e.severity ? `, ${e.severity}` : "";
+      return `- ${name} on ${date}${sev} (id: ${e.id})`;
+    });
+    eventSections.push(["## Symptom episodes — recent", ...lines].join("\n"));
   }
 
   const dateHeader = opts.today
@@ -366,9 +383,9 @@ export async function buildMatchingDictionary(
     eventSections.length > 0
       ? [
           "",
-          "## For context only — recent event records",
+          "## Recent event records — for date resolution and amendment",
           "",
-          "The records below help you resolve dates and avoid duplicates. They are EVENT records (labs, visits): always create them new — do NOT set `matched_entity_id` to one of these. If the note is clearly amending or adding to an existing one listed here, still emit the create, but raise an ambiguity noting a new record will be created (an existing lab/visit is amended from its own screen, not here).",
+          "These recent labs, visits, and symptom episodes help you resolve dates and decide new-vs-amend. A NEW lab draw / visit / episode is always create-new — do NOT match it onto one of these. But when the note clearly ADDS TO or CORRECTS one listed here, emit `intent: \"update\"` with `matched_entity_id` set to that record's id and ONLY the added/changed fields in `extracted_data`: a lab's `results[]` to add or correct, a visit's added `notes` or corrected date/doctor/reason/summary, a symptom episode's corrected `severity` or added `notes`. When you can't tell a new record from an amendment, use `intent: \"uncertain\"` and raise the choice as an ambiguity.",
           "",
           ...eventSections,
         ]

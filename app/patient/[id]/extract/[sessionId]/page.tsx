@@ -1,7 +1,16 @@
 import { notFound } from "next/navigation";
 
 import { ExtractionConfirmation } from "@/components/extract/extraction-confirmation";
-import { extractionSessionQueries, reportQueries } from "@/db/queries";
+import {
+  doctorQueries,
+  extractionSessionQueries,
+  labReportQueries,
+  labResultQueries,
+  reportQueries,
+  symptomEpisodeQueries,
+  visitQueries,
+} from "@/db/queries";
+import type { LabSnapshot } from "@/components/extract/extraction-confirmation";
 import { parseStoredExtractionOutput } from "@/lib/agents/extraction";
 import { getCurrentPatient } from "@/lib/auth";
 import { mimeFromPath } from "@/lib/files/mime";
@@ -60,6 +69,75 @@ export default async function ExtractConfirmPage({
   const report = await reportQueries.getById(patientId, session.reportId);
   const output = parseStoredExtractionOutput(session.extractionOutputJson);
   const extractions = output?.extractions ?? [];
+  // Advisory the agent set instead of extracting — today, a declined deletion
+  // request ("I can't delete records from here…").
+  const notice = output?.notice;
+
+  // For any lab-report card matched to an existing report, load that report's
+  // current markers + a label, so the confirmation card can show the user
+  // exactly what an update does — `1.7 → 1.5` for a correction, "new marker" for
+  // an append, and WHICH report it touches. Scope-checked via getById.
+  const labMatchIds = [
+    ...new Set(
+      extractions
+        .filter((e) => e.target_entity_type === "lab_report" && e.matched_entity_id)
+        .map((e) => e.matched_entity_id as string),
+    ),
+  ];
+  const labSnapshots: Record<string, LabSnapshot> = {};
+  await Promise.all(
+    labMatchIds.map(async (labId) => {
+      const report = await labReportQueries.getById(patientId, labId);
+      if (!report) return;
+      const markers = await labResultQueries.forReport(labId);
+      labSnapshots[labId] = {
+        label: `${report.labName ?? "Lab report"} · ${report.reportDate}`,
+        markers: markers.map((m) => ({
+          marker: m.marker,
+          value: m.value ?? m.valueText ?? "—",
+          unit: m.unit ?? "",
+        })),
+      };
+    }),
+  );
+
+  // For visit / symptom update cards, the current value of each overwrite field
+  // (agent-key → current value), so the card can show `old → new` before the
+  // user confirms a replacement — the same legibility labs get. Notes are
+  // append-only, so they're deliberately excluded (no diff). Scope-checked.
+  const fieldSnapshots: Record<string, Record<string, string>> = {};
+  const visitIds = [
+    ...new Set(
+      extractions
+        .filter((e) => e.target_entity_type === "visit" && e.matched_entity_id)
+        .map((e) => e.matched_entity_id as string),
+    ),
+  ];
+  const symptomIds = [
+    ...new Set(
+      extractions
+        .filter((e) => e.target_entity_type === "symptom_episode" && e.matched_entity_id)
+        .map((e) => e.matched_entity_id as string),
+    ),
+  ];
+  await Promise.all([
+    ...visitIds.map(async (vid) => {
+      const v = await visitQueries.getById(patientId, vid);
+      if (!v) return;
+      const snap: Record<string, string> = {};
+      if (v.visitDate) snap.visit_date = v.visitDate;
+      if (v.visitType) snap.visit_type = v.visitType;
+      if (v.chiefComplaint) snap.reason = v.chiefComplaint;
+      if (v.summary) snap.summary = v.summary;
+      const doc = await doctorQueries.getById(patientId, v.doctorId);
+      if (doc) snap.doctor = doc.name;
+      fieldSnapshots[vid] = snap;
+    }),
+    ...symptomIds.map(async (sid) => {
+      const ep = await symptomEpisodeQueries.getById(patientId, sid);
+      if (ep?.severity) fieldSnapshots[sid] = { severity: ep.severity };
+    }),
+  ]);
 
   // Source: a quick-log Report carries typed text in `content`; an uploaded
   // Report carries a file path in `sourceFileUrl` (signed per-load, never
@@ -95,6 +173,9 @@ export default async function ExtractConfirmPage({
       returnTo={returnTo}
       chatSessionId={chatSessionId}
       newChatSession={newChatSession}
+      notice={notice}
+      labSnapshots={labSnapshots}
+      fieldSnapshots={fieldSnapshots}
     />
   );
 }

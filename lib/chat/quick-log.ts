@@ -22,10 +22,12 @@ export interface ProcessQuickLogParams {
   text: string;
 }
 
-export interface ProcessQuickLogResult {
-  reportId: string;
-  extractionSessionId: string;
-}
+export type ProcessQuickLogResult =
+  // Entities to confirm (or a hard "couldn't read it" failure) → the §6.11 screen.
+  | { kind: "confirm"; reportId: string; extractionSessionId: string }
+  // The agent refused (e.g. a deletion) and produced no entity — surfaced as a
+  // chat reply, with no placeholder Report/session left behind.
+  | { kind: "declined"; notice: string };
 
 /**
  * Free-text quick-log → extraction handoff (§5.4 text-input mode) — the text
@@ -37,31 +39,19 @@ export interface ProcessQuickLogResult {
  * Same status mapping + never-auto-write discipline as the upload path:
  *   - non-empty extractions → session `ready_for_confirmation`, report `extracting`
  *   - empty array / thrown AgentError → session `failed`, report `failed`
+ *   - declined (empty extractions + a notice, e.g. a refused deletion) → no
+ *     Report/session created; the notice is returned for the chat to show inline
  *
- * Never throws on extraction failure — returns the ids so the caller routes the
- * user to the confirmation page (which renders the §6.11 failure state).
+ * Never throws on extraction failure — returns a `confirm` outcome so the caller
+ * routes the user to the confirmation page (which renders the §6.11 failure
+ * state), or a `declined` outcome carrying the advisory.
  */
 export async function processQuickLog(
   params: ProcessQuickLogParams,
 ): Promise<ProcessQuickLogResult> {
   const { patientId, timezone, text } = params;
 
-  // Report first — holds the source text (no file). reportType unset (unknown
-  // until the user confirms at E3); title is a placeholder.
-  const report = await reportQueries.create({
-    patientId,
-    title: titleFromText(text),
-    reportDate: todayInTimezone(timezone),
-    content: text,
-    status: "extracting",
-  });
-
-  const session = await extractionSessionQueries.create({
-    patientId,
-    reportId: report.id,
-    status: "pending",
-  });
-
+  // Extract first — before creating any row — so a decline leaves nothing behind.
   let output: unknown = null;
   let failed = false;
   try {
@@ -71,16 +61,38 @@ export async function processQuickLog(
       today: todayInTimezone(timezone),
     });
     output = result;
+    // Decline: the agent refused (e.g. a deletion) and produced no entity to
+    // confirm. Surface the advisory in the chat directly — creating a stub Report
+    // here would linger as an entity-less note on the timeline.
+    if (result.extractions.length === 0 && result.notice) {
+      return { kind: "declined", notice: result.notice };
+    }
+    // Empty with no notice = genuinely unreadable → the §6.11 failure state.
     failed = result.extractions.length === 0;
   } catch (err) {
     failed = true;
     logger.warn({
       op: "chat.quick_log.extraction",
       code: err instanceof AgentError ? `AgentError:${err.code}` : errorCode(err),
-      ids: { patientId, reportId: report.id, sessionId: session.id },
+      ids: { patientId },
     });
   }
 
+  // We have entities to confirm (or a hard failure to show): the typed note
+  // becomes the source Report (§6.11 "Source · text input") + the session that
+  // gives it a report_id and the `source_report_id` target once entities commit.
+  const report = await reportQueries.create({
+    patientId,
+    title: titleFromText(text),
+    reportDate: todayInTimezone(timezone),
+    content: text,
+    status: "extracting",
+  });
+  const session = await extractionSessionQueries.create({
+    patientId,
+    reportId: report.id,
+    status: "pending",
+  });
   await extractionSessionQueries.recordOutcome({
     sessionId: session.id,
     reportId: report.id,
@@ -90,5 +102,5 @@ export async function processQuickLog(
     extractionOutputJson: output,
   });
 
-  return { reportId: report.id, extractionSessionId: session.id };
+  return { kind: "confirm", reportId: report.id, extractionSessionId: session.id };
 }

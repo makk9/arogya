@@ -20,18 +20,22 @@ import type { CommitEntityType } from "@/lib/schemas/api/extract-commit";
  * write — extraction never auto-writes (§5.4:752).
  */
 
+// `isState` — updates through a change log (dose change appends a *_changes row).
+// `amendable` — an EVENT that also accepts an `update`, meaning "add to the
+// existing record" (append a lab marker / a visit note, §6.7), not a change log.
+// Both surface the new-vs-update toggle; vital/symptom are create-only.
 const TYPE_META: Record<
   CommitEntityType,
-  { label: string; plural: string; segment: string; isState: boolean }
+  { label: string; plural: string; segment: string; isState: boolean; amendable?: boolean }
 > = {
   medication: { label: "Medication", plural: "Medications", segment: "medications", isState: true },
   condition: { label: "Condition", plural: "Conditions", segment: "conditions", isState: true },
   doctor: { label: "Doctor", plural: "Doctors", segment: "doctors", isState: true },
   allergy: { label: "Allergy", plural: "Allergies", segment: "allergies", isState: true },
-  lab_report: { label: "Lab report", plural: "Lab reports", segment: "labs", isState: false },
+  lab_report: { label: "Lab report", plural: "Lab reports", segment: "labs", isState: false, amendable: true },
   vital_reading: { label: "Vital reading", plural: "Vital readings", segment: "vitals", isState: false },
-  visit: { label: "Visit", plural: "Visits", segment: "visits", isState: false },
-  symptom_episode: { label: "Symptom", plural: "Symptoms", segment: "symptoms", isState: false },
+  visit: { label: "Visit", plural: "Visits", segment: "visits", isState: false, amendable: true },
+  symptom_episode: { label: "Symptom", plural: "Symptoms", segment: "symptoms", isState: false, amendable: true },
 };
 
 function isCommitType(t: string): t is CommitEntityType {
@@ -74,6 +78,21 @@ export interface ExtractionConfirmationProps {
   // (nothing committed) we delete it so it doesn't linger as a titled empty
   // conversation with a dangling user turn.
   newChatSession?: boolean;
+  // Agent advisory shown instead of / alongside cards — today, a declined
+  // deletion request ("I can't delete records from here…").
+  notice?: string;
+  // Current markers (+ a label) of each lab report a lab card is matched to, so
+  // an update card can show `old → new` corrections and "new marker" appends.
+  // Keyed by matched lab-report id.
+  labSnapshots?: Record<string, LabSnapshot>;
+  // Current value of each overwrite field (agent-key → value) for visit/symptom
+  // update cards, so a replacement shows `old → new`. Keyed by matched entity id.
+  fieldSnapshots?: Record<string, Record<string, string>>;
+}
+
+export interface LabSnapshot {
+  label: string;
+  markers: Array<{ marker: string; value: string; unit: string }>;
 }
 
 function initialMode(intent: ExtractionEntity["intent"]): CardState["mode"] {
@@ -98,6 +117,9 @@ export function ExtractionConfirmation({
   returnTo,
   chatSessionId,
   newChatSession,
+  notice,
+  labSnapshots,
+  fieldSnapshots,
 }: ExtractionConfirmationProps) {
   const router = useRouter();
 
@@ -115,8 +137,7 @@ export function ExtractionConfirmation({
   );
   const [banner, setBanner] = useState<string | null>(null);
 
-  const isFailure =
-    status === "failed" || extractions.length === 0;
+  const isFailure = status === "failed" || extractions.length === 0;
 
   // A card blocks Confirm when it has an unresolved (non-intent) ambiguity or
   // its bucket is still uncertain (§6.11:1730-1731).
@@ -374,6 +395,15 @@ export function ExtractionConfirmation({
         </div>
       ) : null}
 
+      {/* Agent advisory alongside cards — the mixed case where a note both logged
+          something AND asked for something the agent can't do (e.g. a deletion).
+          A decline with NO extractions is handled inline in the chat, not here. */}
+      {notice ? (
+        <div className="mb-4 rounded-md border border-border bg-muted px-4 py-3 text-sm text-foreground">
+          {notice}
+        </div>
+      ) : null}
+
       {anyBlocked ? (
         <p className="mb-4 text-xs text-muted-foreground">
           Resolve the highlighted questions on each card before confirming everything.
@@ -430,6 +460,16 @@ export function ExtractionConfirmation({
                       entity={extractions[i]}
                       card={cards[i]}
                       blocked={isBlocked(i)}
+                      labSnapshot={
+                        cards[i].matchedEntityId
+                          ? labSnapshots?.[cards[i].matchedEntityId as string]
+                          : undefined
+                      }
+                      fieldSnapshot={
+                        cards[i].matchedEntityId
+                          ? fieldSnapshots?.[cards[i].matchedEntityId as string]
+                          : undefined
+                      }
                       onField={(k, v) => setField(i, k, v)}
                       onResolve={(ambIdx, field, value) =>
                         resolveAmbiguity(i, ambIdx, field, value)
@@ -490,10 +530,100 @@ function FailureState({
   );
 }
 
+function markerField(r: unknown, key: string): string {
+  if (typeof r !== "object" || r === null) return "";
+  const v = (r as Record<string, unknown>)[key];
+  return v === null || v === undefined ? "" : String(v);
+}
+
+// Readable markers for a lab card. On an update it diffs each extracted marker
+// against the matched report's current markers: a value change shows `old → new`
+// (labelled "correcting"), a marker not on the report shows "new marker". On a
+// create it's just the list. This is what makes an update legible — the user
+// sees exactly which report changes and how, not a JSON blob.
+function LabMarkersView({
+  results,
+  snapshot,
+  mode,
+}: {
+  results: unknown[];
+  snapshot?: LabSnapshot;
+  mode: "create" | "update" | null;
+}) {
+  const isUpdate = mode === "update";
+  const priorByName = new Map(
+    (snapshot?.markers ?? []).map((m) => [m.marker.trim().toLowerCase(), m]),
+  );
+  return (
+    <div className="mt-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Markers
+        </p>
+        {isUpdate && snapshot ? (
+          <p className="truncate text-xs text-muted-foreground">on {snapshot.label}</p>
+        ) : null}
+      </div>
+      <div className="mt-1 flex flex-col gap-1 text-sm">
+        {results.map((r, i) => {
+          const name = markerField(r, "marker");
+          const value = markerField(r, "value");
+          const unit = markerField(r, "unit");
+          const newLabel = [value, unit].filter(Boolean).join(" ") || "—";
+          const prior = isUpdate
+            ? priorByName.get(name.trim().toLowerCase())
+            : undefined;
+          return (
+            <div key={i} className="flex items-baseline justify-between gap-3">
+              <span className="shrink-0 text-muted-foreground">{name || "—"}</span>
+              <span className="text-right text-foreground">
+                {prior ? (
+                  prior.value !== value ? (
+                    <>
+                      <span className="text-muted-foreground line-through">
+                        {[prior.value, prior.unit].filter(Boolean).join(" ")}
+                      </span>{" "}
+                      → {newLabel}{" "}
+                      <span className="ml-1 rounded-full bg-accent px-1.5 py-0.5 text-[0.65rem] text-accent-foreground">
+                        correcting
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      {newLabel}{" "}
+                      <span className="text-xs text-muted-foreground">(unchanged)</span>
+                    </>
+                  )
+                ) : (
+                  <>
+                    {newLabel}
+                    {isUpdate ? (
+                      <span className="ml-1 rounded-full bg-muted px-1.5 py-0.5 text-[0.65rem] text-muted-foreground">
+                        new marker
+                      </span>
+                    ) : null}
+                  </>
+                )}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {isUpdate && !snapshot ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Choose “Update existing” to add these to the matched report.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 interface CardProps {
   entity: ExtractionEntity;
   card: CardState;
   blocked: boolean;
+  labSnapshot?: LabSnapshot;
+  fieldSnapshot?: Record<string, string>;
   onField: (key: string, value: string) => void;
   onResolve: (ambIdx: number, field: string, value: string) => void;
   onMode: (mode: "create" | "update") => void;
@@ -506,6 +636,8 @@ function Card({
   entity,
   card,
   blocked,
+  labSnapshot,
+  fieldSnapshot,
   onField,
   onResolve,
   onMode,
@@ -517,7 +649,14 @@ function Card({
   const meta = isCommitType(entity.target_entity_type)
     ? TYPE_META[entity.target_entity_type]
     : null;
-  const canUpdate = meta?.isState === true;
+  const canUpdate = meta?.isState === true || meta?.amendable === true;
+  // Lab cards render their markers as a readable table (with old→new on an
+  // update), not the generic key/value list — so `results` is pulled out here.
+  const isLab = entity.target_entity_type === "lab_report";
+  const labResults =
+    isLab && Array.isArray(card.data.results)
+      ? (card.data.results as unknown[])
+      : null;
 
   if (card.status === "discarded") {
     return (
@@ -614,56 +753,84 @@ function Card({
             {card.mode === null
               ? "Your call — this could match an existing record."
               : card.mode === "update"
-                ? "Will update the matched record in place."
+                ? meta?.amendable
+                  ? "Will add to the matched record."
+                  : "Will update the matched record in place."
                 : "Will add a new record."}
           </p>
         </div>
       ) : null}
 
-      {/* Fields with per-field inline edit */}
+      {/* Lab markers — readable, with old→new on an update */}
+      {labResults ? (
+        <LabMarkersView results={labResults} snapshot={labSnapshot} mode={card.mode} />
+      ) : null}
+
+      {/* Fields with per-field inline edit (lab `results` handled above) */}
       <dl className="mt-3 flex flex-col gap-1 text-sm">
-        {Object.entries(card.data).map(([k, v]) => {
-          const isObject = typeof v === "object" && v !== null;
-          const isPending = pendingFields.has(k);
-          return (
-            <div key={k} className="flex items-baseline justify-between gap-3">
-              <dt className="w-32 shrink-0 text-muted-foreground">{k}</dt>
-              <dd className="flex-1 text-foreground">
-                {isPending ? (
-                  <span className="italic text-muted-foreground">(pending)</span>
-                ) : editingField === k && !isObject ? (
-                  <input
-                    autoFocus
-                    defaultValue={scalarString(v)}
-                    onBlur={(e) => {
-                      onField(k, e.target.value);
-                      setEditingField(null);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        onField(k, (e.target as HTMLInputElement).value);
+        {Object.entries(card.data)
+          .filter(([k]) => !(isLab && k === "results"))
+          .map(([k, v]) => {
+            const isObject = typeof v === "object" && v !== null;
+            const isPending = pendingFields.has(k);
+            const newVal = scalarString(v);
+            // On an update, show the current value being replaced (`old → new`)
+            // for overwrite fields — the same legibility labs get. Notes append,
+            // so they aren't in the snapshot and render plainly.
+            const oldVal =
+              card.mode === "update" ? fieldSnapshot?.[k] : undefined;
+            const showDiff =
+              oldVal !== undefined && oldVal !== newVal && editingField !== k;
+            return (
+              <div key={k} className="flex items-baseline justify-between gap-3">
+                <dt className="w-32 shrink-0 text-muted-foreground">{k}</dt>
+                <dd className="flex-1 text-foreground">
+                  {isPending ? (
+                    <span className="italic text-muted-foreground">(pending)</span>
+                  ) : editingField === k && !isObject ? (
+                    <input
+                      autoFocus
+                      defaultValue={newVal}
+                      onBlur={(e) => {
+                        onField(k, e.target.value);
                         setEditingField(null);
-                      }
-                    }}
-                    className="w-full rounded border border-border bg-background px-2 py-0.5 text-sm"
-                  />
-                ) : (
-                  <span className="flex items-baseline justify-between gap-2">
-                    <span className="break-words">{scalarString(v) || "—"}</span>
-                    {!isObject ? (
-                      <button
-                        type="button"
-                        onClick={() => setEditingField(k)}
-                        className="shrink-0 text-xs text-link underline underline-offset-2"
-                      >
-                        edit
-                      </button>
-                    ) : null}
-                  </span>
-                )}
-              </dd>
-            </div>
-          );
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          onField(k, (e.target as HTMLInputElement).value);
+                          setEditingField(null);
+                        }
+                      }}
+                      className="w-full rounded border border-border bg-background px-2 py-0.5 text-sm"
+                    />
+                  ) : (
+                    <span className="flex items-baseline justify-between gap-2">
+                      <span className="break-words">
+                        {showDiff ? (
+                          <>
+                            <span className="text-muted-foreground line-through">
+                              {oldVal}
+                            </span>{" "}
+                            → {newVal || "—"}
+                          </>
+                        ) : (
+                          newVal || "—"
+                        )}
+                      </span>
+                      {!isObject ? (
+                        <button
+                          type="button"
+                          onClick={() => setEditingField(k)}
+                          className="shrink-0 text-xs text-link underline underline-offset-2"
+                        >
+                          edit
+                        </button>
+                      ) : null}
+                    </span>
+                  )}
+                </dd>
+              </div>
+            );
         })}
       </dl>
 

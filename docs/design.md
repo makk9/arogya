@@ -790,6 +790,8 @@ The agent has full source context plus the matching dictionary, so it reasons pr
 
 The Phase 3 entity-type pattern still applies underneath: time-series readings (BP, labs, weight) are always create-new; state entities (medications, conditions, doctors) match-or-create per the buckets above; visits/reports always create-new but may produce side-effect updates to state entities.
 
+> **Amendment carve-out (added 2026-07-14, decisions.md).** "Create-new" governs whether a *record* is new — it does not forbid *amending an existing one*. A note can ADD to or CORRECT a lab report (append/correct a marker), a visit (correct a field / append a note), or a symptom episode (correct severity / append a note) already on file — the extraction `update` path, mirroring the on-page §6.7 `+ Log a correction` / Edit affordances (in-place overwrite, no change log — events have none). This is distinct from conflating two separate draws/visits, which stays forbidden: a *new* lab draw or visit is still create-new. **`vital_reading` is the exception with no amendment path** — §4:433 keeps readings immutable (a wrong reading is deleted and re-entered, never edited). The agent cannot delete records from chat; a deletion request is declined with an advisory pointing to the record's own Delete action.
+
 **Guardrails.**
 - *Never fabricate.* If a field isn't in the source, leave it null. Never infer dosage from drug name. Never guess a date.
 - *Surface ambiguities, don't resolve silently.* Pick a reasonable default but flag the ambiguity for user resolution.

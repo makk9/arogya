@@ -23,6 +23,7 @@ import {
   doctorChangeQueries,
   doctorQueries,
   labReportQueries,
+  labResultQueries,
   medicationChangeQueries,
   medicationQueries,
   symptomEpisodeQueries,
@@ -282,10 +283,9 @@ async function createAllergy(ctx: CommitContext, data: Data): Promise<string> {
   return row.id;
 }
 
-async function createLabReport(
-  ctx: CommitContext,
-  data: Data,
-): Promise<string> {
+// Parse the agent's `results[]` into insert-ready marker rows — shared by the
+// create and amend (append) paths. Rows with no marker name are dropped.
+function parseLabResults(data: Data): NewLabResultInput[] {
   const rawResults = Array.isArray(data.results) ? data.results : [];
   const results: NewLabResultInput[] = [];
   for (const r of rawResults) {
@@ -305,6 +305,14 @@ async function createLabReport(
       flag: enumMember(rr.flag, labResultFlag.enumValues),
     });
   }
+  return results;
+}
+
+async function createLabReport(
+  ctx: CommitContext,
+  data: Data,
+): Promise<string> {
+  const results = parseLabResults(data);
 
   const orderingDoctor = str(data.ordering_doctor);
   const report = await labReportQueries.create(
@@ -623,13 +631,184 @@ async function updateDoctor(
   return id;
 }
 
-// State entities that support the `update` bucket. Event entities always
-// create-new (§5.4:791) — an `update` mode on one of them is coerced to create.
+// ---- AMEND (event entities) ------------------------------------------------
+// A lab_report / visit / symptom_episode is create-new as an event (§5.4:791),
+// but a note can ADD to or CORRECT one that already exists — "add creatinine 1.7
+// to the June 15 lab", "the April 3 creatinine was actually 1.5", "add to the
+// April 3 visit that he also reported dizziness", "Tuesday's headache was
+// severe". Events have no change log, so an amendment overwrites in place (the
+// §6.7 Edit / `+ Log a correction` model): a lab appends new markers AND corrects
+// existing ones; a visit corrects its fields + appends notes; a symptom corrects
+// severity/notes. vital_reading is the deliberate exception — §4:433 keeps
+// readings immutable (delete + re-enter), so it stays create-only.
+
+async function updateLabReport(
+  ctx: CommitContext,
+  id: string,
+  data: Data,
+): Promise<string> {
+  const report = await labReportQueries.getById(ctx.patientId, id);
+  if (!report)
+    throw new CommitBlocked("I couldn't find that lab report anymore — switch this card to “add new.”");
+
+  const parsed = parseLabResults(data);
+  const existing = await labResultQueries.forReport(id);
+  const byName = new Map(existing.map((r) => [r.marker.trim().toLowerCase(), r]));
+  const toAppend: NewLabResultInput[] = [];
+  let corrected = 0;
+
+  for (const r of parsed) {
+    const hasValue =
+      r.value !== null ||
+      (r.valueText !== null && r.valueText !== undefined && r.valueText !== "");
+    const match = byName.get(r.marker.trim().toLowerCase());
+
+    if (!match) {
+      // Append only a marker that actually carries a value — never an empty row.
+      if (hasValue) toAppend.push(r);
+      continue;
+    }
+
+    // Correct in place, PRESERVING any measured field the note didn't restate
+    // (so a value-less unit/flag/range fix still applies, and an existing value
+    // is never nulled out) — and only when something actually differs.
+    const next = {
+      value: r.value ?? match.value,
+      valueText: r.value ? null : (r.valueText ?? match.valueText),
+      unit: r.unit ?? match.unit,
+      referenceLow: r.referenceLow ?? match.referenceLow,
+      referenceHigh: r.referenceHigh ?? match.referenceHigh,
+      flag: r.flag ?? match.flag,
+    };
+    const changed =
+      next.value !== match.value ||
+      next.valueText !== match.valueText ||
+      next.unit !== match.unit ||
+      next.referenceLow !== match.referenceLow ||
+      next.referenceHigh !== match.referenceHigh ||
+      next.flag !== match.flag;
+    if (changed) {
+      await labResultQueries.correctResult(ctx.patientId, id, match.id, next);
+      corrected += 1;
+    }
+  }
+
+  if (toAppend.length > 0)
+    await labResultQueries.addResults(ctx.patientId, id, report.reportDate, toAppend);
+
+  if (corrected === 0 && toAppend.length === 0)
+    throw new CommitBlocked(
+      "Nothing here changes the report — those markers already read this way, or no value was given. Discard this card, or switch it to “add new.”",
+    );
+  return id;
+}
+
+async function updateVisit(
+  ctx: CommitContext,
+  id: string,
+  data: Data,
+): Promise<string> {
+  const current = await visitQueries.getById(ctx.patientId, id);
+  if (!current)
+    throw new CommitBlocked("I couldn't find that visit anymore — switch this card to “add new.”");
+
+  // Events have no change log (§6.7 Edit = in-place): correct the structured
+  // fields, and APPEND to the running notes rather than overwriting them.
+  const patch: {
+    visitDate?: string;
+    visitType?: (typeof visitType.enumValues)[number];
+    chiefComplaint?: string;
+    summary?: string;
+    doctorId?: string;
+    notes?: string;
+  } = {};
+
+  const newDate = dateOnly(data.visit_date);
+  if (newDate && newDate !== current.visitDate) patch.visitDate = newDate;
+  const newType = enumMember(data.visit_type, visitType.enumValues);
+  if (newType && newType !== current.visitType) patch.visitType = newType;
+  const reason = str(data.reason);
+  if (reason && reason !== current.chiefComplaint) patch.chiefComplaint = reason;
+  const summary = str(data.summary);
+  if (summary && summary !== current.summary) patch.summary = summary;
+
+  // Doctor re-match by name (visits.doctor_id is NOT NULL). Only reassign when a
+  // different in-scope doctor is named; an unmatched name blocks the card.
+  const doctorName = str(data.doctor);
+  if (doctorName) {
+    const doctors = await doctorQueries.forPatient(ctx.patientId);
+    const match = doctors.find(
+      (d) => d.name.toLowerCase() === doctorName.toLowerCase(),
+    );
+    if (!match)
+      throw new CommitBlocked(
+        `I couldn't match a doctor named "${doctorName}". Add them under Doctors first, then confirm this change.`,
+      );
+    if (match.id !== current.doctorId) patch.doctorId = match.id;
+  }
+
+  // Append to the running notes (exact-match dedup, like the state entities —
+  // `.includes` would false-skip an addition that's a substring of the notes).
+  const noteAddition = str(data.notes);
+  if (noteAddition && noteAddition !== current.notes)
+    patch.notes = joinNotes(current.notes ?? undefined, noteAddition) ?? noteAddition;
+
+  if (Object.keys(patch).length === 0)
+    throw new CommitBlocked("Nothing here differs from the visit on file — discard this card, or switch it to “add new.”");
+
+  await visitQueries.update(ctx.patientId, id, patch);
+  return id;
+}
+
+async function updateSymptomEpisode(
+  ctx: CommitContext,
+  id: string,
+  data: Data,
+): Promise<string> {
+  const current = await symptomEpisodeQueries.getById(ctx.patientId, id);
+  if (!current)
+    throw new CommitBlocked("I couldn't find that episode anymore — switch this card to “add new.”");
+
+  // Overwrite severity (a correction); append to notes (§4:513 — episode edits
+  // overwrite in place, but a logged note reads as an addition to the record).
+  const patch: {
+    severity?: (typeof symptomEpisodeSeverity.enumValues)[number];
+    notes?: string;
+  } = {};
+  const severity = enumMember(data.severity, symptomEpisodeSeverity.enumValues);
+  if (severity && severity !== current.severity) patch.severity = severity;
+  // Exact-match dedup on the note append (see updateVisit).
+  const noteAddition = str(data.notes);
+  if (noteAddition && noteAddition !== current.notes)
+    patch.notes = joinNotes(current.notes ?? undefined, noteAddition) ?? noteAddition;
+
+  if (Object.keys(patch).length === 0)
+    throw new CommitBlocked("Nothing here differs from the episode on file — discard this card, or switch it to “add new.”");
+
+  await symptomEpisodeQueries.update(ctx.patientId, id, patch);
+  return id;
+}
+
+// State entities update through their change-log helpers (§5.4:791).
 const STATE_TYPES = new Set<CommitEntityType>([
   "medication",
   "condition",
   "doctor",
   "allergy",
+]);
+
+// Event entities that accept an amendment `update` (append/correct in place).
+// vital_reading stays create-only — §4:433 keeps readings immutable.
+const AMENDABLE_EVENT_TYPES = new Set<CommitEntityType>([
+  "lab_report",
+  "visit",
+  "symptom_episode",
+]);
+
+// Types whose `update` card commits as an update rather than a create.
+const UPDATABLE_TYPES = new Set<CommitEntityType>([
+  ...STATE_TYPES,
+  ...AMENDABLE_EVENT_TYPES,
 ]);
 
 /**
@@ -645,7 +824,7 @@ export async function commitCard(
   const { targetEntityType: type, data } = card;
   const isUpdate =
     card.mode === "update" &&
-    STATE_TYPES.has(type) &&
+    UPDATABLE_TYPES.has(type) &&
     card.matchedEntityId !== null;
 
   try {
@@ -665,8 +844,17 @@ export async function commitCard(
         case "doctor":
           entityId = await updateDoctor(ctx, id, data);
           break;
+        case "lab_report":
+          entityId = await updateLabReport(ctx, id, data);
+          break;
+        case "visit":
+          entityId = await updateVisit(ctx, id, data);
+          break;
+        case "symptom_episode":
+          entityId = await updateSymptomEpisode(ctx, id, data);
+          break;
         default:
-          // Unreachable: isUpdate is gated on STATE_TYPES.
+          // Unreachable: isUpdate is gated on UPDATABLE_TYPES.
           throw new CommitBlocked("This type can't be updated — switch to “add new.”");
       }
     } else {
@@ -742,9 +930,9 @@ function phraseForCard(card: CommitCardInput): string {
     case "allergy":
       return `${updating ? "Updated" : "Added"} allergy${s("substance") ? `: ${s("substance")}` : ""}`;
     case "lab_report": {
-      // Always a CREATE (labs are create-new, §5.4), so say "new" — a note meant
-      // to amend an existing lab produced a separate record, and the message
-      // shouldn't imply otherwise. Name the markers so it's specific.
+      // A create says "new lab report"; an amend (§6.7) appended markers to an
+      // existing one, so say "Added … to the lab report". Name the markers so
+      // it's specific either way.
       const date = s("report_date");
       const rawResults = Array.isArray(card.data.results) ? card.data.results : [];
       const markers = rawResults
@@ -756,6 +944,10 @@ function phraseForCard(card: CommitCardInput): string {
           return [marker, str(rr.value), str(rr.unit)].filter(Boolean).join(" ");
         })
         .filter((m): m is string => m !== null);
+      if (updating) {
+        const what = markers.length > 0 ? markers.join(", ") : "a result";
+        return `Updated a lab report — ${what}`;
+      }
       const label = s("title") ?? s("lab_name");
       const head = `Added a new lab report${date ? ` (${date})` : ""}`;
       const tail = markers.length > 0 ? ` — ${markers.join(", ")}` : label ? `: ${label}` : "";
@@ -767,8 +959,12 @@ function phraseForCard(card: CommitCardInput): string {
       return `Logged ${kind}${value ? ` ${value}` : ""}`;
     }
     case "visit":
+      if (updating)
+        return `Updated a visit${s("visit_date") ? ` (${s("visit_date")})` : ""}`;
       return `Logged a visit${s("visit_date") ? ` (${s("visit_date")})` : ""}`;
     case "symptom_episode":
+      if (updating)
+        return `Updated symptom${s("symptom") ? `: ${s("symptom")}` : ""}`;
       return `Logged symptom${s("symptom") ? `: ${s("symptom")}` : ""}`;
   }
 }
