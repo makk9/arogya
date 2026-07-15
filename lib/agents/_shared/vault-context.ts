@@ -152,7 +152,10 @@ export async function buildVaultContext(
     vitalQueries.forPatient(patientId),
     symptomTypeQueries.forPatient(patientId),
     symptomEpisodeQueries.forPatient(patientId),
-    reportQueries.forPatient(patientId),
+    // Real documents only — exclude the quick-log source stubs (§5.4), which are
+    // redundant with the entities they produced and would just add noise to the
+    // synthesis context. Same filter as the §6.6 timeline.
+    reportQueries.forTimeline(patientId),
     journalQueries.forPatient(patientId),
     includeInsights === "none"
       ? Promise.resolve([])
@@ -247,13 +250,17 @@ export async function buildVaultContext(
  */
 export async function buildMatchingDictionary(
   patientId: string,
+  opts: { today?: string } = {},
 ): Promise<string> {
-  const [medications, conditions, doctors, allergies] = await Promise.all([
-    medicationQueries.forPatient(patientId),
-    conditionQueries.forPatient(patientId),
-    doctorQueries.forPatient(patientId),
-    allergyQueries.forPatient(patientId),
-  ]);
+  const [medications, conditions, doctors, allergies, labs, visits] =
+    await Promise.all([
+      medicationQueries.forPatient(patientId),
+      conditionQueries.forPatient(patientId),
+      doctorQueries.forPatient(patientId),
+      allergyQueries.forPatient(patientId),
+      labReportQueries.forPatient(patientId),
+      visitQueries.forPatient(patientId),
+    ]);
 
   const sections: string[] = [];
 
@@ -290,15 +297,76 @@ export async function buildMatchingDictionary(
     sections.push(["## Allergies", ...lines].join("\n"));
   }
 
-  if (sections.length === 0) {
-    return "# Existing records (matching dictionary)\n\nNo existing records yet — treat every extraction as a new entity (intent: \"create\").";
+  // Recent EVENT records — CONTEXT ONLY (date resolution + duplicate avoidance),
+  // never match targets. Bounded to the most recent dozen each to stay lean:
+  // events are always create-new (§5.4), so dumping the full history would just
+  // cost tokens and dilute focus.
+  const doctorNameById = new Map(doctors.map((d) => [d.id, d.name]));
+  const eventSections: string[] = [];
+
+  const recentLabs = [...labs]
+    .sort((a, b) => (a.reportDate < b.reportDate ? 1 : -1))
+    .slice(0, 12);
+  if (recentLabs.length > 0) {
+    const lines = recentLabs.map(
+      (l) => `- ${l.labName ?? "Lab report"} on ${l.reportDate} (id: ${l.id})`,
+    );
+    eventSections.push(["## Lab reports — recent", ...lines].join("\n"));
   }
+
+  const recentVisits = [...visits]
+    .sort((a, b) => (a.visitDate < b.visitDate ? 1 : -1))
+    .slice(0, 12);
+  if (recentVisits.length > 0) {
+    const lines = recentVisits.map((v) => {
+      const doc = doctorNameById.get(v.doctorId);
+      return `- Visit on ${v.visitDate}${doc ? ` with ${doc}` : ""} (id: ${v.id})`;
+    });
+    eventSections.push(["## Visits — recent", ...lines].join("\n"));
+  }
+
+  const dateHeader = opts.today
+    ? [
+        `Today's date is ${opts.today} (the patient's local timezone). Resolve relative or partial dates against it — "June 15th" with no year means the most recent past June 15; "yesterday" is the day before today. Still never invent a date the source doesn't imply.`,
+        "",
+      ]
+    : [];
+
+  if (sections.length === 0 && eventSections.length === 0) {
+    return [
+      "# Existing records (matching dictionary)",
+      "",
+      ...dateHeader,
+      'No existing records yet — treat every extraction as a new entity (intent: "create").',
+    ].join("\n");
+  }
+
+  const stateBlock =
+    sections.length > 0
+      ? [
+          "These are the patient's existing match-or-create records. Use them to decide new-vs-update by clinical identity — brand vs. generic names, dose-bearing record names, spelling and transliteration variants — not exact string match. When an extraction matches one of these, set `matched_entity_id` to its id.",
+          "",
+          ...sections,
+        ]
+      : [];
+
+  const eventBlock =
+    eventSections.length > 0
+      ? [
+          "",
+          "## For context only — recent event records",
+          "",
+          "The records below help you resolve dates and avoid duplicates. They are EVENT records (labs, visits): always create them new — do NOT set `matched_entity_id` to one of these. If the note is clearly amending or adding to an existing one listed here, still emit the create, but raise an ambiguity noting a new record will be created (an existing lab/visit is amended from its own screen, not here).",
+          "",
+          ...eventSections,
+        ]
+      : [];
 
   return [
     "# Existing records (matching dictionary)",
     "",
-    "These are the patient's existing match-or-create records. Use them to decide new-vs-update by clinical identity — brand vs. generic names, dose-bearing record names, spelling and transliteration variants — not exact string match. When an extraction matches one of these, set `matched_entity_id` to its id.",
-    "",
-    ...sections,
+    ...dateHeader,
+    ...stateBlock,
+    ...eventBlock,
   ].join("\n");
 }

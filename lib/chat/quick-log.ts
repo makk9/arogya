@@ -68,6 +68,7 @@ export async function processQuickLog(
     const result = await runExtraction({
       patientId,
       source: { type: "text", content: text },
+      today: todayInTimezone(timezone),
     });
     output = result;
     failed = result.extractions.length === 0;

@@ -79,7 +79,7 @@ export default async function ReportsTimelinePage({
   if (id !== patient.patientId) notFound();
 
   const [allReports, doctors, visits] = await Promise.all([
-    reportQueries.forPatient(patient.patientId),
+    reportQueries.forTimeline(patient.patientId),
     doctorQueries.forPatient(patient.patientId),
     visitQueries.forPatient(patient.patientId),
   ]);

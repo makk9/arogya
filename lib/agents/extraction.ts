@@ -35,7 +35,7 @@ When you write an ambiguity question for the user, use plain, direct language �
 A single source can produce multiple entities (a prescription with three drugs plus a lab order = four extractions). Emit one extraction object per entity.
 
 Each extraction targets one \`target_entity_type\`, one of:
-- "medication" — a drug. Fields: name, brand_name, current_dose, current_frequency, form, started_on, purpose, notes.
+- "medication" — a drug. Fields: name, brand_name, current_dose, current_frequency, form, started_on, purpose, status, notes. \`status\` is one of "active" | "paused" | "discontinued": set "discontinued" when the source says the drug was stopped or is no longer taken, "paused" when it's temporarily held, and omit it otherwise (a normal prescription is active). This matters most on an update — "he's not taking Amlodipine anymore" is an \`update\` to the matched medication with \`status: "discontinued"\`, not a dose change.
 - "condition" — a diagnosis. Fields: name, status, severity, notes.
 - "doctor" — a clinician. Fields: name, specialty, notes.
 - "allergy" — Fields: substance, reaction, severity, notes.
@@ -67,7 +67,7 @@ Use the new-vs-update choice itself as an ambiguity (field "intent") when intent
 
 # Guardrails
 
-- NEVER fabricate. If a field isn't in the source, leave it out (do not guess). Never infer a dose from a drug name. Never guess a date. Never invent a reference range.
+- NEVER fabricate. If a field isn't in the source, leave it out (do not guess). Never infer a dose from a drug name. Never invent a reference range. Do not invent a date the source doesn't imply — but DO resolve relative or partial dates (e.g. "June 15th", "yesterday", "last week") against the current date given in the records below.
 - Preserve source language for entity names — do not translate names. If the content is mixed English + another language, translate the surrounding meaning but flag the translation in \`ambiguities\`.
 - Record non-standard units exactly as written; do not silently convert.
 - No medical interpretation. Structure the data only.
@@ -155,6 +155,10 @@ function buildExtractionInput(
 export interface RunExtractionParams {
   patientId: string;
   source: ExtractionSource;
+  // Patient's local date (YYYY-MM-DD). Injected into the matching dictionary so
+  // the agent resolves relative/partial dates ("June 15th") against the actual
+  // current date instead of guessing a year. Callers pass todayInTimezone(tz).
+  today?: string;
 }
 
 /**
@@ -168,9 +172,12 @@ export interface RunExtractionParams {
 export async function runExtraction(
   params: RunExtractionParams,
 ): Promise<ExtractionOutput> {
-  // Matching dictionary only — names + ids of existing state entities, no change
-  // logs, no event entities, no insights (design.md 5.4:757). NOT the full vault.
-  const matchingDictionary = await buildMatchingDictionary(params.patientId);
+  // Matching dictionary: state entities as match-or-create targets, plus today's
+  // date + recent event records (labs/visits) as CONTEXT for date resolution and
+  // duplicate avoidance (§5.4). Lean + bounded — not the full vault.
+  const matchingDictionary = await buildMatchingDictionary(params.patientId, {
+    today: params.today,
+  });
 
   const client = new Anthropic();
 

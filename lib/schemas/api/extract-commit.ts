@@ -43,6 +43,10 @@ export const commitRequestSchema = z
   .object({
     cards: z.array(commitCardSchema).min(1).max(50),
     finalize: z.boolean().default(false),
+    // The chat session the log originated from. When present and this request
+    // finalizes, the commit writes a "Logged ✓" assistant turn back to that
+    // conversation (§6.2:1197) so returning to the chat shows what happened.
+    chatSessionId: z.string().uuid().optional(),
   })
   .strict();
 export type CommitRequestInput = z.infer<typeof commitRequestSchema>;

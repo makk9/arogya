@@ -32,10 +32,20 @@ export default async function ExtractConfirmPage({
   // returns to the conversation they logged from (§6.2:1197). Accept only a
   // same-origin absolute path (leading single slash, no `//` or scheme) to
   // avoid an open-redirect; anything else falls back to the patient profile.
-  const rawReturn = (await searchParams).returnTo;
+  const sp = await searchParams;
+  const rawReturn = sp.returnTo;
   const candidate = Array.isArray(rawReturn) ? rawReturn[0] : rawReturn;
   const returnTo =
     candidate && /^\/[^/]/.test(candidate) ? candidate : undefined;
+
+  // The originating chat session (for the "Logged ✓" acknowledgement). Validated
+  // as a uuid; anything else is ignored.
+  const rawChat = sp.chatSessionId;
+  const chatCandidate = Array.isArray(rawChat) ? rawChat[0] : rawChat;
+  const chatSessionId =
+    chatCandidate && /^[0-9a-f-]{36}$/i.test(chatCandidate)
+      ? chatCandidate
+      : undefined;
 
   const session = await extractionSessionQueries.getById(patientId, sessionId);
   if (!session) notFound();
@@ -76,6 +86,7 @@ export default async function ExtractConfirmPage({
       source={source}
       sourceLabel={sourceLabel}
       returnTo={returnTo}
+      chatSessionId={chatSessionId}
     />
   );
 }

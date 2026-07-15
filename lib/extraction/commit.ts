@@ -10,6 +10,7 @@ import {
   labResultFlag,
   medicationCategory,
   medicationForm,
+  medicationStatus,
   symptomEpisodeSeverity,
   vitalReadingType,
   visitType,
@@ -57,6 +58,9 @@ import type { CommitCardInput, CommitEntityType } from "@/lib/schemas/api/extrac
 export interface CommitContext {
   patientId: string;
   userId: string;
+  // Patient's IANA timezone — needed by medicationQueries.discontinue to stamp
+  // discontinuedOn in the patient's local day (§9.6).
+  timezone: string;
   // The originating Report — becomes `source_report_id` on committed entities.
   reportId: string;
   // Patient-local `YYYY-MM-DD`, the fallback for a required date the agent left
@@ -411,7 +415,34 @@ async function updateMedication(
   if (!current)
     throw new CommitBlocked("I couldn't find that medication anymore — switch this card to “add new.”");
 
+  // Status transitions first. Discontinuation is terminal — route it to the
+  // discontinue path (appends a status change + stamps discontinuedOn) and stop;
+  // a discontinued medication can't take further change-log rows. (The agent
+  // emits status "discontinued" for "no longer taking", "paused" for a hold.)
+  const status = enumMember(data.status, medicationStatus.enumValues);
+  if (status === "discontinued") {
+    if (current.status === "discontinued") {
+      throw new CommitBlocked(`${current.name} is already marked discontinued — nothing to change.`);
+    }
+    await medicationQueries.discontinue(ctx.patientId, id, {
+      reason: str(data.notes) ?? "Logged as no longer taken.",
+      timezone: ctx.timezone,
+    });
+    return id;
+  }
+
   let applied = false;
+
+  if (status === "paused" && current.status === "active") {
+    await medicationChangeQueries.create(ctx.patientId, id, {
+      field: "status",
+      newValue: "paused",
+      recordedBy: ctx.userId,
+      reason: str(data.notes) ?? UPDATE_REASON,
+    });
+    applied = true;
+  }
+
   const dose = str(data.current_dose) ?? str(data.dose);
   const frequency = str(data.current_frequency) ?? str(data.frequency);
   if (dose && dose !== current.currentDose) {
@@ -653,4 +684,59 @@ export async function commitCard(
     }
     throw err;
   }
+}
+
+// One human line per committed card, for the "Logged ✓" chat acknowledgement
+// (§6.2:1197) written back to the conversation on finalize. Brand voice (§7.1):
+// plain, direct, the AI speaking as "I".
+function phraseForCard(card: CommitCardInput): string {
+  const s = (key: string) => str(card.data[key]);
+  const updating = card.mode === "update";
+  switch (card.targetEntityType) {
+    case "medication": {
+      const name = s("name") ?? "medication";
+      if (updating) {
+        const status = enumMember(card.data.status, medicationStatus.enumValues);
+        if (status === "discontinued") return `Discontinued ${name}`;
+        if (status === "paused") return `Paused ${name}`;
+        return `Updated ${name}`;
+      }
+      return `Added ${name}`;
+    }
+    case "condition":
+      return `${updating ? "Updated" : "Added"} condition${s("name") ? `: ${s("name")}` : ""}`;
+    case "doctor":
+      return `${updating ? "Updated" : "Added"} doctor${s("name") ? `: ${s("name")}` : ""}`;
+    case "allergy":
+      return `${updating ? "Updated" : "Added"} allergy${s("substance") ? `: ${s("substance")}` : ""}`;
+    case "lab_report":
+      return `Added a lab report${s("title") ? `: ${s("title")}` : ""}`;
+    case "vital_reading": {
+      const kind = (s("type") ?? "vital").replace(/_/g, " ");
+      const value = s("value");
+      return `Logged ${kind}${value ? ` ${value}` : ""}`;
+    }
+    case "visit":
+      return "Logged a visit";
+    case "symptom_episode":
+      return `Logged symptom${s("symptom") ? `: ${s("symptom")}` : ""}`;
+  }
+}
+
+/**
+ * The assistant acknowledgement written back to the chat conversation once a log
+ * commits (§6.2:1197) — so returning to the chat shows that something happened,
+ * not just the user's own message. Summarizes only the cards committed in this
+ * request (the whole batch for "Confirm all"; the last card for per-card
+ * confirms — an accepted partial). Empty string when nothing committed.
+ */
+export function summarizeCommit(
+  cards: CommitCardInput[],
+  results: CommitCardResult[],
+): string {
+  const lines = cards
+    .filter((_, i) => results[i]?.ok)
+    .map((card) => `- ${phraseForCard(card)}`);
+  if (lines.length === 0) return "";
+  return `Done — I've logged that to the record:\n\n${lines.join("\n")}`;
 }

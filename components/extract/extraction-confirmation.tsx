@@ -67,6 +67,9 @@ export interface ExtractionConfirmationProps {
   // Same-origin path to return to after commit/discard — the chat conversation
   // the log came from (§6.2:1197). Absent for the upload path → patient profile.
   returnTo?: string;
+  // The chat session the log came from — the commit writes a "Logged ✓" turn
+  // back to it on finalize. Absent for the upload path.
+  chatSessionId?: string;
 }
 
 function initialMode(intent: ExtractionEntity["intent"]): CardState["mode"] {
@@ -89,6 +92,7 @@ export function ExtractionConfirmation({
   source,
   sourceLabel,
   returnTo,
+  chatSessionId,
 }: ExtractionConfirmationProps) {
   const router = useRouter();
 
@@ -151,7 +155,7 @@ export function ExtractionConfirmation({
       const res = await fetch(`/api/extract/${sessionId}/commit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cards: payloadCards, finalize }),
+        body: JSON.stringify({ cards: payloadCards, finalize, chatSessionId }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as

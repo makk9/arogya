@@ -279,8 +279,9 @@ export function ChatConversation({
         const returnTo = sid
           ? `/patient/${patientId}/chat/${sid}`
           : `/patient/${patientId}/chat`;
+        const chatParam = sid ? `&chatSessionId=${sid}` : "";
         router.push(
-          `/patient/${patientId}/extract/${body.extractionSessionId}?returnTo=${encodeURIComponent(returnTo)}`,
+          `/patient/${patientId}/extract/${body.extractionSessionId}?returnTo=${encodeURIComponent(returnTo)}${chatParam}`,
         );
       } catch {
         // Stay put on failure; the user can retry.
@@ -474,17 +475,16 @@ export function ChatConversation({
                   </div>
                 </div>
               ) : (
-                <div key={message.id} className="flex gap-3">
-                  <span
-                    aria-hidden
-                    className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-600"
-                  >
-                    ✦
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="[&_li]:ml-4 [&_ol]:my-2 [&_ol]:ml-4 [&_ol]:list-decimal [&_p]:mb-3 [&_p:last-child]:mb-0 [&_ul]:my-2 [&_ul]:list-disc">
-                      <AiMessage markdown={textOf(message)} />
-                    </div>
+                <div
+                  key={message.id}
+                  className="min-w-0 [&_li]:ml-4 [&_ol]:my-2 [&_ol]:ml-4 [&_ol]:list-decimal [&_p]:mb-3 [&_p:last-child]:mb-0 [&_ul]:my-2 [&_ul]:list-disc"
+                >
+                  {/* AiMessage supplies the single ✦ avatar + markdown body —
+                      no outer avatar here (that double-rendered the sparkle). */}
+                  <AiMessage markdown={textOf(message)} />
+                  {/* Align the grounding footer under the body: past the avatar
+                      (w-6) + gap-3 = ml-9. */}
+                  <div className="ml-9">
                     <MessageGrounding grounding={groundingFromText(textOf(message))} />
                   </div>
                 </div>

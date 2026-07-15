@@ -138,6 +138,7 @@ export async function processUpload(
       const result = await runExtraction({
         patientId,
         source: sourceFor(effectiveMime, base64),
+        today: todayInTimezone(timezone),
       });
       output = result;
       // An empty array is a valid "couldn't read it" outcome (5.4:814), surfaced

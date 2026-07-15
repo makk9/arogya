@@ -1,10 +1,11 @@
-import { extractionSessionQueries } from "@/db/queries";
+import { chatQueries, extractionSessionQueries } from "@/db/queries";
 import { apiError } from "@/lib/api/error";
 import { parseJsonBody, validateUuidParam } from "@/lib/api/route-helpers";
 import { getCurrentPatient, getCurrentUser } from "@/lib/auth";
 import { todayInTimezone } from "@/lib/datetime";
 import {
   commitCard,
+  summarizeCommit,
   type CommitCardResult,
   type CommitContext,
 } from "@/lib/extraction/commit";
@@ -61,6 +62,7 @@ export async function POST(
   const commitCtx: CommitContext = {
     patientId,
     userId,
+    timezone,
     reportId: session.reportId,
     today: todayInTimezone(timezone),
     nowIso: new Date().toISOString(),
@@ -94,6 +96,20 @@ export async function POST(
         patientId,
       });
       finalized = true;
+
+      // "Logged ✓" acknowledgement (§6.2:1197): write an assistant turn back to
+      // the originating chat conversation so returning to it shows what was
+      // logged, not just the user's own message. Scope-checked; a foreign/absent
+      // id or an empty summary is silently skipped.
+      if (parsed.data.chatSessionId) {
+        const chat = await chatQueries.getSession(patientId, parsed.data.chatSessionId);
+        if (chat) {
+          const summary = summarizeCommit(parsed.data.cards, results);
+          if (summary.length > 0) {
+            await chatQueries.addMessage(chat.id, "assistant", summary);
+          }
+        }
+      }
       // E5 seam: fire-and-forget debounced insight generation here once the
       // insight generator + /api/insights/generate endpoint land (§5.6 / §9.3).
       // Committing real entities is exactly the "significant entity creation"

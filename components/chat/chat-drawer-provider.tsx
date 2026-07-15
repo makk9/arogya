@@ -197,8 +197,9 @@ export function ChatDrawerProvider({
         const body = (await res.json()) as { extractionSessionId: string };
         setOpen(false);
         const returnTo = pathname ?? `/patient/${patientId}`;
+        const chatParam = sid ? `&chatSessionId=${sid}` : "";
         router.push(
-          `/patient/${patientId}/extract/${body.extractionSessionId}?returnTo=${encodeURIComponent(returnTo)}`,
+          `/patient/${patientId}/extract/${body.extractionSessionId}?returnTo=${encodeURIComponent(returnTo)}${chatParam}`,
         );
       } catch {
         // Stay put on failure; the user can retry.

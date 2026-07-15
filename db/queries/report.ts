@@ -1,8 +1,9 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull, notExists, or } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
   conditions,
+  extractionSessions,
   medications,
   reports,
   type Condition,
@@ -77,6 +78,29 @@ async function assertLinkedRefsInScope(
   }
 }
 
+/**
+ * Shared WHERE for "real" reports — excludes the quick-log source stubs the
+ * quick-log path creates to hold typed text (§5.4). A stub has an
+ * extraction_session AND no source_file_url; an uploaded document (has a file)
+ * and a manually-entered report (no extraction_session) both qualify as real.
+ * Used by BOTH the §6.6 timeline (`forTimeline`) and the wiki-rail count
+ * (`wikiCounts`) so the list and its badge count can never drift.
+ */
+export function realReportsWhere(patientId: string) {
+  return and(
+    eq(reports.patientId, patientId),
+    or(
+      isNotNull(reports.sourceFileUrl),
+      notExists(
+        db
+          .select({ one: extractionSessions.id })
+          .from(extractionSessions)
+          .where(eq(extractionSessions.reportId, reports.id)),
+      ),
+    ),
+  );
+}
+
 export const reportQueries = {
   // reportDate desc with createdAt tiebreaker — two same-day reports render in
   // reverse write order, matching the timeline convention.
@@ -85,6 +109,22 @@ export const reportQueries = {
       .select()
       .from(reports)
       .where(eq(reports.patientId, patientId))
+      .orderBy(desc(reports.reportDate), desc(reports.createdAt));
+  },
+
+  // The §6.6 Reports TIMELINE — real documents only. Excludes the placeholder
+  // Reports the quick-log path creates to hold typed source text (§5.4): those
+  // exist purely as the extraction source + `source_report_id` target, and a
+  // note like "He stopped taking Glimepiride" isn't a user-facing report. A stub
+  // is identified structurally — it has an extraction_session AND no source file
+  // — so an uploaded document (has a file) and a manually-entered report (has no
+  // extraction_session) both stay visible. Stubs remain fetchable by id, so any
+  // entity's source link still resolves to its note; they're just off the list.
+  async forTimeline(patientId: string): Promise<Report[]> {
+    return db
+      .select()
+      .from(reports)
+      .where(realReportsWhere(patientId))
       .orderBy(desc(reports.reportDate), desc(reports.createdAt));
   },
 

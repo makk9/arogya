@@ -12,6 +12,7 @@ import {
   symptomTypes,
   visits,
 } from "@/db/schema";
+import { realReportsWhere } from "./report";
 
 /**
  * Per-category row counts for the Health Wiki rail (§3 rail structure +
@@ -58,6 +59,16 @@ async function countFor(
   return row?.c ?? 0;
 }
 
+// Reports need the stub-excluding filter (§5.4 quick-log source stubs), so the
+// rail badge matches the §6.6 timeline exactly — not a plain row count.
+async function countRealReports(patientId: string): Promise<number> {
+  const [row] = await db
+    .select({ c: count() })
+    .from(reports)
+    .where(realReportsWhere(patientId));
+  return row?.c ?? 0;
+}
+
 export async function wikiCounts(patientId: string): Promise<WikiCounts> {
   const [
     medicationsCount,
@@ -77,7 +88,7 @@ export async function wikiCounts(patientId: string): Promise<WikiCounts> {
     countFor(visits, patientId),
     countFor(labReports, patientId),
     countFor(symptomTypes, patientId),
-    countFor(reports, patientId),
+    countRealReports(patientId),
     countFor(journalEntries, patientId),
   ]);
 

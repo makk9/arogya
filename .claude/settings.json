@@ -52,8 +52,7 @@
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(git push *)",
-            "command": "COMMAND=$(jq -r '.tool_input.command // empty' 2>/dev/null); if echo \"$COMMAND\" | grep -qE '(--force|-f\\b)'; then jq -n '{\"continue\": false, \"stopReason\": \"Force-push blocked by safety hook. Run manually in your terminal if this is intentional.\"}'; fi",
+            "command": "COMMAND=$(jq -r '.tool_input.command // empty' 2>/dev/null); if echo \"$COMMAND\" | grep -qE 'git[[:space:]]+push' && echo \"$COMMAND\" | grep -qE '(--force|--force-with-lease|[[:space:]]-f([[:space:]]|$))'; then jq -n '{\"continue\": false, \"stopReason\": \"Force-push blocked by safety hook. Run manually in your terminal if this is intentional.\"}'; fi",
             "statusMessage": "Checking push safety..."
           }
         ]
