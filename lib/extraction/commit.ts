@@ -242,6 +242,9 @@ async function createCondition(
     status: enumMember(data.status, conditionStatus.enumValues),
     severity: enumMember(data.severity, conditionSeverity.enumValues) ?? null,
     category: enumMember(data.category, conditionCategory.enumValues) ?? null,
+    // Optional diagnosis date the user can add via the §6.11 enrichment chips
+    // (diagnosed_by / managing_doctor stay deferred — they need the doctor picker).
+    diagnosedOn: dateOnly(data.diagnosed_on) ?? null,
     notes: str(data.notes) ?? null,
   });
   return row.id;

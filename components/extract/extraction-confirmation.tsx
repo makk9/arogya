@@ -7,6 +7,7 @@ import { FilePreview } from "@/components/reports/file-preview";
 import { Button } from "@/components/ui/button";
 import type { ExtractionEntity } from "@/lib/agents/_shared/schemas";
 import { writeExtractionDraft } from "@/lib/extract/draft";
+import type { EnrichmentField } from "@/lib/extract/enrichment";
 import type { CommitEntityType } from "@/lib/schemas/api/extract-commit";
 
 /*
@@ -88,6 +89,9 @@ export interface ExtractionConfirmationProps {
   // Current value of each overwrite field (agent-key → value) for visit/symptom
   // update cards, so a replacement shows `old → new`. Keyed by matched entity id.
   fieldSnapshots?: Record<string, Record<string, string>>;
+  // Per-type "worth capturing" optional fields (decisions.md 2026-07-17) — a
+  // create card surfaces the ones it hasn't filled as inline "add" chips.
+  enrichmentFields?: Record<CommitEntityType, readonly EnrichmentField[]>;
 }
 
 export interface LabSnapshot {
@@ -120,6 +124,7 @@ export function ExtractionConfirmation({
   notice,
   labSnapshots,
   fieldSnapshots,
+  enrichmentFields,
 }: ExtractionConfirmationProps) {
   const router = useRouter();
 
@@ -470,6 +475,9 @@ export function ExtractionConfirmation({
                           ? fieldSnapshots?.[cards[i].matchedEntityId as string]
                           : undefined
                       }
+                      enrichmentList={
+                        isCommitType(type) ? enrichmentFields?.[type] : undefined
+                      }
                       onField={(k, v) => setField(i, k, v)}
                       onResolve={(ambIdx, field, value) =>
                         resolveAmbiguity(i, ambIdx, field, value)
@@ -534,6 +542,47 @@ function markerField(r: unknown, key: string): string {
   if (typeof r !== "object" || r === null) return "";
   const v = (r as Record<string, unknown>)[key];
   return v === null || v === undefined ? "" : String(v);
+}
+
+// Inline field editor — a select for enum fields, a date picker for dates, plain
+// text otherwise. Commits on blur / Enter / change so the value lands in the
+// card's data (and thus the commit).
+function FieldEditor({
+  value,
+  kind,
+  options,
+  onCommit,
+}: {
+  value: string;
+  kind: EnrichmentField["kind"];
+  options: readonly string[];
+  onCommit: (v: string) => void;
+}) {
+  const cls = "w-full rounded border border-border bg-background px-2 py-0.5 text-sm";
+  if (kind === "select") {
+    return (
+      <select autoFocus defaultValue={value} onChange={(e) => onCommit(e.target.value)} className={cls}>
+        <option value="">—</option>
+        {options.map((o) => (
+          <option key={o} value={o}>
+            {o.replace(/_/g, " ")}
+          </option>
+        ))}
+      </select>
+    );
+  }
+  return (
+    <input
+      autoFocus
+      type={kind === "date" ? "date" : "text"}
+      defaultValue={value}
+      onBlur={(e) => onCommit(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onCommit((e.target as HTMLInputElement).value);
+      }}
+      className={cls}
+    />
+  );
 }
 
 // Readable markers for a lab card. On an update it diffs each extracted marker
@@ -624,6 +673,7 @@ interface CardProps {
   blocked: boolean;
   labSnapshot?: LabSnapshot;
   fieldSnapshot?: Record<string, string>;
+  enrichmentList?: readonly EnrichmentField[];
   onField: (key: string, value: string) => void;
   onResolve: (ambIdx: number, field: string, value: string) => void;
   onMode: (mode: "create" | "update") => void;
@@ -638,6 +688,7 @@ function Card({
   blocked,
   labSnapshot,
   fieldSnapshot,
+  enrichmentList,
   onField,
   onResolve,
   onMode,
@@ -646,6 +697,12 @@ function Card({
   onEditManually,
 }: CardProps) {
   const [editingField, setEditingField] = useState<string | null>(null);
+  // The optional field kind (enum-select / date / text) for the inline editor —
+  // an extracted enum edits as a select, a date as a date input, etc.
+  const kindOf = (key: string): EnrichmentField["kind"] =>
+    enrichmentList?.find((f) => f.key === key)?.kind ?? "text";
+  const optionsOf = (key: string): readonly string[] =>
+    enrichmentList?.find((f) => f.key === key)?.options ?? [];
   const meta = isCommitType(entity.target_entity_type)
     ? TYPE_META[entity.target_entity_type]
     : null;
@@ -657,6 +714,12 @@ function Card({
     isLab && Array.isArray(card.data.results)
       ? (card.data.results as unknown[])
       : null;
+  // Guided-scribe (decisions.md 2026-07-17): high-value optional fields this card
+  // hasn't filled, offered as "add" chips. Only for a CREATE — an update/amend is
+  // a targeted change, not a place to flesh out a record.
+  const addableFields = (enrichmentList ?? []).filter(
+    (f) => !(f.key in card.data),
+  );
 
   if (card.status === "discarded") {
     return (
@@ -788,20 +851,14 @@ function Card({
                   {isPending ? (
                     <span className="italic text-muted-foreground">(pending)</span>
                   ) : editingField === k && !isObject ? (
-                    <input
-                      autoFocus
-                      defaultValue={newVal}
-                      onBlur={(e) => {
-                        onField(k, e.target.value);
+                    <FieldEditor
+                      value={newVal}
+                      kind={kindOf(k)}
+                      options={optionsOf(k)}
+                      onCommit={(val) => {
+                        onField(k, val);
                         setEditingField(null);
                       }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          onField(k, (e.target as HTMLInputElement).value);
-                          setEditingField(null);
-                        }
-                      }}
-                      className="w-full rounded border border-border bg-background px-2 py-0.5 text-sm"
                     />
                   ) : (
                     <span className="flex items-baseline justify-between gap-2">
@@ -833,6 +890,25 @@ function Card({
             );
         })}
       </dl>
+
+      {card.mode !== "update" && addableFields.length > 0 ? (
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-muted-foreground">Add more:</span>
+          {addableFields.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => {
+                onField(f.key, "");
+                setEditingField(f.key);
+              }}
+              className="rounded-full border border-dashed border-border px-2.5 py-0.5 text-xs text-muted-foreground hover:border-foreground hover:text-foreground"
+            >
+              + {f.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {card.error ? (
         <p className="mt-3 rounded-md border border-border bg-muted px-3 py-2 text-sm text-foreground">
