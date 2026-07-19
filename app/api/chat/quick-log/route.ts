@@ -39,6 +39,7 @@ export async function POST(req: Request): Promise<Response> {
       patientId,
       timezone,
       text: parsed.data.text,
+      reuseSessionId: parsed.data.reuseSessionId,
     });
 
     // Record the log as a user turn in its chat session only AFTER extraction
@@ -59,6 +60,24 @@ export async function POST(req: Request): Promise<Response> {
         await chatQueries.addMessage(chatSession.id, "assistant", result.notice);
       }
       return Response.json({ declined: true, notice: result.notice }, { status: 200 });
+    }
+
+    // Nudge: the agent asked for optional context before confirming. Persist the
+    // question as an assistant turn (it's a real conversational turn) and hand it
+    // + the session back so the chat can offer skip-or-answer.
+    if (result.kind === "nudge") {
+      if (chatSession) {
+        await chatQueries.addMessage(chatSession.id, "assistant", result.question);
+      }
+      return Response.json(
+        {
+          nudge: true,
+          question: result.question,
+          extractionSessionId: result.extractionSessionId,
+          hasEntities: result.hasEntities,
+        },
+        { status: 200 },
+      );
     }
 
     return Response.json(

@@ -44,15 +44,23 @@ async function main(): Promise<void> {
       text,
     });
     console.log(`processed in ${Date.now() - startedAt}ms`);
-    assert(result.kind === "confirm", "a loggable note yields a confirm outcome");
-    if (result.kind !== "confirm") return;
-    reportId = result.reportId;
+    // A loggable note is confirmable — possibly after a guided-scribe nudge (the
+    // agent may ask for optional context first). Both outcomes persist the same
+    // session + report + extraction output, so accept either here.
+    assert(
+      result.kind === "confirm" || result.kind === "nudge",
+      "a loggable note is confirmable (optionally after a nudge)",
+    );
+    console.log(`outcome kind = ${result.kind}`);
 
     const session = await extractionSessionQueries.getById(
       STUB_PATIENT_ID,
       result.extractionSessionId,
     );
-    const report = await reportQueries.getById(STUB_PATIENT_ID, result.reportId);
+    reportId = session?.reportId;
+    const report = reportId
+      ? await reportQueries.getById(STUB_PATIENT_ID, reportId)
+      : null;
     assert(session !== null, "extraction session exists");
     assert(report?.content === text, "report holds the source text in content");
     console.log(`session.status = ${session?.status}`);
@@ -82,6 +90,40 @@ async function main(): Promise<void> {
   } finally {
     if (reportId) await reportQueries.delete(STUB_PATIENT_ID, reportId);
     console.log("\ncleaned up test report.");
+  }
+
+  // Guided-scribe nudge: a sparse log the agent is likely to ask about. The exact
+  // outcome is probabilistic (warn, not assert), but WHEN a nudge fires its shape
+  // must be sound — `hasEntities` present and boolean, so the UI can decide skip
+  // vs. dismiss. Clean up the persisted session's report either way.
+  const sparse = "He's started on a new blood pressure pill.";
+  console.log(`\nnudge input: ${sparse}\n`);
+  let nudgeReportId: string | undefined;
+  try {
+    const result = await processQuickLog({
+      patientId: STUB_PATIENT_ID,
+      timezone,
+      text: sparse,
+    });
+    console.log(`nudge outcome kind = ${result.kind}`);
+    if (result.kind === "nudge") {
+      const session = await extractionSessionQueries.getById(
+        STUB_PATIENT_ID,
+        result.extractionSessionId,
+      );
+      nudgeReportId = session?.reportId;
+      assert(
+        typeof result.hasEntities === "boolean",
+        "nudge carries a boolean hasEntities",
+      );
+      console.log(`✓ nudge: hasEntities=${result.hasEntities} — "${result.question}"`);
+    } else {
+      console.warn("⚠ expected a nudge for the sparse med (eyeball above)");
+      if (result.kind === "confirm") nudgeReportId = result.reportId;
+    }
+  } finally {
+    if (nudgeReportId) await reportQueries.delete(STUB_PATIENT_ID, nudgeReportId);
+    console.log("cleaned up nudge test report.");
   }
 
   console.log("\nquick-log:check done.");

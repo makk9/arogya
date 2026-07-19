@@ -57,6 +57,11 @@ export const quickLogRequestSchema = z.object({
   // in the chat, not a detour) so it echoes immediately, persists, and the user
   // returns to it after confirming. Omitted by the (session-less) Ask-AI drawer.
   sessionId: z.string().uuid().optional(),
+  // Set when this call is the user's ANSWER to an enrichment nudge: `text` is the
+  // answer, and the server re-extracts the original log (held on this extraction
+  // session's report) PLUS the answer, overwriting the session in place (no
+  // second session / orphan stub). Guided-scribe step 2 (decisions.md 2026-07-17).
+  reuseSessionId: z.string().uuid().optional(),
 });
 
 export type QuickLogRequest = z.infer<typeof quickLogRequestSchema>;

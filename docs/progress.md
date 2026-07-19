@@ -5,7 +5,7 @@
 
 ---
 
-## Current Phase: Phase E — AI-Driven Flows (active). E1+E2+E3 ✓ + entity amendment through the agent (`68bb880`) + 6 regression fixes (`b455f15`). **NEXT: full run-through test of E3 + agent capabilities, THEN E5 insight-gen.** E0a, E4, E7 remain.
+## Current Phase: Phase E — AI-Driven Flows (active). E1+E2+E3 ✓ + amendment (`68bb880`) + regression fixes (`b455f15`) + **guided-scribe enrichment nudge & agent taxonomy-classification (2 commits, 2026-07-19)**. **NEXT: full run-through test of E3 + agent capabilities, THEN E5 insight-gen.** E0a, E4, E7 remain.
 
 ### Phases A–D ✓ COMPLETE (committed)
 - **A** Foundation (Next/TS/Tailwind/Drizzle/Supabase, 14-table schema, stub auth, seed). decisions.md 2026-05-11/12.
@@ -32,20 +32,19 @@ Last because they depend on everything before. Phase-A schema groundwork exists 
 
 ---
 
-### Last Session (2026-07-14 → 07-15)
-- **6 code-review regressions FIXED + committed** (`b455f15`, decisions.md 2026-07-14): synthesis citations for chat-committed entities (stubs in slug-index, out of timeline); domain-error→per-card block (no batch 500); last-card-discard no longer strands (finalize-only `{cards:[],finalize:true}`); failed/discarded log cleanup + chat error/retry; entity-less stubs stay visible on timeline; med-form enum prefill (OTC/other). Probe + verify-ui green.
-- **Entity amendment through the agent BUILT + committed** (`68bb880`): create+update parity for lab/visit/symptom (vitals immutable, §4:433); `updateLabReport` (append missing markers + correct existing in place, preserve-unrestated-fields), `updateVisit` (correct date/doctor/reason/summary + append notes), `updateSymptomEpisode` (severity + notes). `commit.ts` `UPDATABLE_TYPES = STATE ∪ AMENDABLE_EVENT`.
-- **Deletions declined as an in-chat reply** — new optional `notice` on the extraction output schema; `processQuickLog` returns `{kind:"declined"|"confirm"}`, creates **no** stub Report; quick-log route writes the advisory as an assistant turn, chat shows it inline (state changes like "stopped taking X" are still updates).
-- **Confirmation legibility:** lab update card renders a readable Markers view (names target report; `1.9→1.5·correcting`; `4.2·new marker`) not a JSON blob; visit/symptom overwrite fields show `old→new` (page builds `labSnapshots`/`fieldSnapshots`; notes append, excluded).
-- **Prompt + dictionary:** extraction prompt amendment rule + "Deletions and removals" section; `buildMatchingDictionary` now lists recent symptom episodes; **§5.4 doc-fix** (amendment carve-out) landed in design.md.
-- **TWO `/check` passes** (spec + principal-eng): blocker (lab correction could null a value) fixed via preserve-value refactor; no-op guards, exact-match note dedup, decline-no-stub, `old→new` for visit/symptom, list-refresh on decline. All probe/browser-verified; tsc/eslint clean.
+### Last Session (2026-07-19)
+- **Agent taxonomy-classification BUILT (commit A):** extraction now fills condition `category`, symptom `body_area`, medication/allergy `category` from a *stated* entity — high-confidence classification ≠ fabrication (resolves the (a)-inference deferred 2026-07-17). Prompt "Classifying into arogya's taxonomy" section draws the file-vs-invent line; enum lists mirror the pgEnums BY HAND (commented; drift-safe via `commit.ts` `enumMember`). `commit.ts` threads `body_area` into NEW symptom-type creation only (no backfill of existing types); `enrichment.ts` adds category/body-area select chips (condition/allergy category already there). decisions.md 2026-07-19.
+- **Output-schema crash fixed:** `notice`/`enrichment` → `.nullish()` (was `.optional()`). The model emits explicit `null` on the empty "couldn't read it" path, which `.optional()` rejected → `parse_failure` instead of the §6.11 failure state.
+- **Guided-scribe enrichment nudge (step 2) polished + committed (commit B):** the 07-17 build (`processQuickLog`→`{kind:"nudge"}`, `reuseSessionId` answer re-extract into same session) + 3 /check fixes — zero-entity nudge threads `hasEntities` so "skip" DISMISSES in-chat ("Never mind") not the empty→failure screen; a failed nudge-answer keeps the nudge open so retry re-extracts via reuse; `answerNudge` gains `alreadyEchoed` + nudge-aware "Try again".
+- **Tests:** `extraction:check` +2 cases (wrist→body_area=arms; hypothyroidism→new condition category=endocrine; gibberish clean, no crash); `quick-log:check` +nudge case (sparse "new BP pill"→`hasEntities=false`), scenario 1 relaxed to confirm-or-nudge (guided-scribe can nudge a loggable note). tsc/eslint clean, all live-verified.
+- **Committed in TWO batches** per user (A classification, B guided-scribe) — independent features.
 
 ### Next Steps
-1. **RUN-THROUGH TEST of E3 + all current agent capabilities BEFORE E5** (user ask). End-to-end in the real UI + live probes: quick-log/upload extraction → confirmation → commit; router classify (question/log/ambiguous); **amendment** (lab correct+append, visit/symptom field corrections, `old→new` cards); **delete-advisory** (in-chat decline); discontinue-via-log; edit-manually prefill (8 forms); citation resolution. Confirm it's all solid before building further. `verify-ui` + the `*:check` scripts are the tools.
+1. **RUN-THROUGH TEST of E3 + all agent capabilities BEFORE E5** (user ask), now incl. **taxonomy-classification** (category/body_area on logged conditions + symptoms) and the **guided-scribe nudge** (answer + skip/dismiss paths). End-to-end in the real UI + live probes: quick-log/upload → confirmation → commit; router classify; **amendment** (lab correct+append, visit/symptom, `old→new`); **delete-advisory**; discontinue-via-log; edit-manually prefill (8 forms); citation resolution. `verify-ui` + `*:check` are the tools.
 2. **E5 insight generator** (§5.6/9.3; retires seed insights; the §1.3 north-star). Opus, 5 locked types, conservative severity, empty-output default, priors dedup-only. Fire-and-forget `/api/insights/generate`, 30s debounce; the extraction-commit-finalize **seam already exists** in the commit route. Triggers after entity creations + commit.
 3. Then **E0a dashboard** → E4 onboarding, E7 brief.
 
-- **Amendment follow-ups (low):** note-append cards don't show "adds-to existing" context; mixed-case `notice` (log + a decline) shown on confirmation banner but not persisted to chat; `updateVisit`/`createVisit`/`createSymptomEpisode` re-fetch full doctor/type list per card (hoist).
+- **Low follow-ups:** classification is capture-time only — existing symptom types keep their (null) `body_area`, no backfill; a zero-entity nudge still persists an empty session/report stub (existing `cleanup-orphan-source-stubs.ts` covers it); note-append cards don't show "adds-to existing" context; `updateVisit`/`createVisit`/`createSymptomEpisode` re-fetch full doctor/type list per card (hoist).
 - **`surfaceContext`** still client-asserted free text (prompt-injection) — resolve server-side from an entity id when auth is real.
 - **Log-path latency (deferred):** navigate-first → extract in background → "Extracting…" state (session starts `pending`).
 - **Pending design.md doc-fixes:** (§6.12/§4:243) form date defaults browser-local; (§6.5) Notes-omit-when-empty; (§6.8) "WATCH" isn't a status. **Phase D carryovers:** inline-field Selects miss `items`; list-card refs inert; periwinkle dark-mode (v1.5).

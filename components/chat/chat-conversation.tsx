@@ -150,6 +150,19 @@ export function ChatConversation({
   // error + retry instead of silently stranding the echoed user turn. Null when
   // none.
   const [logError, setLogError] = useState<string | null>(null);
+  // Set when the agent asked an optional enrichment question (§ guided-scribe
+  // step 2): the next input is treated as the answer, or "Just log it" skips to
+  // the confirmation as-is. Holds what's needed to navigate/re-extract.
+  const [nudge, setNudge] = useState<{
+    question: string;
+    extractionSessionId: string;
+    sid: string | null;
+    hadSession: boolean;
+    // False when the agent asked but extracted nothing yet — skipping has nothing
+    // to confirm, so the skip button dismisses in-chat rather than opening the
+    // (empty → failure) confirmation screen.
+    hasEntities: boolean;
+  } | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -252,6 +265,23 @@ export function ChatConversation({
     [ensureSession, sendMessage],
   );
 
+  // Navigate to the §6.11 confirmation for an extraction session, preserving the
+  // chat origin (returnTo / chatSessionId / newSession). Shared by the log,
+  // nudge-skip, and nudge-answer paths.
+  const navToConfirm = useCallback(
+    (extractionSessionId: string, sid: string | null, hadSession: boolean) => {
+      const returnTo = sid
+        ? `/patient/${patientId}/chat/${sid}`
+        : `/patient/${patientId}/chat`;
+      const chatParam = sid ? `&chatSessionId=${sid}` : "";
+      const newParam = sid && !hadSession ? "&newSession=1" : "";
+      router.push(
+        `/patient/${patientId}/extract/${extractionSessionId}?returnTo=${encodeURIComponent(returnTo)}${chatParam}${newParam}`,
+      );
+    },
+    [router, patientId],
+  );
+
   // Log → quick-log extraction → confirmation screen (§5.5 → §6.11). A log lives
   // in the conversation (§6.2:1197): it's echoed as a user turn straight away
   // (so it's visible during the several-second extraction), persisted to the
@@ -293,6 +323,9 @@ export function ChatConversation({
           extractionSessionId?: string;
           declined?: boolean;
           notice?: string;
+          nudge?: boolean;
+          question?: string;
+          hasEntities?: boolean;
         };
         // Declined (e.g. a deletion the agent can't do): show its reply inline
         // and stay in the chat — no confirmation detour. The turn is already
@@ -311,23 +344,94 @@ export function ChatConversation({
           onPersisted();
           return;
         }
+        // Nudge: the agent asked for optional context. Show it and wait for an
+        // answer or a skip — don't navigate. (The question is persisted too.)
+        if (body.nudge && body.question && body.extractionSessionId) {
+          setNudge({
+            question: body.question,
+            extractionSessionId: body.extractionSessionId,
+            sid,
+            hadSession,
+            // Default true (navigate) unless the server explicitly says there's
+            // nothing extracted yet — preserves behavior for the common case.
+            hasEntities: body.hasEntities ?? true,
+          });
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `local-nudge-${Date.now()}`,
+              role: "assistant",
+              parts: [{ type: "text", text: body.question as string }],
+            },
+          ]);
+          onPersisted();
+          return;
+        }
         if (!body.extractionSessionId) return;
-        const returnTo = sid
-          ? `/patient/${patientId}/chat/${sid}`
-          : `/patient/${patientId}/chat`;
-        const chatParam = sid ? `&chatSessionId=${sid}` : "";
-        const newParam = sid && !hadSession ? "&newSession=1" : "";
-        router.push(
-          `/patient/${patientId}/extract/${body.extractionSessionId}?returnTo=${encodeURIComponent(returnTo)}${chatParam}${newParam}`,
-        );
+        navToConfirm(body.extractionSessionId, sid, hadSession);
       } catch {
         setLogError(text);
       } finally {
         setLogging(false);
       }
     },
-    [ensureSession, setMessages, router, patientId, sessionId, onPersisted],
+    [ensureSession, setMessages, sessionId, onPersisted, navToConfirm],
   );
+
+  // Answer to an enrichment nudge: re-extract the original log + this answer into
+  // the SAME session (server reuse), then open the enriched confirmation.
+  const answerNudge = useCallback(
+    async (answer: string, alreadyEchoed = false) => {
+      const n = nudge;
+      if (!n) return;
+      // Keep `nudge` set until the answer actually lands — if the POST fails, the
+      // nudge stays open so a retry re-extracts with the answer (via reuse)
+      // instead of re-routing it through the classifier as a fresh log.
+      if (!alreadyEchoed) {
+        setMessages((prev) => [
+          ...prev,
+          { id: `local-${Date.now()}`, role: "user", parts: [{ type: "text", text: answer }] },
+        ]);
+      }
+      setLogError(null);
+      setLogging(true);
+      try {
+        const res = await fetch("/api/chat/quick-log", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: answer,
+            sessionId: n.sid ?? undefined,
+            reuseSessionId: n.extractionSessionId,
+          }),
+        });
+        if (!res.ok) {
+          setLogError(answer);
+          return;
+        }
+        const body = (await res.json()) as { extractionSessionId?: string };
+        if (body.extractionSessionId) {
+          setNudge(null);
+          navToConfirm(body.extractionSessionId, n.sid, n.hadSession);
+        }
+      } catch {
+        setLogError(answer);
+      } finally {
+        setLogging(false);
+      }
+    },
+    [nudge, setMessages, navToConfirm],
+  );
+
+  // Skip the question. With entities extracted, open the confirmation as-is (the
+  // session was persisted when the nudge fired). With nothing extracted yet,
+  // there's nothing to confirm — just dismiss and stay in the chat.
+  const skipNudge = useCallback(() => {
+    const n = nudge;
+    if (!n) return;
+    setNudge(null);
+    if (n.hasEntities) navToConfirm(n.extractionSessionId, n.sid, n.hadSession);
+  }, [nudge, navToConfirm]);
 
   // Typed input runs through the router first (§5.5 — every chat input).
   // question → synthesis, log → quick-log, ambiguous → inline disambiguator. A
@@ -337,6 +441,11 @@ export function ChatConversation({
     async (text: string) => {
       const trimmed = text.trim();
       if (!trimmed || busy) return;
+      // While a nudge is open, the input is the ANSWER — skip classification.
+      if (nudge) {
+        setInput("");
+        return void answerNudge(trimmed);
+      }
       setInput("");
       setPending(null);
       setLogError(null);
@@ -373,7 +482,7 @@ export function ChatConversation({
       if (intent === "ambiguous") return setPending(trimmed);
       return void runQuestion(trimmed);
     },
-    [busy, runLog, runQuestion, setMessages],
+    [busy, runLog, runQuestion, setMessages, nudge, answerNudge],
   );
 
   function onSubmit(event: FormEvent) {
@@ -580,13 +689,31 @@ export function ChatConversation({
                     onClick={() => {
                       const text = logError;
                       setLogError(null);
-                      void runLog(text, true);
+                      // A retry while a nudge is open is the answer re-submitted —
+                      // reuse the session; otherwise it's a plain log retry.
+                      if (nudge) void answerNudge(text, true);
+                      else void runLog(text, true);
                     }}
                   >
                     Try again
                   </Button>
                 </div>
               </div>
+            </div>
+          ) : null}
+
+          {/* Guided-scribe nudge — the agent asked for optional context (the
+              question is the assistant turn above). Type the answer, or skip. */}
+          {nudge ? (
+            <div className="flex flex-wrap gap-2 pl-9">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={skipNudge}
+                className="rounded-full border border-stone-300 px-3 py-1.5 text-sm text-stone-700 transition-colors hover:border-stone-400 hover:bg-stone-50 disabled:opacity-50"
+              >
+                {nudge.hasEntities ? "Just log it →" : "Never mind"}
+              </button>
             </div>
           ) : null}
 
@@ -690,7 +817,9 @@ export function ChatConversation({
                 void submit(input);
               }
             }}
-            placeholder="Ask about this record, or log something new…"
+            placeholder={
+              nudge ? "Add the details, or just log it…" : "Ask about this record, or log something new…"
+            }
             rows={1}
             className="max-h-40 min-h-[2.75rem] flex-1 resize-none"
           />
