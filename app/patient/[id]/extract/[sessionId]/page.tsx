@@ -72,7 +72,7 @@ export default async function ExtractConfirmPage({
   const extractions = output?.extractions ?? [];
   // Advisory the agent set instead of extracting — today, a declined deletion
   // request ("I can't delete records from here…").
-  const notice = output?.notice;
+  const notice = output?.notice ?? undefined;
 
   // For any lab-report card matched to an existing report, load that report's
   // current markers + a label, so the confirmation card can show the user

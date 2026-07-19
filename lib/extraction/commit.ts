@@ -11,6 +11,7 @@ import {
   medicationCategory,
   medicationForm,
   medicationStatus,
+  symptomBodyArea,
   symptomEpisodeSeverity,
   vitalReadingType,
   visitType,
@@ -417,7 +418,14 @@ async function createSymptomEpisode(
     ctx.patientId,
     existing
       ? { kind: "existing", symptomTypeId: existing.id }
-      : { kind: "new", name: symptomName },
+      : {
+          kind: "new",
+          name: symptomName,
+          // The agent classifies body_area from the stated symptom (a new type
+          // needs it; body_area lives on the type, not the episode). An existing
+          // type keeps whatever area it already carries.
+          bodyArea: enumMember(data.body_area, symptomBodyArea.enumValues),
+        },
     {
       startedAt: toDate(data.started_at, ctx.nowIso),
       severity: enumMember(data.severity, symptomEpisodeSeverity.enumValues),

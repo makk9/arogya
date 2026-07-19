@@ -3,7 +3,9 @@ import {
   allergySeverity,
   conditionCategory,
   conditionSeverity,
+  medicationCategory,
   medicationForm,
+  symptomBodyArea,
   symptomEpisodeSeverity,
   visitType,
 } from "@/db/schema";
@@ -37,6 +39,7 @@ export interface EnrichmentField {
 export const ENRICHMENT_FIELDS: Record<CommitEntityType, readonly EnrichmentField[]> = {
   medication: [
     { key: "brand_name", label: "brand name", kind: "text" },
+    { key: "category", label: "category", kind: "select", options: medicationCategory.enumValues },
     { key: "form", label: "form", kind: "select", options: medicationForm.enumValues },
     { key: "started_on", label: "started on", kind: "date" },
     { key: "purpose", label: "purpose", kind: "text" },
@@ -68,6 +71,7 @@ export const ENRICHMENT_FIELDS: Record<CommitEntityType, readonly EnrichmentFiel
   ],
   symptom_episode: [
     { key: "severity", label: "severity", kind: "select", options: symptomEpisodeSeverity.enumValues },
+    { key: "body_area", label: "body area", kind: "select", options: symptomBodyArea.enumValues },
     { key: "notes", label: "notes", kind: "text" },
   ],
 };

@@ -60,6 +60,9 @@ interface Case {
   // What we expect to see in the FIRST extraction for this single-entity input.
   readonly expectType: string;
   readonly expectIntent: ExtractionEntity["intent"] | "create-or-update";
+  // Classification fields the agent should now file from a stated entity —
+  // checked case-insensitively against the first extraction's extracted_data.
+  readonly expectData?: Readonly<Record<string, string>>;
   readonly note: string;
 }
 
@@ -84,6 +87,22 @@ const cases: readonly Case[] = [
     expectType: "vital_reading",
     expectIntent: "create",
     note: "Time-series reading → always create-new, never matched.",
+  },
+  {
+    label: "symptom-body-area",
+    input: "He's had pain in his right wrist since yesterday, worse in the mornings.",
+    expectType: "symptom_episode",
+    expectIntent: "create",
+    expectData: { body_area: "arms" },
+    note: "Wrist pain → should classify body_area = arms (a stated location, not a guess).",
+  },
+  {
+    label: "condition-category",
+    input: "GP says he was just diagnosed with hypothyroidism.",
+    expectType: "condition",
+    expectIntent: "create",
+    expectData: { category: "endocrine" },
+    note: "Hypothyroidism (not in seed vault) → new condition, category = endocrine.",
   },
   {
     label: "unreadable",
@@ -148,6 +167,15 @@ async function checkExtraction(): Promise<void> {
           }
           if (first.intent === "update" || first.intent === "uncertain") {
             console.log(`  matched_entity_id: ${first.matched_entity_id}`);
+          }
+          for (const [key, want] of Object.entries(c.expectData ?? {})) {
+            const got = first.extracted_data[key];
+            if (typeof got !== "string" || got.toLowerCase() !== want) {
+              console.warn(
+                `  ⚠ ${key}: expected "${want}", got ${JSON.stringify(got)}`,
+              );
+              warnings += 1;
+            }
           }
         }
       }

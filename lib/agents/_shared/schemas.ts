@@ -36,7 +36,14 @@ export const extractionOutputSchema = z.object({
   // record, which the agent can't do from chat — it returns no extraction for
   // that and a voice-compliant `notice` telling them to remove it on the record's
   // own page. Additive + optional; older stored outputs without it still parse.
-  notice: z.string().optional(),
+  // `.nullish()`, not `.optional()`: the model sometimes emits an explicit
+  // `null` for these instead of omitting them (seen on the empty-extraction
+  // "couldn't read it" path), and a valid null outcome must not fail validation.
+  notice: z.string().nullish(),
+  // Optional guided-scribe nudge (decisions.md 2026-07-17): when a log is sparse
+  // and useful context is missing, the agent may ask ONE short, optional question
+  // in the chat before the confirmation opens. Additive + optional.
+  enrichment: z.object({ question: z.string() }).nullish(),
 });
 export type ExtractionEntity = z.infer<typeof extractionEntitySchema>;
 export type ExtractionOutput = z.infer<typeof extractionOutputSchema>;
