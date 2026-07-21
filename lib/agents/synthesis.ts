@@ -147,10 +147,23 @@ export const PATIENT_NAMING_ADDENDUM = `# Naming this patient
 
 The vault context does not carry a relationship-to-user value. Refer to the patient by their first name as it appears in the vault context. Do not invent a relationship — do not say "your father" or "your mother" unless the user states the relationship in the conversation. The examples in the prompt above that use "your father" are illustrative of tone, not instructions to use that specific phrasing.`;
 
+// Runtime mode addendum for the post-commit log acknowledgement (§6.2:1197 +
+// the router's "the system handles the question after the log is confirmed"
+// contract, §5.5). NOT part of the verbatim §10.3 prompt — appended only for the
+// acknowledgement call. Turns a logged entry into a conversational turn rather
+// than a mechanical receipt: acknowledge + engage only when there's real signal.
+export const LOG_ACK_ADDENDUM = `# Acknowledging a just-logged entry
+
+The final user message is a system-generated note describing what the user just logged to the record from chat — it is NOT a question they typed. Respond as their thinking partner would when handed a new fact mid-conversation: acknowledge what was logged in one or two natural sentences, and ONLY if there is genuinely something worth surfacing, connect it to the record with your normal \`§\` citations (a pattern it fits, a gap it raises, something worth watching). If there is nothing meaningful to add, a brief, warm acknowledgement is enough — do not manufacture insight and do not pad. Never use celebratory or congratulatory language ("Great job logging that") and do not thank the user. Keep it short; the QUESTIONS TO RAISE block is usually unnecessary here.`;
+
 export interface RunSynthesisParams {
   patientId: string;
   messages: ModelMessage[];
   surfaceContext?: string;
+  // Optional runtime addendum appended after PATIENT_NAMING_ADDENDUM (e.g.
+  // LOG_ACK_ADDENDUM for the post-commit acknowledgement). Keeps the verbatim
+  // §10.3 prompt untouched while letting a caller select a mode.
+  systemAddendum?: string;
   // Called once the stream completes with the full assistant text. The chat
   // route uses this to persist the assistant turn into a chat session (E0b);
   // the ephemeral drawer omits it. Persistence is the caller's concern, so
@@ -161,7 +174,7 @@ export interface RunSynthesisParams {
 export async function runSynthesis(
   params: RunSynthesisParams,
 ): Promise<StreamTextResult<ToolSet, never>> {
-  const { patientId, messages, surfaceContext, onFinish } = params;
+  const { patientId, messages, surfaceContext, systemAddendum, onFinish } = params;
 
   let vault: string;
   try {
@@ -175,7 +188,10 @@ export async function runSynthesis(
     );
   }
 
-  const composedSystem = `${SYNTHESIS_SYSTEM_PROMPT}\n\n${PATIENT_NAMING_ADDENDUM}\n\n---\n\n${vault}`;
+  const addenda = systemAddendum
+    ? `${PATIENT_NAMING_ADDENDUM}\n\n${systemAddendum}`
+    : PATIENT_NAMING_ADDENDUM;
+  const composedSystem = `${SYNTHESIS_SYSTEM_PROMPT}\n\n${addenda}\n\n---\n\n${vault}`;
 
   // Single system message marks the entire static-prompt + addendum + vault block as
   // the cache breakpoint. Anthropic caches everything from request start through the

@@ -997,3 +997,21 @@ export function summarizeCommit(
   if (lines.length === 0) return "";
   return `Done — I've logged that to the record:\n\n${lines.join("\n")}`;
 }
+
+/**
+ * A compact one-line basis for the synthesis log-acknowledgement (§6.2:1197) —
+ * what committed in this request, phrased with the same `phraseForCard` wording
+ * as the fallback receipt. The acknowledgement call passes this as the factual
+ * anchor; synthesis reads the entities' full detail from the vault context
+ * (they're written before finalize, so they're already in it). Empty string when
+ * nothing committed.
+ */
+export function committedForAck(
+  cards: CommitCardInput[],
+  results: CommitCardResult[],
+): string {
+  return cards
+    .filter((_, i) => results[i]?.ok)
+    .map((card) => phraseForCard(card))
+    .join("; ");
+}

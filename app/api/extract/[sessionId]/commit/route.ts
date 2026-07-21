@@ -1,16 +1,62 @@
+import type { ModelMessage } from "ai";
+
 import { chatQueries, extractionSessionQueries } from "@/db/queries";
+import { LOG_ACK_ADDENDUM, runSynthesis } from "@/lib/agents/synthesis";
 import { apiError } from "@/lib/api/error";
 import { parseJsonBody, validateUuidParam } from "@/lib/api/route-helpers";
 import { getCurrentPatient, getCurrentUser } from "@/lib/auth";
 import { todayInTimezone } from "@/lib/datetime";
 import {
   commitCard,
+  committedForAck,
   summarizeCommit,
   type CommitCardResult,
   type CommitContext,
 } from "@/lib/extraction/commit";
 import { errorCode, logger } from "@/lib/logger";
-import { commitRequestSchema } from "@/lib/schemas/api/extract-commit";
+import {
+  commitRequestSchema,
+  type CommitCardInput,
+} from "@/lib/schemas/api/extract-commit";
+
+/**
+ * The post-commit acknowledgement written back to the chat (§6.2:1197). A logged
+ * entry deserves a conversational turn, not a mechanical receipt — synthesis
+ * acknowledges it and engages only when there's real signal (LOG_ACK_ADDENDUM);
+ * the just-committed entities are already in the vault it reads. Falls back to
+ * the deterministic `summarizeCommit` string whenever synthesis is unavailable,
+ * so the acknowledgement never fails to appear.
+ */
+async function buildLogAck(
+  patientId: string,
+  cards: CommitCardInput[],
+  results: CommitCardResult[],
+): Promise<string> {
+  const committed = committedForAck(cards, results);
+  if (committed.length === 0) return "";
+  try {
+    const messages: ModelMessage[] = [
+      {
+        role: "user",
+        content: `[System note — not a question from the user. Just now, from this chat, the user logged the following to the record: ${committed}. Acknowledge it per the acknowledgement mode.]`,
+      },
+    ];
+    const result = await runSynthesis({
+      patientId,
+      systemAddendum: LOG_ACK_ADDENDUM,
+      messages,
+    });
+    const text = (await result.text).trim();
+    if (text.length > 0) return text;
+  } catch (err) {
+    logger.warn({
+      op: "extract.commit.log_ack",
+      code: errorCode(err),
+      ids: { patientId },
+    });
+  }
+  return summarizeCommit(cards, results);
+}
 
 // db writes + extraction commit require Node.
 export const runtime = "nodejs";
@@ -97,16 +143,17 @@ export async function POST(
       });
       finalized = true;
 
-      // "Logged ✓" acknowledgement (§6.2:1197): write an assistant turn back to
-      // the originating chat conversation so returning to it shows what was
-      // logged, not just the user's own message. Scope-checked; a foreign/absent
-      // id or an empty summary is silently skipped.
+      // Acknowledgement (§6.2:1197): write an assistant turn back to the
+      // originating chat so returning to it shows a real thinking-partner
+      // response engaging with what was logged, not just the user's own message
+      // or a mechanical receipt. Scope-checked; a foreign/absent id or an empty
+      // acknowledgement is silently skipped.
       if (parsed.data.chatSessionId) {
         const chat = await chatQueries.getSession(patientId, parsed.data.chatSessionId);
         if (chat) {
-          const summary = summarizeCommit(parsed.data.cards, results);
-          if (summary.length > 0) {
-            await chatQueries.addMessage(chat.id, "assistant", summary);
+          const ack = await buildLogAck(patientId, parsed.data.cards, results);
+          if (ack.length > 0) {
+            await chatQueries.addMessage(chat.id, "assistant", ack);
           }
         }
       }
