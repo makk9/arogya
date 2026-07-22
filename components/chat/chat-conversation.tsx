@@ -28,6 +28,7 @@ import { type UIMessage } from "ai";
 
 import { AiMessage } from "@/components/ai-message";
 import { MessageGrounding } from "@/components/chat/chat-grounding";
+import { useQuickLog } from "@/components/chat/use-quick-log";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -85,9 +86,6 @@ const SHORTCUTS = [
   },
 ] as const;
 
-// The router's three intents (§5.5), as returned by /api/chat/classify.
-type ChatIntent = "question" | "log" | "ambiguous";
-
 export interface InitialMessage {
   id: string;
   role: "user" | "assistant";
@@ -137,32 +135,6 @@ export function ChatConversation({
   const [title, setTitle] = useState<string | null>(initialTitle);
   const [input, setInput] = useState("");
   const [creating, setCreating] = useState(false);
-  // True while the router classify call is in flight (input disables between
-  // send and the synthesis stream / navigation).
-  const [routing, setRouting] = useState(false);
-  // True while a confirmed `log` is being extracted (the quick-log call), so the
-  // chat shows a distinct "Logging…" indicator before navigating to review.
-  const [logging, setLogging] = useState(false);
-  // Holds the original text of an `ambiguous`-classified input awaiting the
-  // user's log-vs-ask choice (the §5.5 inline disambiguator). Null when none.
-  const [pending, setPending] = useState<string | null>(null);
-  // Set to the log text when a quick-log request fails — surfaces an inline
-  // error + retry instead of silently stranding the echoed user turn. Null when
-  // none.
-  const [logError, setLogError] = useState<string | null>(null);
-  // Set when the agent asked an optional enrichment question (§ guided-scribe
-  // step 2): the next input is treated as the answer, or "Just log it" skips to
-  // the confirmation as-is. Holds what's needed to navigate/re-extract.
-  const [nudge, setNudge] = useState<{
-    question: string;
-    extractionSessionId: string;
-    sid: string | null;
-    hadSession: boolean;
-    // False when the agent asked but extracted nothing yet — skipping has nothing
-    // to confirm, so the skip button dismisses in-chat rather than opening the
-    // (empty → failure) confirmation screen.
-    hasEntities: boolean;
-  } | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -204,12 +176,6 @@ export function ChatConversation({
     },
   });
 
-  const busy =
-    status === "submitted" ||
-    status === "streaming" ||
-    creating ||
-    routing ||
-    logging;
   const isEmpty = messages.length === 0;
 
   // 6.2:1199 — follow-up chips appear only in the lull after the first reply
@@ -265,224 +231,45 @@ export function ChatConversation({
     [ensureSession, sendMessage],
   );
 
-  // Navigate to the §6.11 confirmation for an extraction session, preserving the
-  // chat origin (returnTo / chatSessionId / newSession). Shared by the log,
-  // nudge-skip, and nudge-answer paths.
-  const navToConfirm = useCallback(
-    (extractionSessionId: string, sid: string | null, hadSession: boolean) => {
-      const returnTo = sid
-        ? `/patient/${patientId}/chat/${sid}`
-        : `/patient/${patientId}/chat`;
-      const chatParam = sid ? `&chatSessionId=${sid}` : "";
-      const newParam = sid && !hadSession ? "&newSession=1" : "";
-      router.push(
-        `/patient/${patientId}/extract/${extractionSessionId}?returnTo=${encodeURIComponent(returnTo)}${chatParam}${newParam}`,
-      );
-    },
-    [router, patientId],
-  );
+  // The shared §5.5→§6.11 quick-log flow (classify · log · nudge · declined ·
+  // disambiguator · retry · confirmation navigation) — one implementation for
+  // this pane and the Ask-AI drawer.
+  const {
+    routing,
+    logging,
+    pending,
+    nudge,
+    logError,
+    route,
+    skipNudge,
+    resolvePendingAsLog,
+    resolvePendingAsQuestion,
+    retryLog,
+  } = useQuickLog({
+    patientId,
+    sessionId,
+    ensureSession,
+    setMessages,
+    runQuestion,
+    onPersisted,
+    fallbackReturnTo: `/patient/${patientId}/chat`,
+  });
 
-  // Log → quick-log extraction → confirmation screen (§5.5 → §6.11). A log lives
-  // in the conversation (§6.2:1197): it's echoed as a user turn straight away
-  // (so it's visible during the several-second extraction), persisted to the
-  // session server-side (so the session survives + is findable), and the user is
-  // returned here after confirming via the `returnTo` param — not dumped on a
-  // detour they didn't come from.
-  const runLog = useCallback(
-    async (text: string, alreadyEchoed = false) => {
-      // Ensure the message is on screen. `submit` pre-echoes before classifying
-      // (so it paints the instant you hit Send); the disambiguator's "Log it"
-      // path has no prior echo, so add one here.
-      if (!alreadyEchoed) {
-        setMessages((prev) => [
-          ...prev,
-          { id: `local-${Date.now()}`, role: "user", parts: [{ type: "text", text }] },
-        ]);
-      }
+  const busy =
+    status === "submitted" ||
+    status === "streaming" ||
+    creating ||
+    routing ||
+    logging;
 
-      setLogError(null);
-      setLogging(true);
-      // Captured before ensureSession: was this session created solely for this
-      // log? If so, a full discard downstream can clean it up rather than leave
-      // a titled empty session behind.
-      const hadSession = sessionId !== null;
-      const sid = await ensureSession();
-      try {
-        const res = await fetch("/api/chat/quick-log", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, sessionId: sid ?? undefined }),
-        });
-        if (!res.ok) {
-          // Keep the echoed turn on screen and surface a retry — a silent return
-          // left the user's line dangling with no signal something went wrong.
-          setLogError(text);
-          return;
-        }
-        const body = (await res.json()) as {
-          extractionSessionId?: string;
-          declined?: boolean;
-          notice?: string;
-          nudge?: boolean;
-          question?: string;
-          hasEntities?: boolean;
-        };
-        // Declined (e.g. a deletion the agent can't do): show its reply inline
-        // and stay in the chat — no confirmation detour. The turn is already
-        // persisted server-side; echo it optimistically here.
-        if (body.declined && body.notice) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `local-notice-${Date.now()}`,
-              role: "assistant",
-              parts: [{ type: "text", text: body.notice as string }],
-            },
-          ]);
-          // Refresh the CHATS list so a fresh session picks up its server-set
-          // title (this path doesn't navigate or stream, so nothing else does).
-          onPersisted();
-          return;
-        }
-        // Nudge: the agent asked for optional context. Show it and wait for an
-        // answer or a skip — don't navigate. (The question is persisted too.)
-        if (body.nudge && body.question && body.extractionSessionId) {
-          setNudge({
-            question: body.question,
-            extractionSessionId: body.extractionSessionId,
-            sid,
-            hadSession,
-            // Default true (navigate) unless the server explicitly says there's
-            // nothing extracted yet — preserves behavior for the common case.
-            hasEntities: body.hasEntities ?? true,
-          });
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `local-nudge-${Date.now()}`,
-              role: "assistant",
-              parts: [{ type: "text", text: body.question as string }],
-            },
-          ]);
-          onPersisted();
-          return;
-        }
-        if (!body.extractionSessionId) return;
-        navToConfirm(body.extractionSessionId, sid, hadSession);
-      } catch {
-        setLogError(text);
-      } finally {
-        setLogging(false);
-      }
-    },
-    [ensureSession, setMessages, sessionId, onPersisted, navToConfirm],
-  );
-
-  // Answer to an enrichment nudge: re-extract the original log + this answer into
-  // the SAME session (server reuse), then open the enriched confirmation.
-  const answerNudge = useCallback(
-    async (answer: string, alreadyEchoed = false) => {
-      const n = nudge;
-      if (!n) return;
-      // Keep `nudge` set until the answer actually lands — if the POST fails, the
-      // nudge stays open so a retry re-extracts with the answer (via reuse)
-      // instead of re-routing it through the classifier as a fresh log.
-      if (!alreadyEchoed) {
-        setMessages((prev) => [
-          ...prev,
-          { id: `local-${Date.now()}`, role: "user", parts: [{ type: "text", text: answer }] },
-        ]);
-      }
-      setLogError(null);
-      setLogging(true);
-      try {
-        const res = await fetch("/api/chat/quick-log", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: answer,
-            sessionId: n.sid ?? undefined,
-            reuseSessionId: n.extractionSessionId,
-          }),
-        });
-        if (!res.ok) {
-          setLogError(answer);
-          return;
-        }
-        const body = (await res.json()) as { extractionSessionId?: string };
-        if (body.extractionSessionId) {
-          setNudge(null);
-          navToConfirm(body.extractionSessionId, n.sid, n.hadSession);
-        }
-      } catch {
-        setLogError(answer);
-      } finally {
-        setLogging(false);
-      }
-    },
-    [nudge, setMessages, navToConfirm],
-  );
-
-  // Skip the question. With entities extracted, open the confirmation as-is (the
-  // session was persisted when the nudge fired). With nothing extracted yet,
-  // there's nothing to confirm — just dismiss and stay in the chat.
-  const skipNudge = useCallback(() => {
-    const n = nudge;
-    if (!n) return;
-    setNudge(null);
-    if (n.hasEntities) navToConfirm(n.extractionSessionId, n.sid, n.hadSession);
-  }, [nudge, navToConfirm]);
-
-  // Typed input runs through the router first (§5.5 — every chat input).
-  // question → synthesis, log → quick-log, ambiguous → inline disambiguator. A
-  // classifier failure biases to question (wrong-route-to-chat is the cheap
-  // failure per §5.5).
   const submit = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
       if (!trimmed || busy) return;
-      // While a nudge is open, the input is the ANSWER — skip classification.
-      if (nudge) {
-        setInput("");
-        return void answerNudge(trimmed);
-      }
       setInput("");
-      setPending(null);
-      setLogError(null);
-
-      // Paint the user's message immediately — before the classify round-trip —
-      // so it never trails the "Reading that…" indicator. It's pulled back if
-      // the input turns out to be a question (sendMessage re-adds the real turn)
-      // or ambiguous (the disambiguator card shows the text instead).
-      const echoId = `local-${Date.now()}`;
-      setMessages((prev) => [
-        ...prev,
-        { id: echoId, role: "user", parts: [{ type: "text", text: trimmed }] },
-      ]);
-
-      setRouting(true);
-      let intent: ChatIntent = "question";
-      try {
-        const res = await fetch("/api/chat/classify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ input: trimmed }),
-        });
-        if (res.ok) {
-          intent = ((await res.json()) as { intent: ChatIntent }).intent;
-        }
-      } catch {
-        // Fall through as question.
-      } finally {
-        setRouting(false);
-      }
-
-      if (intent === "log") return void runLog(trimmed, true);
-      setMessages((prev) => prev.filter((m) => m.id !== echoId));
-      if (intent === "ambiguous") return setPending(trimmed);
-      return void runQuestion(trimmed);
+      await route(trimmed);
     },
-    [busy, runLog, runQuestion, setMessages, nudge, answerNudge],
+    [busy, route],
   );
 
   function onSubmit(event: FormEvent) {
@@ -682,19 +469,7 @@ export function ChatConversation({
                   I couldn&apos;t log that just now — something interrupted it.
                 </p>
                 <div className="mt-3">
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => {
-                      const text = logError;
-                      setLogError(null);
-                      // A retry while a nudge is open is the answer re-submitted —
-                      // reuse the session; otherwise it's a plain log retry.
-                      if (nudge) void answerNudge(text, true);
-                      else void runLog(text, true);
-                    }}
-                  >
+                  <Button type="button" size="sm" disabled={busy} onClick={retryLog}>
                     Try again
                   </Button>
                 </div>
@@ -739,11 +514,7 @@ export function ChatConversation({
                     type="button"
                     size="sm"
                     disabled={busy}
-                    onClick={() => {
-                      const text = pending;
-                      setPending(null);
-                      void runLog(text);
-                    }}
+                    onClick={resolvePendingAsLog}
                   >
                     Log it
                   </Button>
@@ -752,11 +523,7 @@ export function ChatConversation({
                     variant="outline"
                     size="sm"
                     disabled={busy}
-                    onClick={() => {
-                      const text = pending;
-                      setPending(null);
-                      void runQuestion(text);
-                    }}
+                    onClick={resolvePendingAsQuestion}
                   >
                     Ask about it
                   </Button>

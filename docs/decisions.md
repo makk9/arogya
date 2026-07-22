@@ -983,3 +983,12 @@ Format:
 3. `newSession=1` cleanup param threaded through the drawer too (was full-screen-only) — a session created solely for a fully-discarded log gets deleted, not orphaned.
 **Alternatives considered:** extracting a shared `useQuickLog` hook for both surfaces — the right long-term shape (this is the second copy of the logic) but a larger refactor than a bug fix warrants mid-Phase-E; queued as a follow-up. Reopening the drawer post-commit instead of going full-screen — rejected: drawer state doesn't survive navigation, so it would reopen empty.
 **Verified:** tsc + eslint clean (exhaustive-deps warning fixed properly, not suppressed).
+
+---
+
+**Date:** 2026-07-22
+**Decision:** **Shared `useQuickLog` hook (`components/chat/use-quick-log.ts`) — the follow-up queued in the previous entry, done. The full-screen pane and the Ask-AI drawer now consume ONE implementation of the §5.5→§6.11 client flow.**
+**Context:** The drawer bug fixed earlier today was caused by exactly this duplication: two hand-rolled copies of classify/log/nudge/declined/retry logic that drifted. User called it: "it doesn't make sense to copy over functionality between main chat and drawer chat."
+**Choice:** Hook owns classify dispatch, quick-log POST + its three outcomes, nudge answer/skip lifecycle, disambiguator pending state, failure retry, and confirmation navigation (returnTo always the persisted session). Surfaces own what genuinely differs: their `useChat` instance (injected `setMessages`), `ensureSession` (different creation side-effects), `runQuestion` (different sendMessage bodies), `beforeNavigate` (drawer closes itself), `fallbackReturnTo` (chat index vs page-under-drawer), input/busy state, all rendering. Net −488 duplicated lines; the drawer also gained the quick-log failure/retry UI it never had (hook parity for free).
+**Alternatives considered:** a shared component instead of a hook — rejected, the two surfaces' layouts are genuinely different; only the flow logic is common.
+**Verified:** tsc + eslint clean; no server-side changes (quick-log lib/route untouched).

@@ -22,13 +22,14 @@
  * session, not an ephemeral one — it lazily creates a `chat_sessions` row on the
  * first send, passes `sessionId` so `/api/chat` persists every turn + auto-titles
  * (identical to full-screen chat), and so drawer conversations show up in the
- * CHATS list. Typed input runs through the §5.5 router: `question` → synthesis,
- * `log` → quick-log → the §6.11 confirmation screen (the drawer closes and the
- * page navigates behind it; after commit the user returns to the page they were
- * on). One conversation model across both surfaces — not two fragmented ones.
+ * CHATS list. Typed input runs through the shared `useQuickLog` flow (§5.5
+ * router: `question` → synthesis, `log` → quick-log → the §6.11 confirmation;
+ * the drawer closes and after commit the user lands in the full-screen session,
+ * where the log-ack continues the conversation). One conversation model across
+ * both surfaces — not two fragmented ones.
  */
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -44,6 +45,7 @@ import { useChat } from "@ai-sdk/react";
 import { type UIMessage } from "ai";
 
 import { AiMessage } from "@/components/ai-message";
+import { useQuickLog } from "@/components/chat/use-quick-log";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -88,9 +90,6 @@ function textOf(message: UIMessage): string {
     .join("");
 }
 
-// The router's three intents (§5.5), as returned by /api/chat/classify.
-type ChatIntent = "question" | "log" | "ambiguous";
-
 export function ChatDrawerProvider({
   patientId,
   children,
@@ -98,7 +97,6 @@ export function ChatDrawerProvider({
   patientId: string;
   children: ReactNode;
 }) {
-  const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   // The surface the user is currently on. Pages publish it via `setSurface`
@@ -110,33 +108,12 @@ export function ChatDrawerProvider({
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // The drawer's persisted chat session (lazy-created on first send, like the
-  // full-screen surface), plus the router/log in-flight flags.
+  // full-screen surface).
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [routing, setRouting] = useState(false);
-  const [logging, setLogging] = useState(false);
-  // Original text of an `ambiguous`-classified input awaiting the log-vs-ask
-  // choice (the §5.5 inline disambiguator). Null when none.
-  const [pending, setPending] = useState<string | null>(null);
-  // Guided-scribe nudge awaiting an answer or a skip (decisions.md 2026-07-17).
-  // Same semantics as the full-screen surface: while open, typed input is the
-  // ANSWER; navigation to the confirmation waits.
-  const [nudge, setNudge] = useState<{
-    question: string;
-    extractionSessionId: string;
-    sid: string | null;
-    hadSession: boolean;
-    hasEntities: boolean;
-  } | null>(null);
 
   const { messages, sendMessage, setMessages, status, error } = useChat();
 
-  const busy =
-    status === "submitted" ||
-    status === "streaming" ||
-    creating ||
-    routing ||
-    logging;
   const isEmpty = messages.length === 0;
 
   useEffect(() => {
@@ -184,191 +161,49 @@ export function ChatDrawerProvider({
     [ensureSession, sendMessage],
   );
 
-  // Navigate to the §6.11 confirmation. The drawer closes (§6.11 "NO floating
-  // Ask AI" during the review task). `returnTo` targets the FULL-SCREEN chat
-  // session, not the page behind the drawer: the drawer's local conversation
-  // doesn't survive navigation, and post-commit the session holds the log-ack —
-  // returning there lets the conversation continue naturally (§6.2:1203). Falls
-  // back to the current page only when session creation failed.
-  const navToConfirm = useCallback(
-    (extractionSessionId: string, sid: string | null, hadSession: boolean) => {
-      setOpen(false);
-      const returnTo = sid
-        ? `/patient/${patientId}/chat/${sid}`
-        : (pathname ?? `/patient/${patientId}`);
-      const chatParam = sid ? `&chatSessionId=${sid}` : "";
-      // Session created solely for this log → a full discard downstream deletes
-      // it rather than leaving a titled empty session behind.
-      const newParam = sid && !hadSession ? "&newSession=1" : "";
-      router.push(
-        `/patient/${patientId}/extract/${extractionSessionId}?returnTo=${encodeURIComponent(returnTo)}${chatParam}${newParam}`,
-      );
-    },
-    [router, pathname, patientId],
-  );
+  // The shared §5.5→§6.11 quick-log flow (classify · log · nudge · declined ·
+  // disambiguator · retry · confirmation navigation) — one implementation for
+  // this drawer and the full-screen pane. The drawer closes before navigating
+  // (§6.11 "NO floating Ask AI" during review); returnTo targets the persisted
+  // session so the conversation continues after commit, falling back to the
+  // page under the drawer only when session creation failed.
+  const {
+    routing,
+    logging,
+    pending,
+    nudge,
+    logError,
+    route,
+    skipNudge,
+    resolvePendingAsLog,
+    resolvePendingAsQuestion,
+    retryLog,
+    reset,
+  } = useQuickLog({
+    patientId,
+    sessionId,
+    ensureSession,
+    setMessages,
+    runQuestion,
+    beforeNavigate: () => setOpen(false),
+    fallbackReturnTo: pathname ?? `/patient/${patientId}`,
+  });
 
-  // Log → quick-log extraction → §6.11 confirmation, UNLESS the agent declined
-  // (advisory shown inline) or asked a guided-scribe question (nudge shown; the
-  // confirmation waits for the answer or an explicit skip). Mirrors the
-  // full-screen surface's handling — the drawer must never race past the nudge.
-  const runLog = useCallback(
-    async (text: string, alreadyEchoed = false) => {
-      if (!alreadyEchoed) {
-        setMessages((prev) => [
-          ...prev,
-          { id: `local-${Date.now()}`, role: "user", parts: [{ type: "text", text }] },
-        ]);
-      }
-      setLogging(true);
-      // Captured before ensureSession: was this session created solely for this
-      // log? Threads into `newSession=1` so a full discard cleans it up.
-      const hadSession = sessionId !== null;
-      const sid = await ensureSession();
-      try {
-        const res = await fetch("/api/chat/quick-log", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, sessionId: sid ?? undefined }),
-        });
-        if (!res.ok) return;
-        const body = (await res.json()) as {
-          extractionSessionId?: string;
-          declined?: boolean;
-          notice?: string;
-          nudge?: boolean;
-          question?: string;
-          hasEntities?: boolean;
-        };
-        if (body.declined && body.notice) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `local-notice-${Date.now()}`,
-              role: "assistant",
-              parts: [{ type: "text", text: body.notice as string }],
-            },
-          ]);
-          return;
-        }
-        if (body.nudge && body.question && body.extractionSessionId) {
-          setNudge({
-            question: body.question,
-            extractionSessionId: body.extractionSessionId,
-            sid,
-            hadSession,
-            hasEntities: body.hasEntities ?? true,
-          });
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `local-nudge-${Date.now()}`,
-              role: "assistant",
-              parts: [{ type: "text", text: body.question as string }],
-            },
-          ]);
-          return;
-        }
-        if (!body.extractionSessionId) return;
-        navToConfirm(body.extractionSessionId, sid, hadSession);
-      } catch {
-        // Stay put on failure; the user can retry.
-      } finally {
-        setLogging(false);
-      }
-    },
-    [ensureSession, setMessages, navToConfirm, sessionId],
-  );
+  const busy =
+    status === "submitted" ||
+    status === "streaming" ||
+    creating ||
+    routing ||
+    logging;
 
-  // Answer to the nudge: re-extract original log + answer into the SAME session
-  // (server reuse), then open the enriched confirmation. Nudge stays set until
-  // the answer lands so a failed POST can be retried as an answer, not a fresh log.
-  const answerNudge = useCallback(
-    async (answer: string) => {
-      const n = nudge;
-      if (!n) return;
-      setMessages((prev) => [
-        ...prev,
-        { id: `local-${Date.now()}`, role: "user", parts: [{ type: "text", text: answer }] },
-      ]);
-      setLogging(true);
-      try {
-        const res = await fetch("/api/chat/quick-log", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: answer,
-            sessionId: n.sid ?? undefined,
-            reuseSessionId: n.extractionSessionId,
-          }),
-        });
-        if (!res.ok) return;
-        const body = (await res.json()) as { extractionSessionId?: string };
-        if (body.extractionSessionId) {
-          setNudge(null);
-          navToConfirm(body.extractionSessionId, n.sid, n.hadSession);
-        }
-      } catch {
-        // Nudge stays open; retry re-extracts via reuse.
-      } finally {
-        setLogging(false);
-      }
-    },
-    [nudge, setMessages, navToConfirm],
-  );
-
-  // Skip the question: with entities extracted, confirm as-is; with nothing
-  // extracted yet there's nothing to confirm — dismiss and stay in the drawer.
-  const skipNudge = useCallback(() => {
-    const n = nudge;
-    if (!n) return;
-    setNudge(null);
-    if (n.hasEntities) navToConfirm(n.extractionSessionId, n.sid, n.hadSession);
-  }, [nudge, navToConfirm]);
-
-  // Typed input runs through the §5.5 router first. Echo immediately (before the
-  // classify round-trip) so the message never trails the indicator; the echo is
-  // pulled back for a question (sendMessage re-adds the real turn) or ambiguous
-  // (the disambiguator card shows the text).
   const submit = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
       if (!trimmed || busy) return;
       setInput("");
-      setPending(null);
-
-      // While a nudge is open, the input is the ANSWER — skip classification.
-      if (nudge) {
-        void answerNudge(trimmed);
-        return;
-      }
-
-      const echoId = `local-${Date.now()}`;
-      setMessages((prev) => [
-        ...prev,
-        { id: echoId, role: "user", parts: [{ type: "text", text: trimmed }] },
-      ]);
-
-      setRouting(true);
-      let intent: ChatIntent = "question";
-      try {
-        const res = await fetch("/api/chat/classify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ input: trimmed }),
-        });
-        if (res.ok) intent = ((await res.json()) as { intent: ChatIntent }).intent;
-      } catch {
-        // Fall through as question.
-      } finally {
-        setRouting(false);
-      }
-
-      if (intent === "log") return void runLog(trimmed, true);
-      setMessages((prev) => prev.filter((m) => m.id !== echoId));
-      if (intent === "ambiguous") return setPending(trimmed);
-      return void runQuestion(trimmed);
+      await route(trimmed);
     },
-    [busy, runLog, runQuestion, setMessages, nudge, answerNudge],
+    [busy, route],
   );
 
   function onSubmit(event: FormEvent) {
@@ -383,8 +218,7 @@ export function ChatDrawerProvider({
     if (busy) return;
     setMessages([]);
     setSessionId(null);
-    setPending(null);
-    setNudge(null);
+    reset();
     setInput("");
   }
 
@@ -538,11 +372,7 @@ export function ChatDrawerProvider({
                     type="button"
                     size="sm"
                     disabled={busy}
-                    onClick={() => {
-                      const text = pending;
-                      setPending(null);
-                      void runLog(text);
-                    }}
+                    onClick={resolvePendingAsLog}
                   >
                     Log it
                   </Button>
@@ -551,11 +381,7 @@ export function ChatDrawerProvider({
                     variant="outline"
                     size="sm"
                     disabled={busy}
-                    onClick={() => {
-                      const text = pending;
-                      setPending(null);
-                      void runQuestion(text);
-                    }}
+                    onClick={resolvePendingAsQuestion}
                   >
                     Ask about it
                   </Button>
@@ -567,6 +393,22 @@ export function ChatDrawerProvider({
               <p className="text-sm text-stone-500">
                 Something interrupted that response. Try sending it again.
               </p>
+            ) : null}
+
+            {/* Quick-log failure — the echoed turn stays put; offer a retry so
+                the log isn't silently dropped. (Parity with the full-screen
+                pane, via the shared hook.) */}
+            {logError ? (
+              <div className="rounded-lg border border-border bg-muted p-4" aria-live="polite">
+                <p className="text-sm text-foreground">
+                  I couldn&apos;t log that just now — something interrupted it.
+                </p>
+                <div className="mt-3">
+                  <Button type="button" size="sm" disabled={busy} onClick={retryLog}>
+                    Try again
+                  </Button>
+                </div>
+              </div>
             ) : null}
 
             <div ref={bottomRef} />
