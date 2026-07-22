@@ -88,13 +88,10 @@ export const insightSchema = z.object({
   external_refs: z.array(insightExternalRefSchema).nullish(),
   linked_entities: z.array(insightEntityRefSchema).nullish(),
 });
-export const insightGeneratorOutputSchema = z.object({
-  insights: z.array(insightSchema),
-});
+// No envelope schema: the generator parses `{insights: [...]}` loosely and
+// salvages per-element against `insightSchema` (lib/agents/insight-generator.ts),
+// so a whole-output Zod wrapper would have no consumer.
 export type GeneratedInsight = z.infer<typeof insightSchema>;
-export type InsightGeneratorOutput = z.infer<
-  typeof insightGeneratorOutputSchema
->;
 
 // Onboarding agent output — per design.md 10.3:3255, alternating chat + entity emissions
 const onboardingChatChunkSchema = z.object({

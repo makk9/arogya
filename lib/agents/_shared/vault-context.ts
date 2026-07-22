@@ -104,8 +104,15 @@ const ID_DIRECTORY_EXCLUDED_PREFIXES = new Set([
   "lab-result",
 ]);
 
-function serializeEntityIdDirectory(slugIndex: SlugIndex): string {
+function serializeEntityIdDirectory(
+  slugIndex: SlugIndex,
+  // Ids indexed for citation-resolution but NOT serialized in the vault body
+  // (quick-log report stubs). The agent can't read their content, so it must
+  // not be offered their ids as citation targets (§5.4 stubs-stay-out intent).
+  excludeIds: ReadonlySet<string>,
+): string {
   const rows = [...slugIndex.entries()]
+    .filter(([id]) => !excludeIds.has(id))
     .map(([id, slug]) => ({ id, slug, type: slug.split(":", 1)[0] }))
     .filter((r) => !ID_DIRECTORY_EXCLUDED_PREFIXES.has(r.type))
     // Deterministic order (slug then id) per the caching contract above.
@@ -280,7 +287,18 @@ export async function buildVaultContext(
     includeInsights === "none"
       ? ""
       : serializeInsights(insights, includeInsights, slugIndex),
-    includeEntityIdDirectory ? serializeEntityIdDirectory(slugIndex) : "",
+    includeEntityIdDirectory
+      ? serializeEntityIdDirectory(
+          slugIndex,
+          // Stub reports: citation-indexed above but absent from the serialized
+          // Reports section — not offered as citation targets.
+          new Set(
+            reportsForCitation
+              .filter((r) => !reports.some((t) => t.id === r.id))
+              .map((r) => r.id),
+          ),
+        )
+      : "",
   ];
 
   const body = sections.filter((s) => s.length > 0).join("\n\n");

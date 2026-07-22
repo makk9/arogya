@@ -60,26 +60,31 @@ export default async function InsightsFeedPage({
 
   const allInsights = await insightQueries.forPatient(patient.patientId);
 
-  // §4:583 new→seen on load of the insights surface (feed until E0a's
-  // dashboard exists). Post-response via after(): this render still shows the
-  // NEW grouping and the rail badge; both clear on the next navigation —
-  // standard unread semantics. Silent failure is fine (retries on next visit).
-  if (allInsights.some((i) => i.status === "new")) {
-    after(async () => {
-      try {
-        await insightQueries.markAllSeen(patient.patientId);
-      } catch {
-        // Non-fatal — the transition re-runs on the next feed load.
-      }
-    });
-  }
-
   // Empty filter set = no constraint on that axis; otherwise membership test.
   const filtered = allInsights.filter(
     (i) =>
       (statusFilter.size === 0 || statusFilter.has(i.status)) &&
       (categoryFilter.size === 0 || categoryFilter.has(i.category)),
   );
+
+  // §4:583 new→seen on load of the insights surface (feed until E0a's
+  // dashboard exists). Only the insights this view actually DISPLAYS flip — a
+  // filtered view must not mark hidden ones seen. Post-response via after():
+  // this render still shows the NEW grouping and the rail badge; both clear on
+  // the next navigation — standard unread semantics. Silent failure is fine
+  // (retries on next visit).
+  const displayedNewIds = filtered
+    .filter((i) => i.status === "new")
+    .map((i) => i.id);
+  if (displayedNewIds.length > 0) {
+    after(async () => {
+      try {
+        await insightQueries.markSeen(patient.patientId, displayedNewIds);
+      } catch {
+        // Non-fatal — the transition re-runs on the next feed load.
+      }
+    });
+  }
 
   // Resolve the headline `linked_entities` to navigable card-pill labels.
   // Collect the deduped union of refs across the whole feed and resolve it

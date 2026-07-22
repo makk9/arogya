@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import { insights, type Insight, type NewInsight } from "@/db/schema";
@@ -37,15 +37,25 @@ export const insightQueries = {
     return rows[0] ?? null;
   },
 
-  // The §4:583 lifecycle's automatic first transition: everything still `new`
-  // flips to `seen` when the user loads the surface that shows insights. §4
-  // words it as "on dashboard load"; until E0a exists the feed is that surface
-  // (the dashboard will call this same helper). Drives the rail's unread badge.
-  async markAllSeen(patientId: string): Promise<void> {
+  // The §4:583 lifecycle's automatic first transition: a `new` insight flips
+  // to `seen` when the user loads a surface that actually DISPLAYS it — the
+  // caller passes the displayed ids, so a filtered feed view never flips
+  // insights it hid. §4 words it as "on dashboard load"; until E0a exists the
+  // feed is that surface (the dashboard will call this same helper). Drives
+  // the rail's unread badge. The status guard makes it idempotent and keeps a
+  // stale id list from regressing a user-set status.
+  async markSeen(patientId: string, ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
     await db
       .update(insights)
       .set({ status: "seen" })
-      .where(and(eq(insights.patientId, patientId), eq(insights.status, "new")));
+      .where(
+        and(
+          eq(insights.patientId, patientId),
+          eq(insights.status, "new"),
+          inArray(insights.id, ids),
+        ),
+      );
   },
 
   // Status and/or notes mutation. Status: any → any is permitted (the lifecycle

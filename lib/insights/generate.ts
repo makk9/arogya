@@ -100,13 +100,28 @@ export async function maybeRunInsightGeneration(params: {
     const inScope = await entityRefsInScope(patientId, allRefs);
     const keyOf = (r: { type: string; id: string }) => `${r.type}:${r.id}`;
 
-    const rows: NewInsight[] = normalized
+    const withValidRefs = normalized
       .map((g) => ({
         ...g,
         cited_sources: g.cited_sources.filter((s) => inScope.has(keyOf(s))),
         linked_entities: g.linked_entities.filter((l) => inScope.has(keyOf(l))),
       }))
-      .filter((g) => g.cited_sources.length > 0)
+      .filter((g) => g.cited_sources.length > 0);
+
+    // Distinguish "the model held back" (genuine restraint, the common case)
+    // from "everything it emitted was discarded for fabricated refs" — the two
+    // are identical in the feed but mean opposite things when debugging. The
+    // restraint cap below is deliberately NOT counted here.
+    const droppedForRefs = normalized.length - withValidRefs.length;
+    if (droppedForRefs > 0) {
+      logger.warn({
+        op: "insights.generate",
+        code: `dropped_invalid_refs_${droppedForRefs}`,
+        ids: { patientId, runId: run.id },
+      });
+    }
+
+    const rows: NewInsight[] = withValidRefs
       .slice(0, MAX_INSIGHTS_PER_RUN)
       .map((g) => ({
         patientId,
