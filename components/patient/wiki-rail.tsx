@@ -90,17 +90,9 @@ export function WikiRail({ patientId, patientName, relationship, counts }: Props
         </Link>
       </div>
 
-      {/* Top-level surfaces */}
+      {/* Top-level surfaces — Chat first, Insights below (§6.1's dashboard
+          hierarchy: chat is the centerpiece, insights feed sits under it). */}
       <div className="flex flex-col gap-0.5">
-        <Link
-          href={`${base}/insights`}
-          className={cn(
-            "rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-muted/60",
-            insightsActive ? "bg-muted font-medium" : "text-foreground/80",
-          )}
-        >
-          Insights
-        </Link>
         <Link
           href={`${base}/chat`}
           className={cn(
@@ -109,6 +101,15 @@ export function WikiRail({ patientId, patientName, relationship, counts }: Props
           )}
         >
           Chat
+        </Link>
+        <Link
+          href={`${base}/insights`}
+          className={cn(
+            "rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-muted/60",
+            insightsActive ? "bg-muted font-medium" : "text-foreground/80",
+          )}
+        >
+          Insights
         </Link>
       </div>
 
