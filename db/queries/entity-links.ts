@@ -6,12 +6,14 @@ import {
   conditions,
   doctors,
   familyHistory,
+  journalEntries,
   labReports,
   medications,
   reports,
   symptomEpisodes,
   symptomTypes,
   visits,
+  vitalReadings,
 } from "@/db/schema";
 import { formatAbsoluteDate } from "@/lib/datetime";
 import { displayDoctorName } from "@/lib/doctor-display";
@@ -201,6 +203,61 @@ export async function resolveEntityRefMap(
 ): Promise<Map<string, ResolvedEntityLink>> {
   const links = await resolveEntityRefs(patientId, refs);
   return new Map(links.map((l) => [`${l.type}:${l.id}`, l]));
+}
+
+// Existence-only per-type id checks for `entityRefsInScope`. Superset of
+// `resolveTypeBatch`'s types: includes `vital` and `journal`, which have no
+// detail page (so no resolvable href) but are perfectly valid evidence for an
+// insight citation — without them a vital- or journal-triggered insight would
+// lose its own strongest source.
+const SCOPE_TABLES = {
+  med: medications,
+  condition: conditions,
+  doctor: doctors,
+  allergy: allergies,
+  visit: visits,
+  "lab-report": labReports,
+  report: reports,
+  symptom: symptomTypes,
+  "symptom-episode": symptomEpisodes,
+  "family-history": familyHistory,
+  vital: vitalReadings,
+  journal: journalEntries,
+} as const;
+
+/**
+ * Validate a batch of polymorphic refs against the patient's vault: returns
+ * the set of `${type}:${id}` keys that exist in scope. One existence query per
+ * distinct type. Built for the insight generator's never-fabricate discipline
+ * (§5.6) — refs the model garbled or invented simply don't come back.
+ */
+export async function entityRefsInScope(
+  patientId: string,
+  refs: EntityRef[],
+): Promise<Set<string>> {
+  const valid = new Set<string>();
+  if (refs.length === 0) return valid;
+
+  const idsByType = new Map<string, string[]>();
+  for (const ref of refs) {
+    const arr = idsByType.get(ref.type) ?? [];
+    arr.push(ref.id);
+    idsByType.set(ref.type, arr);
+  }
+
+  await Promise.all(
+    [...idsByType].map(async ([type, ids]) => {
+      const table = SCOPE_TABLES[type as keyof typeof SCOPE_TABLES];
+      if (!table) return; // unknown type → all its refs invalid
+      const rows = await db
+        .select({ id: table.id })
+        .from(table)
+        .where(and(eq(table.patientId, patientId), inArray(table.id, ids)));
+      for (const r of rows) valid.add(`${type}:${r.id}`);
+    }),
+  );
+
+  return valid;
 }
 
 /**

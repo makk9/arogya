@@ -2,6 +2,7 @@ import { VitalDomainError, vitalQueries } from "@/db/queries/vital";
 import { apiError } from "@/lib/api/error";
 import { fieldErrorsFromReason, parseJsonBody } from "@/lib/api/route-helpers";
 import { getCurrentPatient } from "@/lib/auth";
+import { scheduleInsightGeneration } from "@/lib/insights/schedule";
 import { errorCode, logger } from "@/lib/logger";
 import { createVitalReadingSchema } from "@/lib/schemas/api/vital-reading";
 
@@ -56,6 +57,7 @@ export async function POST(req: Request): Promise<Response> {
       // ISO-8601 string → Date for the timestamptz column (Drizzle mode "date").
       recordedAt: new Date(recordedAt),
     });
+    scheduleInsightGeneration(patientId, { type: "vital", id: reading.id });
     return Response.json({ reading }, { status: 201 });
   } catch (err) {
     if (

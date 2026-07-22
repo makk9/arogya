@@ -13,11 +13,26 @@ import {
   type CommitCardResult,
   type CommitContext,
 } from "@/lib/extraction/commit";
+import { scheduleInsightGeneration } from "@/lib/insights/schedule";
 import { errorCode, logger } from "@/lib/logger";
 import {
   commitRequestSchema,
   type CommitCardInput,
+  type CommitEntityType,
 } from "@/lib/schemas/api/extract-commit";
+
+// Commit vocabulary (schema-table style) → canonical entity-ref types used by
+// insights.triggered_by / entityRefsInScope.
+const COMMIT_TYPE_TO_REF_TYPE: Record<CommitEntityType, string> = {
+  medication: "med",
+  condition: "condition",
+  doctor: "doctor",
+  allergy: "allergy",
+  lab_report: "lab-report",
+  vital_reading: "vital",
+  visit: "visit",
+  symptom_episode: "symptom-episode",
+};
 
 /**
  * The post-commit acknowledgement written back to the chat (§6.2:1197). A logged
@@ -157,10 +172,20 @@ export async function POST(
           }
         }
       }
-      // E5 seam: fire-and-forget debounced insight generation here once the
-      // insight generator + /api/insights/generate endpoint land (§5.6 / §9.3).
-      // Committing real entities is exactly the "significant entity creation"
-      // trigger it debounces on — see docs/progress.md.
+      // Fire-and-forget debounced insight generation (§5.6 / §9.3): a finalized
+      // commit is exactly the "significant entity creation" trigger. One run per
+      // finalize — the batch already settled into this single call — triggered
+      // by the first committed clinical entity (a doctor row is care-team
+      // bookkeeping, not clinical signal).
+      const triggerResult = results.find(
+        (r) => r.ok && r.entityId && r.entityType !== "doctor",
+      );
+      if (triggerResult?.entityId) {
+        scheduleInsightGeneration(patientId, {
+          type: COMMIT_TYPE_TO_REF_TYPE[triggerResult.entityType],
+          id: triggerResult.entityId,
+        });
+      }
     } catch (err) {
       logger.error({
         op: "extract.commit.finalize",

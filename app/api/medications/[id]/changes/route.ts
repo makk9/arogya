@@ -10,6 +10,7 @@ import {
   validateUuidParam,
 } from "@/lib/api/route-helpers";
 import { getCurrentPatient, getCurrentUser } from "@/lib/auth";
+import { scheduleInsightGeneration } from "@/lib/insights/schedule";
 import { errorCode, logger } from "@/lib/logger";
 import { createMedicationChangeSchema } from "@/lib/schemas/api/medication";
 
@@ -56,6 +57,8 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
       linkedVisitId: input.linkedVisitId,
       recordedBy,
     });
+    // A dose/status change is exactly the §1.3 north-star trigger.
+    scheduleInsightGeneration(patientId, { type: "med", id: idCheck.id });
     return Response.json(result);
   } catch (err) {
     if (err instanceof MedicationDomainError) {

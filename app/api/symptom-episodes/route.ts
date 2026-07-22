@@ -6,6 +6,7 @@ import {
 import { apiError } from "@/lib/api/error";
 import { fieldErrorsFromReason, parseJsonBody } from "@/lib/api/route-helpers";
 import { getCurrentPatient } from "@/lib/auth";
+import { scheduleInsightGeneration } from "@/lib/insights/schedule";
 import { errorCode, logger } from "@/lib/logger";
 import { createSymptomEpisodeSchema } from "@/lib/schemas/api/symptom";
 
@@ -67,6 +68,10 @@ export async function POST(req: Request): Promise<Response> {
       linkedVitalIds: data.linkedVitalIds,
       linkedVisitId: data.linkedVisitId,
       notes: data.notes,
+    });
+    scheduleInsightGeneration(patientId, {
+      type: "symptom-episode",
+      id: episode.id,
     });
     return Response.json({ episode }, { status: 201 });
   } catch (err) {

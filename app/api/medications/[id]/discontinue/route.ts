@@ -5,6 +5,7 @@ import {
 import { apiError } from "@/lib/api/error";
 import { parseJsonBody, validateUuidParam } from "@/lib/api/route-helpers";
 import { getCurrentPatient } from "@/lib/auth";
+import { scheduleInsightGeneration } from "@/lib/insights/schedule";
 import { errorCode, logger } from "@/lib/logger";
 import { discontinueMedicationSchema } from "@/lib/schemas/api/medication";
 
@@ -36,6 +37,9 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
       ...bodyParsed.data,
       timezone,
     });
+    // Stopping a med is a significant state change (§5.6) — e.g. a gap or
+    // pattern may hinge on it.
+    scheduleInsightGeneration(patientId, { type: "med", id: idCheck.id });
     return Response.json({ medication });
   } catch (err) {
     if (err instanceof MedicationDomainError) {

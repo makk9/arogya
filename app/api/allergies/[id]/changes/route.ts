@@ -9,6 +9,7 @@ import {
   validateUuidParam,
 } from "@/lib/api/route-helpers";
 import { getCurrentPatient, getCurrentUser } from "@/lib/auth";
+import { scheduleInsightGeneration } from "@/lib/insights/schedule";
 import { errorCode, logger } from "@/lib/logger";
 import { createAllergyChangeSchema } from "@/lib/schemas/api/allergy";
 
@@ -46,6 +47,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
       changedAt: coerceChangedAt(input.changedAt),
       recordedBy,
     });
+    scheduleInsightGeneration(patientId, { type: "allergy", id: idCheck.id });
     return Response.json(result);
   } catch (err) {
     if (err instanceof AllergyDomainError) {

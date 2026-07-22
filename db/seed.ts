@@ -13,7 +13,6 @@ import {
   conditions,
   doctors,
   familyHistory,
-  insights,
   journalEntries,
   labReports,
   labResults,
@@ -40,13 +39,12 @@ import {
  *
  * This is a DESTRUCTIVE reset: every table is truncated before reseeding (the
  * dev DB only holds disposable test data). Re-running gives a clean, identical
- * vault. Citation slugs in the insight bodies are slugify(name), so
- * `§ condition: chronic-kidney-disease`, `§ med: diclofenac`, etc. resolve to
- * the rows created here. Phase E's generator writes real insights over the
- * placeholder ones at the bottom.
+ * vault.
+ *
+ * No insights are seeded: the E5 generator (lib/agents/insight-generator.ts)
+ * is the only writer of insight rows — the feed starts empty and fills with
+ * real output as the vault changes (retired 2026-07-20, decisions.md).
  */
-
-const MODEL_VERSION = "seed-phase-e";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const id = () => randomUUID();
@@ -75,7 +73,7 @@ async function main() {
       symptom_types, symptom_episodes,
       reports,
       journal_entries,
-      insights,
+      insights, insight_runs,
       extraction_sessions
     RESTART IDENTITY CASCADE
   `);
@@ -949,154 +947,6 @@ async function main() {
     },
   ]);
 
-  // ── Insights (placeholder; Phase E's generator replaces these) ───────────
-  const insightRows = [
-    {
-      generatedAt: ist("2026-06-16T09:00:00"),
-      status: "new" as const,
-      severity: "attention" as const,
-      category: "trend" as const,
-      title: "HbA1c has climbed across the last three panels — now 8.1%",
-      body:
-        "His diabetes control (§ condition: type-2-diabetes-mellitus) has been slipping steadily: HbA1c went **7.2 → 7.6 → 8.1%** across July 2025, January, and June 2026. Fasting glucose at home is also running high (142–156 mg/dL).\n\nDr. Rao raised **glimepiride** (§ med: glimepiride) to 2 mg at the June visit. This is a real upward trend rather than a single off reading, so the next HbA1c in ~3 months will show whether the higher dose is enough or whether more is needed. Worth keeping the evening rice in view alongside the medication.",
-      triggeredBy: { type: "condition", id: cDiabetes },
-      linkedEntities: [
-        { type: "condition", id: cDiabetes },
-        { type: "med", id: mGlimepiride },
-      ],
-      citedSources: [
-        { type: "condition", id: cDiabetes, snippet: "Type 2 Diabetes Mellitus — control worsening" },
-        { type: "med", id: mGlimepiride, snippet: "Glimepiride 2 mg once daily (raised Jun 15)" },
-        { type: "lab-report", id: lrJun26, snippet: "HbA1c 8.1% · Jun 15, 2026" },
-        { type: "lab-report", id: lrJan26, snippet: "HbA1c 7.6% · Jan 10, 2026" },
-        { type: "lab-report", id: lrJul25, snippet: "HbA1c 7.2% · Jul 5, 2025" },
-      ],
-    },
-    {
-      generatedAt: ist("2026-06-16T09:05:00"),
-      status: "new" as const,
-      severity: "attention" as const,
-      category: "risk" as const,
-      title: "Kidney function is slowly declining — which is why the diclofenac was stopped",
-      body:
-        "Kidney function (§ condition: chronic-kidney-disease) has drifted down over the past year: eGFR **62 → 58 → 50** and creatinine **1.2 → 1.3 → 1.5 mg/dL**.\n\nThis is the reason **diclofenac** (§ med: diclofenac) was discontinued in 2023 — NSAIDs accelerate kidney decline, so it's important it stays stopped, including over-the-counter painkillers for his knees. The worsening diabetes (§ condition: type-2-diabetes-mellitus) likely drives the kidney trend, so the two are worth tracking together. **Telmisartan** (§ med: telmisartan) is appropriately kidney-protective.",
-      triggeredBy: { type: "condition", id: cCKD },
-      linkedEntities: [
-        { type: "condition", id: cCKD },
-        { type: "med", id: mDiclofenac },
-        { type: "med", id: mTelmisartan },
-      ],
-      citedSources: [
-        { type: "condition", id: cCKD, snippet: "Chronic Kidney Disease — Stage 3a" },
-        { type: "med", id: mDiclofenac, snippet: "Diclofenac — discontinued Aug 2023 (kidney)" },
-        { type: "lab-report", id: lrJun26, snippet: "eGFR 50 · creatinine 1.5 · Jun 15, 2026" },
-        { type: "lab-report", id: lrJul25, snippet: "eGFR 62 · creatinine 1.2 · Jul 5, 2025" },
-      ],
-    },
-    {
-      generatedAt: ist("2026-06-13T08:30:00"),
-      status: "seen" as const,
-      severity: "watch" as const,
-      category: "pattern" as const,
-      title: "Morning dizziness lines up with the higher blood-pressure dose",
-      body:
-        "Three episodes of morning dizziness (§ symptom: dizziness) on standing have been logged since mid-May — right around when **telmisartan** (§ med: telmisartan) was raised from 20 mg to 40 mg. His morning BP has since come down to the 130s.\n\nLightheadedness on standing after a BP-dose increase can point to blood pressure dropping a little too far on rising, and **tamsulosin** (§ med: tamsulosin) can add to that effect. It's worth raising at the next visit — and in the meantime, standing up slowly.",
-      triggeredBy: { type: "symptom", id: stDizzy },
-      linkedEntities: [
-        { type: "symptom", id: stDizzy },
-        { type: "med", id: mTelmisartan },
-        { type: "med", id: mTamsulosin },
-      ],
-      citedSources: [
-        { type: "symptom", id: stDizzy, snippet: "Dizziness — 3 episodes logged" },
-        { type: "med", id: mTelmisartan, snippet: "Telmisartan 40 mg (raised May 8)" },
-        { type: "med", id: mTamsulosin, snippet: "Tamsulosin 0.4 mg at bedtime" },
-      ],
-    },
-    {
-      generatedAt: ist("2026-06-15T18:00:00"),
-      status: "new" as const,
-      severity: "watch" as const,
-      category: "risk" as const,
-      title: "HDL stays low and triglycerides high despite the statin",
-      body:
-        "On the June panel his LDL is at goal (95 mg/dL) on **atorvastatin** (§ med: atorvastatin), but **HDL is low at 36** and **triglycerides are high at 190**. Statins mainly lower LDL, so this residual pattern (§ condition: dyslipidemia) tends to track more with blood sugar, weight, and activity.\n\nGiven the diabetes is also off target right now, improving glucose control may help these numbers too. Worth flagging at the next cardiology review.",
-      triggeredBy: { type: "lab-report", id: lrJun26 },
-      linkedEntities: [
-        { type: "condition", id: cDyslipidemia },
-        { type: "med", id: mAtorvastatin },
-      ],
-      citedSources: [
-        { type: "condition", id: cDyslipidemia, snippet: "Dyslipidemia" },
-        { type: "med", id: mAtorvastatin, snippet: "Atorvastatin 20 mg at night" },
-        { type: "lab-report", id: lrJun26, snippet: "HDL 36 · Triglycerides 190 · Jun 15, 2026" },
-      ],
-    },
-    {
-      generatedAt: ist("2026-06-16T09:10:00"),
-      status: "acknowledged" as const,
-      severity: "informational" as const,
-      category: "gap" as const,
-      title: "No diabetic eye or foot screening on record this year",
-      body:
-        "With diabetes that's currently off target (§ condition: type-2-diabetes-mellitus), the usual yearly checks are a retinal (eye) exam and a foot exam. Neither is in the record for the past year.\n\nDr. Rao noted the same at the June visit. This may simply be untracked rather than not done — worth confirming whether they've been scheduled.",
-      triggeredBy: { type: "condition", id: cDiabetes },
-      linkedEntities: [{ type: "condition", id: cDiabetes }],
-      citedSources: [
-        { type: "condition", id: cDiabetes, snippet: "Type 2 Diabetes Mellitus" },
-      ],
-      notes:
-        "Asked my brother to book the eye and foot screening at Apollo when Nanna goes for the next labs.",
-    },
-    {
-      generatedAt: ist("2026-01-11T08:00:00"),
-      status: "acted_on" as const,
-      severity: "urgent" as const,
-      category: "risk" as const,
-      title: "Potassium came back critically high (6.1) on the January panel",
-      body:
-        "The January panel showed **potassium at 6.1 mmol/L** (normal 3.5–5.1) — a **critical** result. With reduced kidney function (§ condition: chronic-kidney-disease) and an ARB on board (**telmisartan**, § med: telmisartan), potassium can climb to dangerous levels, so this is worth acting on quickly rather than waiting for the next routine panel.\n\nThis was flagged to the nephrologist at the time, and the June recheck was back in range (4.8) — so it appears to have been handled. Kept here so the pattern stays on the radar if it recurs.",
-      triggeredBy: { type: "lab-report", id: lrJan26 },
-      linkedEntities: [
-        { type: "condition", id: cCKD },
-        { type: "med", id: mTelmisartan },
-      ],
-      citedSources: [
-        { type: "lab-report", id: lrJan26, snippet: "Potassium 6.1 mmol/L (critical) · Jan 10, 2026" },
-        { type: "condition", id: cCKD, snippet: "Chronic Kidney Disease — Stage 3a" },
-        { type: "med", id: mTelmisartan, snippet: "Telmisartan 40 mg (ARB — can raise potassium)" },
-        { type: "lab-report", id: lrJun26, snippet: "Potassium 4.8 mmol/L (normal) · Jun 15, 2026" },
-      ],
-      notes:
-        "Called Dr. Mohan the same day; he reviewed the telmisartan dose and repeated the test — back to normal by June.",
-    },
-    {
-      generatedAt: ist("2026-06-16T09:15:00"),
-      status: "dismissed" as const,
-      severity: "informational" as const,
-      category: "gap" as const,
-      title: "Vitamin D is low (18 ng/mL)",
-      body:
-        "The June panel shows **vitamin D at 18 ng/mL** (sufficient is ≥30 ng/mL). Low vitamin D is common at his age and worth noting, especially alongside the calcium + D3 supplement (§ med: calcium-vitamin-d3) he already takes — it may be worth checking the dose is enough.",
-      triggeredBy: { type: "lab-report", id: lrJun26 },
-      linkedEntities: [{ type: "med", id: mCalcium }],
-      citedSources: [
-        { type: "lab-report", id: lrJun26, snippet: "Vitamin D 18 ng/mL (low) · Jun 15, 2026" },
-        { type: "med", id: mCalcium, snippet: "Calcium + Vitamin D3 (Shelcal) once daily" },
-      ],
-      dismissedReason:
-        "Already on Shelcal (calcium + D3) and the GP is aware — not a new concern.",
-    },
-  ];
-
-  await db.insert(insights).values(
-    insightRows.map((i) => ({
-      ...i,
-      patientId: STUB_PATIENT_ID,
-      modelVersion: MODEL_VERSION,
-    })),
-  );
-
   // ── Summary ──────────────────────────────────────────────────────────────
   const [row] = await db
     .select({ id: patients.id, name: patients.name })
@@ -1108,7 +958,7 @@ async function main() {
   console.log("  2 allergies (+1 change) · 1 lifestyle profile · 3 family history");
   console.log("  7 visits (incl. 1 scheduled, 1 cancelled) · 3 lab reports (19 results, 1 critical) · 11 vitals");
   console.log("  3 symptom types (7 episodes, 1 linked to a visit) · 2 reports · 2 journal entries");
-  console.log(`  ${insightRows.length} insights (severities incl. urgent; statuses incl. dismissed + acted_on)`);
+  console.log("  0 insights (E5 generator is the only writer — feed fills as the vault changes)");
 
   await client.end();
 }

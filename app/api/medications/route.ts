@@ -2,6 +2,7 @@ import { MedicationDomainError, medicationQueries } from "@/db/queries/medicatio
 import { apiError } from "@/lib/api/error";
 import { fieldErrorsFromReason, parseJsonBody } from "@/lib/api/route-helpers";
 import { getCurrentPatient } from "@/lib/auth";
+import { scheduleInsightGeneration } from "@/lib/insights/schedule";
 import { errorCode, logger } from "@/lib/logger";
 import {
   createMedicationSchema,
@@ -61,6 +62,7 @@ export async function POST(req: Request): Promise<Response> {
 
   try {
     const medication = await medicationQueries.create({ ...parsed.data, patientId });
+    scheduleInsightGeneration(patientId, { type: "med", id: medication.id });
     return Response.json({ medication }, { status: 201 });
   } catch (err) {
     if (

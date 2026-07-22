@@ -2,6 +2,7 @@ import { journalQueries } from "@/db/queries/journal";
 import { apiError } from "@/lib/api/error";
 import { parseJsonBody } from "@/lib/api/route-helpers";
 import { getCurrentPatient } from "@/lib/auth";
+import { scheduleInsightGeneration } from "@/lib/insights/schedule";
 import { errorCode, logger } from "@/lib/logger";
 import { createJournalSchema } from "@/lib/schemas/api/journal";
 
@@ -37,6 +38,7 @@ export async function POST(req: Request): Promise<Response> {
 
   try {
     const entry = await journalQueries.create({ ...parsed.data, patientId });
+    scheduleInsightGeneration(patientId, { type: "journal", id: entry.id });
     return Response.json({ entry }, { status: 201 });
   } catch (err) {
     logger.error({ op: "journal.create", code: errorCode(err), ids: { patientId } });

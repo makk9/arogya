@@ -12,5 +12,6 @@ export * from "./symptom";
 export * from "./report";
 export * from "./journal";
 export * from "./insight";
+export * from "./insight-run";
 export * from "./extraction-session";
 export * from "./chat";

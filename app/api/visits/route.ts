@@ -2,6 +2,7 @@ import { VisitDomainError, visitQueries } from "@/db/queries/visit";
 import { apiError } from "@/lib/api/error";
 import { fieldErrorsFromReason, parseJsonBody } from "@/lib/api/route-helpers";
 import { getCurrentPatient } from "@/lib/auth";
+import { scheduleInsightGeneration } from "@/lib/insights/schedule";
 import { errorCode, logger } from "@/lib/logger";
 import {
   createVisitSchema,
@@ -60,6 +61,7 @@ export async function POST(req: Request): Promise<Response> {
 
   try {
     const visit = await visitQueries.create({ ...parsed.data, patientId });
+    scheduleInsightGeneration(patientId, { type: "visit", id: visit.id });
     return Response.json({ visit }, { status: 201 });
   } catch (err) {
     if (

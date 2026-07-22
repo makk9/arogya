@@ -12,5 +12,6 @@ export { symptomTypeQueries, symptomEpisodeQueries } from "./symptom";
 export { reportQueries } from "./report";
 export { journalQueries } from "./journal";
 export { insightQueries } from "./insight";
+export { insightRunQueries } from "./insight-run";
 export { chatQueries } from "./chat";
 export { extractionSessionQueries } from "./extraction-session";

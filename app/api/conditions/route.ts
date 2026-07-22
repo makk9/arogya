@@ -2,6 +2,7 @@ import { ConditionDomainError, conditionQueries } from "@/db/queries/condition";
 import { apiError } from "@/lib/api/error";
 import { fieldErrorsFromReason, parseJsonBody } from "@/lib/api/route-helpers";
 import { getCurrentPatient } from "@/lib/auth";
+import { scheduleInsightGeneration } from "@/lib/insights/schedule";
 import { errorCode, logger } from "@/lib/logger";
 import {
   createConditionSchema,
@@ -60,6 +61,7 @@ export async function POST(req: Request): Promise<Response> {
 
   try {
     const condition = await conditionQueries.create({ ...parsed.data, patientId });
+    scheduleInsightGeneration(patientId, { type: "condition", id: condition.id });
     return Response.json({ condition }, { status: 201 });
   } catch (err) {
     if (

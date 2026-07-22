@@ -2,6 +2,7 @@ import { LabDomainError, labReportQueries } from "@/db/queries/lab";
 import { apiError } from "@/lib/api/error";
 import { fieldErrorsFromReason, parseJsonBody } from "@/lib/api/route-helpers";
 import { getCurrentPatient } from "@/lib/auth";
+import { scheduleInsightGeneration } from "@/lib/insights/schedule";
 import { errorCode, logger } from "@/lib/logger";
 import {
   createLabReportSchema,
@@ -75,6 +76,7 @@ export async function POST(req: Request): Promise<Response> {
       { ...report, patientId },
       results,
     );
+    scheduleInsightGeneration(patientId, { type: "lab-report", id: created.id });
     return Response.json({ report: created }, { status: 201 });
   } catch (err) {
     if (

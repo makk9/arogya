@@ -63,7 +63,13 @@ const insightExternalRefSchema = z.object({
   url: z.string().url(),
   snippet: z.string(),
 });
-const insightSchema = z.object({
+// `triggered_by` is deliberately absent from the agent-output shape (deviation
+// from the §4 row shape, decisions.md 2026-07-20): the server knows exactly
+// which entity fired the run and stamps `triggered_by` at insert. Asking the
+// model to echo it back would be a fabrication vector, not information.
+// Exported (not just the wrapper) so the parser can salvage per-insight: one
+// malformed element must not discard a run that also found a real insight.
+export const insightSchema = z.object({
   title: z.string(),
   body: z.string(),
   category: z.enum([
@@ -75,10 +81,12 @@ const insightSchema = z.object({
     "risk",
   ]),
   severity: z.enum(["urgent", "attention", "watch", "informational"]),
-  triggered_by: insightEntityRefSchema,
   cited_sources: z.array(insightCitedSourceSchema),
-  external_refs: z.array(insightExternalRefSchema).optional(),
-  linked_entities: z.array(insightEntityRefSchema).optional(),
+  // Tolerated in the parse but stripped before insert — v1 has no web-search
+  // tool, and prompt-emitted URLs are the hallucination path (decisions.md
+  // 2026-07-19 external-citations deferral).
+  external_refs: z.array(insightExternalRefSchema).nullish(),
+  linked_entities: z.array(insightEntityRefSchema).nullish(),
 });
 export const insightGeneratorOutputSchema = z.object({
   insights: z.array(insightSchema),

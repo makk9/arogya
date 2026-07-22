@@ -13,6 +13,13 @@ type InsightUpdate = Partial<
 >;
 
 export const insightQueries = {
+  // Batch insert for the insight generator (§5.6) — the only writer of new
+  // insight rows. No-op on an empty array (the generator's most common output).
+  async createMany(rows: NewInsight[]): Promise<Insight[]> {
+    if (rows.length === 0) return [];
+    return db.insert(insights).values(rows).returning();
+  },
+
   async forPatient(patientId: string): Promise<Insight[]> {
     return db
       .select()

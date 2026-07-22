@@ -82,6 +82,50 @@ export interface BuildVaultContextOptions {
    * returned string per design.md 5.3 + 10.3:3174.
    */
   surfaceContext?: string;
+
+  /**
+   * When true, append an "Entity ID directory" section mapping every vault slug to its
+   * `{type, uuid}` pair. Built for the insight generator (§5.6), whose structured output
+   * (`cited_sources` / `linked_entities`) needs real entity UUIDs — the serialized vault
+   * is deliberately slug-only. Default false: synthesis/extraction/router output stays
+   * byte-identical (decisions.md 2026-07-20).
+   */
+  includeEntityIdDirectory?: boolean;
+}
+
+// Slug prefixes excluded from the entity ID directory: insights are never
+// citable as evidence (§5.6 anti-echo-chamber); patient/lifestyle are ambient
+// context, not citation targets; lab results cite their parent `lab-report`
+// with the marker in the snippet (matching the §6.9 cited-sources rendering).
+const ID_DIRECTORY_EXCLUDED_PREFIXES = new Set([
+  "insight",
+  "patient",
+  "lifestyle",
+  "lab-result",
+]);
+
+function serializeEntityIdDirectory(slugIndex: SlugIndex): string {
+  const rows = [...slugIndex.entries()]
+    .map(([id, slug]) => ({ id, slug, type: slug.split(":", 1)[0] }))
+    .filter((r) => !ID_DIRECTORY_EXCLUDED_PREFIXES.has(r.type))
+    // Deterministic order (slug then id) per the caching contract above.
+    .sort((a, b) =>
+      a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : a.id < b.id ? -1 : 1,
+    );
+  if (rows.length === 0) return "";
+
+  const lines = rows.map(
+    (r) => `- § ${r.slug} → type: ${r.type}, id: ${r.id}`,
+  );
+  return [
+    "# Entity ID directory",
+    "",
+    "When emitting structured references (cited_sources, linked_entities), use the EXACT",
+    "type and UUID listed here for the entity you are citing. Never invent, alter, or",
+    "abbreviate an id. Entities not listed here cannot be cited in structured output.",
+    "",
+    ...lines,
+  ].join("\n");
 }
 
 /**
@@ -103,6 +147,7 @@ export async function buildVaultContext(
     excludeBriefs: _excludeBriefs = true,
     includeInsights = "full",
     surfaceContext,
+    includeEntityIdDirectory = false,
   } = options;
 
   // Brief exclusion is enforced here when the Brief entity lands (v1.5). No v1 data path.
@@ -235,6 +280,7 @@ export async function buildVaultContext(
     includeInsights === "none"
       ? ""
       : serializeInsights(insights, includeInsights, slugIndex),
+    includeEntityIdDirectory ? serializeEntityIdDirectory(slugIndex) : "",
   ];
 
   const body = sections.filter((s) => s.length > 0).join("\n\n");

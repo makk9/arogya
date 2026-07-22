@@ -25,7 +25,8 @@
     "conditions-api:check": "tsx --conditions react-server --env-file=.env.local scripts/check-conditions-api.ts",
     "units:check": "tsx scripts/check-units.ts",
     "lab-flag:check": "tsx scripts/check-lab-flag.ts",
-    "chat-queries:check": "tsx --conditions react-server --env-file=.env.local scripts/check-chat-queries.ts"
+    "chat-queries:check": "tsx --conditions react-server --env-file=.env.local scripts/check-chat-queries.ts",
+    "insight-generator:check": "tsx --conditions react-server --env-file=.env.local scripts/check-insight-generator.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.77",

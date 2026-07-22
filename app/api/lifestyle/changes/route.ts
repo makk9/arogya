@@ -5,6 +5,7 @@ import {
 import { apiError } from "@/lib/api/error";
 import { coerceChangedAt, parseJsonBody } from "@/lib/api/route-helpers";
 import { getCurrentPatient, getCurrentUser } from "@/lib/auth";
+import { scheduleInsightGeneration } from "@/lib/insights/schedule";
 import { errorCode, logger } from "@/lib/logger";
 import { createLifestyleChangeSchema } from "@/lib/schemas/api/lifestyle";
 
@@ -36,6 +37,10 @@ export async function POST(req: Request): Promise<Response> {
       reason: input.reason,
       changedAt: coerceChangedAt(input.changedAt),
       recordedBy,
+    });
+    scheduleInsightGeneration(patientId, {
+      type: "lifestyle",
+      id: result.profile.id,
     });
     return Response.json(result);
   } catch (err) {
