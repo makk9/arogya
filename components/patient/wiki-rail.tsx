@@ -105,11 +105,18 @@ export function WikiRail({ patientId, patientName, relationship, counts }: Props
         <Link
           href={`${base}/insights`}
           className={cn(
-            "rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-muted/60",
+            "flex items-center justify-between gap-2 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-muted/60",
             insightsActive ? "bg-muted font-medium" : "text-foreground/80",
           )}
         >
-          Insights
+          <span>Insights</span>
+          {/* Unread badge — insights still `new` (§4:583). Accent tint per the
+              pill convention; clears via the feed's new→seen transition. */}
+          {counts.insightsNew > 0 ? (
+            <span className="shrink-0 rounded-full bg-accent px-1.5 py-0.5 font-mono text-[0.65rem] leading-none text-accent-foreground ring-1 ring-accent-foreground/15">
+              {counts.insightsNew} new
+            </span>
+          ) : null}
         </Link>
       </div>
 

@@ -962,3 +962,12 @@ Format:
 3. **Rail reorder (shipped now):** Chat above Insights in wiki-rail.tsx top-level surfaces — user preference, and consistent with §6.1's hierarchy (chat is the primary affordance; insights sit below it). tsc/eslint clean.
 **Alternatives considered:** standalone §6.6 vitals timeline page + tenth rail item, shippable immediately (my first suggestion) — rejected after reading the doc's actual intent: wrong index shape for time-series, re-opens the nine-item rail cap, and would ship days before E0a builds the correct home anyway. Also considered linking cited vitals to the capture form or symptom episode — rejected (misleading destinations).
 **Reasoning:** the citation-discipline promise ("every § pill resolves") eventually requires a vitals destination, but the right destination is the one the design already specified. E0a is next in the build order regardless, so the gap closes at the correct layer with no throwaway surface.
+
+---
+
+**Date:** 2026-07-21
+**Decision:** **Rail unread badge for insights (`N new`, accent tint) + the §4:583 `new`→`seen` transition implemented on FEED load (deviation: §4 words it "on dashboard load" — E0a doesn't exist yet; the dashboard will reuse the same helper).**
+**Context:** User request after first live E5 use: the rail gives no signal that the generator produced something. §4:583's status lifecycle exists exactly for this, but its automatic first transition was never built anywhere — without it a badge would linger until the user manually acted on every insight.
+**Choice:** `WikiCounts.insightsNew` (status='new' count) → accent-tinted badge on the rail's Insights item (pill convention: `bg-accent`/`accent-foreground`, matching vault citation pills). New `insightQueries.markAllSeen(patientId)`; the feed page fires it via `after()` when any `new` insights rendered — the current render still shows the NEW grouping and badge, both clear on next navigation (standard unread semantics), and a failed write silently retries on the next visit. E0a's dashboard calls the same helper when built.
+**Alternatives considered:** badge-only without the transition — rejected (permanent badge = alarm fatigue, the exact failure §5.6's restraint calibration guards against); marking seen synchronously in the RSC render — rejected (write-during-render, and it would flip the NEW group before the user ever saw it grouped as new).
+**Verified:** tsc + eslint clean.

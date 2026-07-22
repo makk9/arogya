@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { after } from "next/server";
 
 import { AskAiButton } from "@/components/ask-ai-button";
 import { Breadcrumb } from "@/components/breadcrumb";
@@ -58,6 +59,20 @@ export default async function InsightsFeedPage({
   const categoryFilter = parseFilter(sp.category, VALID_CATEGORY);
 
   const allInsights = await insightQueries.forPatient(patient.patientId);
+
+  // §4:583 new→seen on load of the insights surface (feed until E0a's
+  // dashboard exists). Post-response via after(): this render still shows the
+  // NEW grouping and the rail badge; both clear on the next navigation —
+  // standard unread semantics. Silent failure is fine (retries on next visit).
+  if (allInsights.some((i) => i.status === "new")) {
+    after(async () => {
+      try {
+        await insightQueries.markAllSeen(patient.patientId);
+      } catch {
+        // Non-fatal — the transition re-runs on the next feed load.
+      }
+    });
+  }
 
   // Empty filter set = no constraint on that axis; otherwise membership test.
   const filtered = allInsights.filter(

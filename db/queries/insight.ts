@@ -37,6 +37,17 @@ export const insightQueries = {
     return rows[0] ?? null;
   },
 
+  // The §4:583 lifecycle's automatic first transition: everything still `new`
+  // flips to `seen` when the user loads the surface that shows insights. §4
+  // words it as "on dashboard load"; until E0a exists the feed is that surface
+  // (the dashboard will call this same helper). Drives the rail's unread badge.
+  async markAllSeen(patientId: string): Promise<void> {
+    await db
+      .update(insights)
+      .set({ status: "seen" })
+      .where(and(eq(insights.patientId, patientId), eq(insights.status, "new")));
+  },
+
   // Status and/or notes mutation. Status: any → any is permitted (the lifecycle
   // has no terminal/side-effecting transitions, unlike medication discontinue /
   // condition resolve), so there is no state-machine to guard — hence no

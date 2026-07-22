@@ -1,10 +1,11 @@
-import { count, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
   conditions,
   doctors,
   familyHistory,
+  insights,
   journalEntries,
   labReports,
   medications,
@@ -37,6 +38,9 @@ export interface WikiCounts {
   symptoms: number;
   reports: number;
   journal: number;
+  // Unread indicator for the rail's Insights item — insights still in status
+  // `new` (§4:583 lifecycle). Cleared by the feed's seen-transition.
+  insightsNew: number;
 }
 
 async function countFor(
@@ -69,6 +73,14 @@ async function countRealReports(patientId: string): Promise<number> {
   return row?.c ?? 0;
 }
 
+async function countNewInsights(patientId: string): Promise<number> {
+  const [row] = await db
+    .select({ c: count() })
+    .from(insights)
+    .where(and(eq(insights.patientId, patientId), eq(insights.status, "new")));
+  return row?.c ?? 0;
+}
+
 export async function wikiCounts(patientId: string): Promise<WikiCounts> {
   const [
     medicationsCount,
@@ -80,6 +92,7 @@ export async function wikiCounts(patientId: string): Promise<WikiCounts> {
     symptomsCount,
     reportsCount,
     journalCount,
+    insightsNewCount,
   ] = await Promise.all([
     countFor(medications, patientId),
     countFor(conditions, patientId),
@@ -90,6 +103,7 @@ export async function wikiCounts(patientId: string): Promise<WikiCounts> {
     countFor(symptomTypes, patientId),
     countRealReports(patientId),
     countFor(journalEntries, patientId),
+    countNewInsights(patientId),
   ]);
 
   return {
@@ -102,5 +116,6 @@ export async function wikiCounts(patientId: string): Promise<WikiCounts> {
     symptoms: symptomsCount,
     reports: reportsCount,
     journal: journalCount,
+    insightsNew: insightsNewCount,
   };
 }
