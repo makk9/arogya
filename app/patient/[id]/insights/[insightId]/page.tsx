@@ -13,17 +13,14 @@ import {
 import { InsightNotesSection } from "@/components/insights/insight-notes-section";
 import { InsightStatusActions } from "@/components/insights/insight-status-actions";
 import { CATEGORY_LABEL } from "@/components/insights/insight-options";
-import { READING_TYPE_LABEL } from "@/components/vitals/vital-options";
 import {
   resolveEntityHrefs,
   resolveEntityRefs,
 } from "@/db/queries/entity-links";
 import { insightQueries } from "@/db/queries/insight";
-import { vitalQueries } from "@/db/queries/vital";
 import { getCurrentPatient } from "@/lib/auth";
 import { insightSurfaceContext } from "@/lib/chat/surface-context";
 import { formatAbsoluteDate } from "@/lib/datetime";
-import { formatVitalValue } from "@/lib/vitals";
 
 /*
  * Insight detail per §6.9 — the canonical view of one insight. Read-only except
@@ -55,37 +52,20 @@ export default async function InsightDetailPage({
   const insight = await insightQueries.getById(patient.patientId, idCheck.data);
   if (!insight) notFound();
 
-  // §6.9:1610 — the triggered-by event always surfaces in the subtitle. Most
-  // trigger types have a detail page (resolved → label + link), but `vital` is
-  // create-only with no page (§D item 11): resolveEntityRefs drops it, so we
-  // fetch + label it here and render it inert — the same page-less treatment as
-  // cited-source vitals. Risk-flag insights (§5.6 type 5) fire on vitals, so
-  // this is a common case, not an edge. The fetch runs in the same wave (we
-  // know the trigger type before awaiting), so no extra round-trip.
-  const triggeredVitalP =
-    insight.triggeredBy.type === "vital"
-      ? vitalQueries.getById(patient.patientId, insight.triggeredBy.id)
-      : Promise.resolve(null);
-
-  const [triggeredLinks, citedHrefs, headlineLinks, allInsights, triggeredVital] =
+  // §6.9:1610 — the triggered-by event always surfaces in the subtitle. Every
+  // trigger type resolves through resolveEntityRefs now that `vital` targets
+  // the grouped history view's row anchor (E0a, decisions.md 2026-07-21) — the
+  // old inert-vital fallback fetch is gone with it. A null here means the
+  // triggering entity was deleted; the subtitle just omits the clause.
+  const [triggeredLinks, citedHrefs, headlineLinks, allInsights] =
     await Promise.all([
       resolveEntityRefs(patient.patientId, [insight.triggeredBy]),
       resolveEntityHrefs(patient.patientId, insight.citedSources),
       resolveEntityRefs(patient.patientId, insight.linkedEntities),
       insightQueries.forPatient(patient.patientId),
-      triggeredVitalP,
     ]);
 
-  // Page-backed trigger → label + navigable href; page-less vital → label only.
-  const triggered: { label: string; href: string | null } | null =
-    triggeredLinks[0]
-      ? { label: triggeredLinks[0].label, href: triggeredLinks[0].href }
-      : triggeredVital
-        ? {
-            label: `${READING_TYPE_LABEL[triggeredVital.readingType] ?? triggeredVital.readingType} ${formatVitalValue(triggeredVital)} · ${formatAbsoluteDate(triggeredVital.recordedAt)}`,
-            href: null,
-          }
-        : null;
+  const triggered = triggeredLinks[0] ?? null;
   const categoryLabel = CATEGORY_LABEL[insight.category] ?? insight.category;
 
   // OTHER PATTERNS WITH [ENTITY]: other insights that share one of this
@@ -127,18 +107,12 @@ export default async function InsightDetailPage({
         {triggered ? (
           <>
             {" · triggered by "}
-            {triggered.href ? (
-              <Link
-                href={triggered.href}
-                className="border-b border-destructive/60 pb-px text-foreground hover:border-destructive"
-              >
-                {triggered.label}
-              </Link>
-            ) : (
-              // Page-less trigger (vital) — shown but not clickable, so it omits
-              // the red-underline accent that signals a navigable link.
-              <span className="text-foreground">{triggered.label}</span>
-            )}
+            <Link
+              href={triggered.href}
+              className="border-b border-destructive/60 pb-px text-foreground hover:border-destructive"
+            >
+              {triggered.label}
+            </Link>
           </>
         ) : null}
         {" · category: "}

@@ -27,8 +27,9 @@ interface Props {
 
 // Body preview: drop citation tokens (their slugs read as noise in plain text)
 // and strip markdown emphasis/heading marks, then collapse whitespace. The card
-// shows prose; the live pills live on the detail body.
-function previewText(body: string): string {
+// shows prose; the live pills live on the detail body. Exported for the
+// dashboard's top-insight card (§6.1), which previews the same way.
+export function previewText(body: string): string {
   const plain = tokenizeCitations(body)
     .filter((seg) => seg.kind === "text")
     .map((seg) => seg.text)

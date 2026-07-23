@@ -17,6 +17,7 @@ import {
 } from "@/db/schema";
 import { formatAbsoluteDate } from "@/lib/datetime";
 import { displayDoctorName } from "@/lib/doctor-display";
+import { formatVitalValue, READING_TYPE_LABEL } from "@/lib/vitals";
 
 /**
  * Shared resolver for polymorphic `{type, id}` entity refs → navigable pills
@@ -27,11 +28,11 @@ import { displayDoctorName } from "@/lib/doctor-display";
  * mirroring the EntityListSections extraction).
  *
  * Every select is patient-scoped, so a foreign id can't surface another
- * patient's row. Types without a detail page (`vital`) are unhandled and
- * silently dropped — the same posture as the serializer filtering unresolved
- * citations. Callers that must still *display* an unresolvable ref (insight
- * cited-sources, which lists vital readings) render from the ref's own snippet
- * and treat a missing href as inert.
+ * patient's row. `vital` resolves to the grouped history view's row anchor
+ * (it has no detail page by design); genuinely unknown types are silently
+ * dropped — the same posture as the serializer filtering unresolved
+ * citations. Callers that must still *display* an unresolvable ref render
+ * from the ref's own snippet and treat a missing href as inert.
  */
 
 export interface ResolvedEntityLink {
@@ -153,7 +154,23 @@ async function resolveTypeBatch(
         out.set(r.id, { label: r.conditionName, href: base(`family-history/${r.id}`) });
       break;
     }
-    // `vital` and any unknown type have no detail page → unresolved → dropped.
+    case "vital": {
+      // Vitals have no detail page by design (§3:145 "the trend is the value");
+      // the ref resolves to the grouped history view, anchored to the reading's
+      // table row (decisions.md 2026-07-21 — this is what makes insight
+      // cited-source vitals and symptom-linked readings clickable).
+      const rows = await db
+        .select()
+        .from(vitalReadings)
+        .where(and(eq(vitalReadings.patientId, patientId), inArray(vitalReadings.id, ids)));
+      for (const r of rows)
+        out.set(r.id, {
+          label: `${READING_TYPE_LABEL[r.readingType]} ${formatVitalValue(r)} · ${formatAbsoluteDate(r.recordedAt)}`,
+          href: base(`vitals#r-${r.id}`),
+        });
+      break;
+    }
+    // Any unknown type has no detail page → unresolved → dropped.
   }
   return out;
 }

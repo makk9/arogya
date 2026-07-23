@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -24,9 +25,11 @@ import { formatAbsoluteDate } from "@/lib/datetime";
 /*
  * The §6.7 Outcomes section, renamed "Captured at this episode" for symptom
  * episodes (§6.7:1533) — the vital readings logged at the same time
- * (linked_vital_ids). Forward-attached measurements, non-navigating (vitals have
- * no detail page in v1). A flagged reading (low/high/critical) carries the `△`
- * warning glyph + a flag pill (the demo-moment "dizziness + low BP" signal).
+ * (linked_vital_ids). Each row's reading links to its row in the grouped
+ * vitals history view (§6.6:1493 "clickable → navigate to the linked vital
+ * reading"; the history view is the reading's home — no detail page by
+ * design). A flagged reading (low/high/critical) carries the `△` warning
+ * glyph + a flag pill (the demo-moment "dizziness + low BP" signal).
  *
  * In **Edit mode** the section is also the manual post-hoc linking surface: each
  * linked reading gets a Remove control, and an "+ Link a reading" select offers
@@ -114,7 +117,10 @@ export function EpisodeCapturedSection({ linkedVitals, allVitals }: Props) {
                 )}
               >
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-sm font-medium">
+                  <Link
+                    href={`/patient/${v.patientId}/vitals#r-${v.id}`}
+                    className="text-sm font-medium underline-offset-4 hover:underline"
+                  >
                     {flagged ? (
                       <span aria-hidden className="mr-1.5 text-muted-foreground">
                         △
@@ -122,7 +128,7 @@ export function EpisodeCapturedSection({ linkedVitals, allVitals }: Props) {
                     ) : null}
                     {READING_TYPE_LABEL[v.readingType] ?? v.readingType} ·{" "}
                     {formatVitalValue(v)}
-                  </span>
+                  </Link>
                   <span className="flex shrink-0 items-baseline gap-2">
                     {flagged && v.flag ? (
                       <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground">

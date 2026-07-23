@@ -11,9 +11,9 @@ import { cn } from "@/lib/utils";
  * zones: rail header (branding + patient switcher) · top-level surfaces · the
  * nine HEALTH WIKI category items with counts · footer.
  *
- * Phase D scope / deviations (flagged in the handoff):
- *  - Dashboard (§6.1) is not built as a route, so it is omitted as a top-level
- *    item; the patient-switcher header links to the built profile home (§6.10).
+ * Scope / deviations (flagged in the handoff):
+ *  - Dashboard (§6.1) shipped in Phase E (E0a) — the top top-level item; the
+ *    patient-switcher header keeps linking to the profile home (§6.10).
  *  - Chat (§6.2 full-screen) shipped in Phase E (E0b); the "Chat" item links to
  *    it. The ephemeral Ask-AI drawer is kept for the floating per-entity-page
  *    button only (ratified split, 2026-06-28 — see decisions.md).
@@ -60,6 +60,7 @@ export function WikiRail({ patientId, patientName, relationship, counts }: Props
     pathname === `${base}/${segment}` || pathname.startsWith(`${base}/${segment}/`);
 
   const profileActive = pathname === base;
+  const dashboardActive = isActive("dashboard");
   const insightsActive = isActive("insights");
   const chatActive = isActive("chat");
 
@@ -90,9 +91,19 @@ export function WikiRail({ patientId, patientName, relationship, counts }: Props
         </Link>
       </div>
 
-      {/* Top-level surfaces — Chat first, Insights below (§6.1's dashboard
-          hierarchy: chat is the centerpiece, insights feed sits under it). */}
+      {/* Top-level surfaces — Dashboard on top (§3: "the wiki entry point"),
+          then Chat above Insights (§6.1's hierarchy: chat is the primary
+          affordance, the insights feed sits under it). */}
       <div className="flex flex-col gap-0.5">
+        <Link
+          href={`${base}/dashboard`}
+          className={cn(
+            "rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-muted/60",
+            dashboardActive ? "bg-muted font-medium" : "text-foreground/80",
+          )}
+        >
+          Dashboard
+        </Link>
         <Link
           href={`${base}/chat`}
           className={cn(

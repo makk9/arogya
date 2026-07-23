@@ -11,6 +11,12 @@
  * Voice per 7.1: plain, names the entity, no AI throat-clearing.
  */
 
+export const DASHBOARD_SURFACE =
+  "The user is viewing the dashboard — the at-a-glance overview of current status, key markers, medications, and recent activity.";
+
+export const VITALS_HISTORY_SURFACE =
+  "The user is viewing the vitals history — all readings grouped by type (blood pressure, weight, glucose, …) with their trends.";
+
 export const MEDICATIONS_LIST_SURFACE = "The user is viewing the full list of medications.";
 
 export const CONDITIONS_LIST_SURFACE = "The user is viewing the full list of conditions.";

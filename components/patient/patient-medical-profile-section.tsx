@@ -30,12 +30,11 @@ interface Props {
  * the schema stores canonical metric and conversion happens at the input edge
  * (lib/units.ts).
  *
- * Deviation: the spec's weight `history →` link + inline trend (1678, 1694)
- * is omitted. It depends on a weight time-series surface, but VitalReadings
- * have no timeline/list page in v1 (§6.6 lists only five event rails; the
- * vitals vertical is create-form only). Weight is edited here as the patient
- * row's `current_weight_kg` snapshot. Flagged in decisions.md — revisit when a
- * vitals-history surface exists.
+ * Weight carries the spec's `history →` link (1678, 1694) into the grouped
+ * vitals history view's weight section (E0a — the time-series surface the
+ * earlier deviation was waiting on). The inline trend itself stays on the
+ * dashboard's key-markers card; weight here remains the patient row's
+ * `current_weight_kg` snapshot.
  */
 
 const SECTION_HEAD =
@@ -83,7 +82,16 @@ export function PatientMedicalProfileSection({
           />
         </div>
         <div>
-          <div className={FIELD_LABEL}>weight</div>
+          <div className={FIELD_LABEL}>
+            weight
+            {" · "}
+            <Link
+              href={`/patient/${patientId}/vitals#type-weight`}
+              className="normal-case text-link underline-offset-2 hover:underline"
+            >
+              history →
+            </Link>
+          </div>
           <PatientMeasurementField
             kind="weight"
             valueMetric={patient.currentWeightKg}

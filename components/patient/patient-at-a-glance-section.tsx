@@ -24,7 +24,9 @@ const SECTION_HEAD =
   "mb-3 font-mono text-xs uppercase tracking-wide text-muted-foreground";
 
 // "Hypertension, Type 2 Diabetes +2" — up to two names then an overflow tail.
-function previewContext(p: GlancePreview, emptyLabel: string): string {
+// Exported for the dashboard's patient header card, which previews the same
+// GlancePreview rows the same way.
+export function previewContext(p: GlancePreview, emptyLabel: string): string {
   if (p.count === 0) return emptyLabel;
   if (p.names.length === 0) return String(p.count); // names unavailable, count only
   const shown = p.names.join(", ");

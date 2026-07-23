@@ -7,9 +7,11 @@ import type {
   vitalReadingType,
 } from "@/db/schema";
 
-// Single source in lib/ (shared with the agent serializer). Re-exported here so
-// the existing `@/components/vitals/vital-options` import path keeps working.
+// Single source in lib/ (shared with the agent serializer and the DB layer's
+// vital labels/hrefs). Re-exported here so the existing
+// `@/components/vitals/vital-options` import path keeps working.
 export { formatVitalValue } from "@/lib/vitals";
+import { READING_TYPE_LABEL as CANONICAL_READING_TYPE_LABEL, READING_TYPE_ORDER } from "@/lib/vitals";
 
 /*
  * Shared option lists + label maps for VitalReading selects (the Log reading
@@ -28,16 +30,10 @@ type VitalFlagValue = (typeof vitalFlag.enumValues)[number];
 export const READING_TYPE_OPTIONS: ReadonlyArray<{
   value: VitalReadingTypeValue;
   label: string;
-}> = [
-  { value: "blood_pressure", label: "Blood pressure" },
-  { value: "weight", label: "Weight" },
-  { value: "blood_glucose", label: "Blood glucose" },
-  { value: "temperature", label: "Temperature" },
-  { value: "heart_rate", label: "Heart rate" },
-  { value: "oxygen_saturation", label: "Oxygen saturation" },
-  { value: "respiratory_rate", label: "Respiratory rate" },
-  { value: "other", label: "Other" },
-];
+}> = READING_TYPE_ORDER.map((value) => ({
+  value,
+  label: CANONICAL_READING_TYPE_LABEL[value],
+}));
 
 // Reading types that carry two numbers (systolic / diastolic). Drives the
 // secondary-value input on the form and the "88/55" rendering on episode pills.

@@ -2,13 +2,13 @@ import type { VitalReading } from "@/db/schema";
 import { READING_TYPE_LABEL, formatVitalValue } from "@/components/vitals/vital-options";
 
 /*
- * The §6.6 `●` linked-vital pill shown below a symptom episode (and as a row in
- * the episode detail's "Captured at this episode"). §6.6 lists these as
- * "clickable → navigate to the linked vital reading", but VitalReading has no
- * detail page in v1 (item 11 — vitals are create-only), so the pill is a
- * non-navigating display span. The reading's value + time are shown inline
- * instead; flagged in decisions.md. The `●` glyph matches the citation-pill
- * design language (§6.6 result-badge glyph set).
+ * The §6.6 `●` linked-vital pill shown below a symptom episode card. The card
+ * itself is the anchor (same posture as the insight feed card's inert pills),
+ * so the pill is a display span — the navigable path to a reading is the
+ * episode detail's "Captured at this episode" rows and any resolved `vital`
+ * entity link, which target the grouped vitals history view (E0a,
+ * decisions.md 2026-07-21). The `●` glyph matches the citation-pill design
+ * language (§6.6 result-badge glyph set).
  */
 
 const TIME_FMT = new Intl.DateTimeFormat("en-US", {

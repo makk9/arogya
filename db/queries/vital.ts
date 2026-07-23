@@ -10,11 +10,12 @@ import {
 import { symptomEpisodeInScope } from "./_shared";
 
 /*
- * VitalReading queries — an EVENT entity with a reduced surface. No timeline or
- * detail page in v1 (§6.6's rail has five event items; vitals aren't one — they
- * surface as the `●` linked-vital pill on symptom episodes), so there's no
- * bySlug resolver (the `§ vital:` pill stays inert) and no update/correction
- * (readings are immutable; a mistake is deleted and re-entered, §4:433).
+ * VitalReading queries — an EVENT entity with a reduced surface. No detail
+ * page or rail item by design (§3:145 "the trend is the value"); readings
+ * surface on the dashboard's key-markers card and the grouped vitals history
+ * view (E0a), which entity links anchor into (`/vitals#r-<id>`). There's no
+ * bySlug resolver and no update/correction (readings are immutable; a mistake
+ * is deleted and re-entered, §4:433).
  *
  * Patient scope rides patient_id, so a foreign id can never surface another
  * patient's rows. `linkedSymptomId` is scope-checked before insert (a mapped

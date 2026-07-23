@@ -6,9 +6,10 @@ import type { InsightCitedSource } from "@/db/schema";
  * §6.9:1627 Cited sources — "plain link list grouped by reference type"
  * (`MEDICATIONS · 1`, `SYMPTOM EPISODES · 5`, …). This is the evidence the
  * insight reasoned over (distinct from Linked context, §6.9:1611). Each source
- * renders its stored `snippet` as the row text; rows whose entity has a detail
- * page link to it, the rest (e.g. vital readings — create-only, no detail page)
- * render as inert text. The §1.2 traceability commitment made visible.
+ * renders its stored `snippet` as the row text; rows whose entity resolves to
+ * a destination link there (vitals anchor into the grouped history view), the
+ * rest (deleted entities) render as inert text. The §1.2 traceability
+ * commitment made visible.
  *
  * Omitted entirely when an insight cites nothing.
  */

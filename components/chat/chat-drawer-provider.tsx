@@ -3,11 +3,14 @@
 /**
  * Patient-level chat drawer (design.md 6.2, adapted) — Phase C item 6.
  *
- * A single ephemeral conversation, hoisted to the patient layout so it persists
- * as the user navigates between entity pages (the layout doesn't remount on
+ * A single conversation, hoisted to the patient layout so it persists as the
+ * user navigates between entity pages (the layout doesn't remount on
  * child-route changes). Opened from any wiki surface's floating Ask AI button
- * via `useChatDrawer().openChat(surfaceContext)`; the page behind the slide-over
- * stays visible, so the user keeps the record in view while asking.
+ * via `useChatDrawer().openChat()`, or from the §6.1 dashboard chat bar via
+ * `openWithMessage(text)` — which opens AND dispatches in one call; the page
+ * behind the slide-over stays visible, so the user keeps the record in view
+ * while asking. "Open full screen ↗" hands the persisted session to the §6.2
+ * surface and the drawer starts fresh.
  *
  * Deviation from the 6.2 full-screen / 6.4:1354 "opens the full-screen chat"
  * spec, ratified with the user 2026-05-30 (drawer keeps context visible + the
@@ -29,6 +32,7 @@
  * both surfaces — not two fragmented ones.
  */
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   createContext,
@@ -63,6 +67,12 @@ interface ChatDrawerContextValue {
   // was first opened (the drawer stays open across navigation).
   openChat: () => void;
   setSurface: (surfaceContext?: string) => void;
+  // Opens the drawer AND dispatches text into the conversation — the §6.1
+  // dashboard chat bar's entry point. Canned chips are definitionally
+  // questions (skip the router, like the drawer's own starters); typed input
+  // goes through the §5.5 classify path like any other. If a turn is already
+  // in flight, the text lands in the drawer input instead of being dropped.
+  openWithMessage: (text: string, opts?: { isQuestion?: boolean }) => void;
 }
 
 const ChatDrawerContext = createContext<ChatDrawerContextValue | null>(null);
@@ -124,9 +134,23 @@ export function ChatDrawerProvider({
     surfaceContextRef.current = surfaceContext;
   }, []);
   const openChat = useCallback(() => setOpen(true), []);
+  // Latest-ref dispatch for openWithMessage: the send paths (route/runQuestion/
+  // busy) are defined below and change across renders; routing the call through
+  // a ref keeps the context value stable so consumers (the floating button,
+  // the dashboard bar) don't re-render on every stream tick.
+  const dispatchRef = useRef<(text: string, isQuestion: boolean) => void>(
+    () => {},
+  );
+  const openWithMessage = useCallback(
+    (text: string, opts?: { isQuestion?: boolean }) => {
+      setOpen(true);
+      dispatchRef.current(text, opts?.isQuestion ?? false);
+    },
+    [],
+  );
   const contextValue = useMemo(
-    () => ({ openChat, setSurface }),
-    [openChat, setSurface],
+    () => ({ openChat, setSurface, openWithMessage }),
+    [openChat, setSurface, openWithMessage],
   );
 
   // Lazy session creation on the first send (no empty orphan row from merely
@@ -195,6 +219,24 @@ export function ChatDrawerProvider({
     creating ||
     routing ||
     logging;
+
+  // Keep the openWithMessage dispatch current (latest-ref pattern — see the
+  // declaration above; effect-assigned per the no-ref-writes-in-render rule,
+  // and dispatch only ever fires from user events, which run after effects).
+  // Busy → park the text in the input rather than dropping it or interleaving
+  // a second turn into an in-flight stream.
+  useEffect(() => {
+    dispatchRef.current = (text: string, isQuestion: boolean) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      if (busy) {
+        setInput(trimmed);
+        return;
+      }
+      if (isQuestion) void runQuestion(trimmed);
+      else void route(trimmed);
+    };
+  });
 
   const submit = useCallback(
     async (text: string) => {
@@ -267,6 +309,36 @@ export function ChatDrawerProvider({
               <span aria-hidden>✦</span> Ask AI
             </SheetTitle>
             <div className="flex items-center gap-4">
+              {/* Continue this conversation on the full-screen surface — the
+                  session is persisted, so this is just navigation. Disabled
+                  mid-stream: navigating would abort the in-flight reply before
+                  it persists (turns write after the response flushes). */}
+              {sessionId && !isEmpty ? (
+                busy ? (
+                  <span
+                    aria-disabled
+                    className="text-sm text-stone-400"
+                    title="Available once the current reply finishes"
+                  >
+                    Open full screen ↗
+                  </span>
+                ) : (
+                  <Link
+                    href={`/patient/${patientId}/chat/${sessionId}`}
+                    onClick={() => {
+                      // The conversation moves to the full-screen surface;
+                      // the drawer relinquishes it so a later drawer open
+                      // starts fresh instead of silently appending to a
+                      // session whose newer turns it can't see.
+                      setOpen(false);
+                      startNewConversation();
+                    }}
+                    className="text-sm text-stone-500 underline-offset-4 hover:text-stone-800 hover:underline"
+                  >
+                    Open full screen ↗
+                  </Link>
+                )
+              ) : null}
               {!isEmpty ? (
                 <button
                   type="button"

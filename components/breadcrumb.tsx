@@ -11,7 +11,7 @@ import type { ReactNode } from "react";
  * Callers pass only the `trail` beyond the patient root — the `patient / id…`
  * prefix is rendered here. A trail item's `href` is RELATIVE to the patient
  * root (e.g. "visits" → /patient/{id}/visits); omit it for the current segment
- * or for a segment with no page of its own (e.g. "vitals", which has no list).
+ * or for a segment with no page of its own.
  */
 
 export interface Crumb {
