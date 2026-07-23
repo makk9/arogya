@@ -83,6 +83,8 @@ These get violated easily when you only read one phase. They're load-bearing:
 
 **Confirm before destructive operations.** Migrations that drop columns, file deletions, schema changes, force-pushes. Single-confirmation pattern: explain, ask, execute.
 
+**Never commit without explicit approval.** Do not run `git commit` unless the user asked for it in the current exchange. Approval to commit one batch of work does not carry forward to later work in the same session — each commit needs its own ask. Finish the work, verify it, then offer to commit.
+
 **Voice consistency matters.** All user-facing copy (UI strings, error messages, agent prompts, AI outputs) follows Phase 7.1. See voice quick reference below.
 
 **Citation discipline is non-negotiable.** Synthesis hard rule 4 is load-bearing. Render as `§ entity-type:specific-id` (vault) or `↗ source-name` (external). Never strip for terseness.
