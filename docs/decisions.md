@@ -1075,3 +1075,11 @@ Verified live 2026-07-29: completion turn → `insight_runs` row `succeeded · g
 **Decision:** **Onboarding panel scroll-into-view — the topmost freshly-captured card smooth-scrolls into view before its highlight plays (`block:"nearest"`, so a visible card never causes a jump); flash window 1.2s→1.8s to absorb the scroll.**
 **Context:** User's manual pass: captures were landing below the fold on the populated vault — the §6.3:1235 flash played off-screen and live-transparency read as "nothing happened."
 **Verified:** Playwright at 640px viewport — family-history capture (also the first live exercise of an onboarding-only write path: "younger brother, heart attack at 60" → `Myocardial infarction (heart attack)` · relation `sibling`-specific `younger brother`) scrolled the panel 0→1070px with the tint visible; card in viewport; no page errors; test row deleted by tracked id. Screenshots `scroll-0[1-3]` in `~/Desktop/arogya-verify-shots/`.
+
+---
+
+**Date:** 2026-07-30
+**Decision:** **Onboarding update-target ids for family history + journal — `buildOnboardingUpdateTargets` appended to the agent's dictionary; prompt now names the follow-up-answer-is-an-update rule explicitly.**
+**Context:** User's real interview: "father had heart disease" → create; answered the outcome follow-up ("death") → agent emitted a SECOND create → duplicate rows. Root cause: the shared matching dictionary (§5.4) deliberately omits family history/journal (not extraction match targets), so the agent had no id to aim an update at — the commit-side update path (2026-07-29) was necessary but unreachable. Duplicate deleted (kept the outcome-bearing row).
+**Choice:** onboarding-local supplement (family-history entries + 5 recent journal entries, with UUIDs), NOT an extension of `buildMatchingDictionary` — extraction doesn't handle those types and its dictionary shouldn't grow non-targets. Prompt: answers to the agent's own follow-ups about an already-emitted entry are updates carrying only the answered field.
+**Verified:** tsc + eslint; runtime print blocked by `server-only` (correct fencing); live proof deferred to the user's next in-interview correction — dev server hot-reloads, so their active session picks this up on its next turn.

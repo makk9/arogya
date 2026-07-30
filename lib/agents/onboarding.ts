@@ -7,7 +7,11 @@ import {
 } from "ai";
 
 import type { OnboardingPhase } from "@/db/schema";
-import { patientQueries } from "@/db/queries";
+import {
+  familyHistoryQueries,
+  journalQueries,
+  patientQueries,
+} from "@/db/queries";
 import { AgentError } from "@/lib/agents/_shared/errors";
 import { buildMatchingDictionary } from "@/lib/agents/_shared/vault-context";
 
@@ -85,7 +89,7 @@ Required minimums — the record cannot store less, and an emission missing them
 
 Capture first, ask after: when the required minimums ARE stated, emit the entity in that same turn — never hold a capture back for optional details (purpose, prescriber, generic name, dates). Emit it, acknowledge it in passing, and ask the optional follow-up alongside; if the answer adds detail, send an update emission next turn.
 
-The existing records listed below are what's already in the vault (from earlier in this interview, uploads, or manual entry). NEVER re-emit something already there. If the user corrects or adds to an existing record ("actually the dose is 10mg now"), emit \`"intent":"update"\` with \`"matched_entity_id"\` set to that record's id and only the changed fields in \`data\`.
+The existing records listed below are what's already in the vault (from earlier in this interview, uploads, or manual entry) — including family history and journal entries, whose ids are listed too. NEVER re-emit something already there. If the user corrects or adds to an existing record ("actually the dose is 10mg now"), emit \`"intent":"update"\` with \`"matched_entity_id"\` set to that record's id and only the changed fields in \`data\`. In particular: when the user answers a follow-up YOU asked about an entry you already emitted — its outcome, an age, a dose — that answer is an UPDATE to that entry's id, carrying only the answered field. Re-emitting the whole record as a create makes a duplicate, which the user then has to clean up by hand.
 
 # Phase transitions
 
@@ -104,6 +108,47 @@ When you've worked through the phases — or the user signals they're done and t
 # Style
 
 Plain, warm, direct (never chummy, never clinical-cold). No "Great question!", no "As an AI", no celebratory language, no thanking them for sharing. Short turns — a couple of sentences and at most a question or two. Acknowledge what you captured in passing ("Noted — telmisartan 40mg every morning"), then move forward.`;
+
+/**
+ * Update-target listing for the entity types the shared matching dictionary
+ * deliberately omits (they aren't extraction match targets, §5.4): family
+ * history and journal entries. Without these ids the agent cannot emit an
+ * update for its own follow-up answers — the colon-cancer duplicate of
+ * 2026-07-30 (decisions.md) was exactly this gap.
+ */
+export async function buildOnboardingUpdateTargets(
+  patientId: string,
+): Promise<string> {
+  const [familyHistory, journal] = await Promise.all([
+    familyHistoryQueries.forPatient(patientId),
+    journalQueries.forPatient(patientId),
+  ]);
+
+  const sections: string[] = [];
+  if (familyHistory.length > 0) {
+    const lines = familyHistory.map((f) => {
+      const who = f.relationSpecific ?? f.relation.replace(/_/g, "/");
+      const tail = [
+        f.ageOfOnset !== null ? `onset ${f.ageOfOnset}` : null,
+        f.outcome,
+      ]
+        .filter(Boolean)
+        .join(", ");
+      return `- ${who}: ${f.conditionName}${tail ? ` — ${tail}` : ""} (id: ${f.id})`;
+    });
+    sections.push(["## Family history on record", ...lines].join("\n"));
+  }
+  if (journal.length > 0) {
+    const lines = journal
+      .slice(0, 5)
+      .map(
+        (j) =>
+          `- ${j.entryDate} — ${j.title ?? (j.content.length > 60 ? `${j.content.slice(0, 59)}…` : j.content)} (id: ${j.id})`,
+      );
+    sections.push(["## Journal entries on record", ...lines].join("\n"));
+  }
+  return sections.join("\n\n");
+}
 
 export interface RunOnboardingTurnParams {
   patientId: string;
@@ -131,11 +176,12 @@ export async function runOnboardingTurn(
   let dictionary: string;
   let identity: string;
   try {
-    const [dict, patient] = await Promise.all([
+    const [dict, updateTargets, patient] = await Promise.all([
       buildMatchingDictionary(patientId, { today }),
+      buildOnboardingUpdateTargets(patientId),
       patientQueries.getById(patientId),
     ]);
-    dictionary = dict;
+    dictionary = updateTargets.length > 0 ? `${dict}\n\n${updateTargets}` : dict;
     // The matching dictionary covers state entities but not the patient row —
     // without this, a vault that already knows the patient gets re-asked
     // phase 1 from scratch (seen in smoke testing). The seed placeholder name
