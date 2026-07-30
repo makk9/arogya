@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+
 import { InlinePatchField } from "@/components/onboarding/inline-patch-field";
 import type { OnboardingSnapshot, SnapshotRow } from "@/lib/onboarding/snapshot";
 
@@ -72,6 +74,7 @@ function EntityCard({
 }) {
   return (
     <div
+      data-entity-id={row.id}
       className={`rounded-lg border border-border px-3 py-2 transition-colors duration-1000 ${
         fresh ? "bg-accent" : "bg-transparent"
       }`}
@@ -106,6 +109,23 @@ export function LivePatientPanel({
   live,
 }: LivePatientPanelProps) {
   const { patient } = snapshot;
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // A flash nobody sees does nothing: on a populated vault a freshly captured
+  // card usually lands below the fold, so bring the topmost fresh card into
+  // view before its highlight fades. `nearest` is a no-op when it's already
+  // visible — the panel never jumps under a user who can see the card.
+  useEffect(() => {
+    if (highlights.size === 0 || !containerRef.current) return;
+    const cards =
+      containerRef.current.querySelectorAll<HTMLElement>("[data-entity-id]");
+    for (const card of cards) {
+      if (highlights.has(card.dataset.entityId ?? "")) {
+        card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        break;
+      }
+    }
+  }, [highlights]);
   const identityBits = [
     patient.dateOfBirth ? `b. ${patient.dateOfBirth}` : null,
     patient.sex !== "unspecified" ? patient.sex : null,
@@ -113,7 +133,7 @@ export function LivePatientPanel({
   ].filter(Boolean);
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto px-6 py-5">
+    <div ref={containerRef} className="flex h-full flex-col overflow-y-auto px-6 py-5">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div className="min-w-0">
           <InlinePatchField

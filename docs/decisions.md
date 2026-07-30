@@ -1068,3 +1068,10 @@ Verified live 2026-07-29: completion turn → `insight_runs` row `succeeded · g
 **§5.8:1043 implemented:** route passes days-since-last-turn; ≥7 days adds a phase-context line so the agent opens with resume-or-dashboard.
 **Deferred (logged, not built):** §6.3:1262 `follow-up` tag on entity cards → Phase F polish; §10.1 mobile "best on desktop" guidance → app-wide gap, not E4-specific, fix later (user call 2026-07-29).
 **Verified:** tsc + eslint clean; live completion turn end-to-end; test session deleted after (banner restored, vault untouched).
+
+---
+
+**Date:** 2026-07-29
+**Decision:** **Onboarding panel scroll-into-view — the topmost freshly-captured card smooth-scrolls into view before its highlight plays (`block:"nearest"`, so a visible card never causes a jump); flash window 1.2s→1.8s to absorb the scroll.**
+**Context:** User's manual pass: captures were landing below the fold on the populated vault — the §6.3:1235 flash played off-screen and live-transparency read as "nothing happened."
+**Verified:** Playwright at 640px viewport — family-history capture (also the first live exercise of an onboarding-only write path: "younger brother, heart attack at 60" → `Myocardial infarction (heart attack)` · relation `sibling`-specific `younger brother`) scrolled the panel 0→1070px with the tint visible; card in viewport; no page errors; test row deleted by tracked id. Screenshots `scroll-0[1-3]` in `~/Desktop/arogya-verify-shots/`.

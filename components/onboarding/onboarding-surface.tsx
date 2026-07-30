@@ -81,9 +81,11 @@ export function OnboardingSurface({
         if (clearTimerRef.current !== null) {
           window.clearTimeout(clearTimerRef.current);
         }
+        // Slightly past the §6.3 ~1s so the smooth scroll-into-view (panel
+        // component) finishes with visible flash time left.
         clearTimerRef.current = window.setTimeout(
           () => setHighlights(new Set()),
-          1200,
+          1800,
         );
       }
     } catch {
