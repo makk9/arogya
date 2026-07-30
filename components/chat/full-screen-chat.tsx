@@ -35,6 +35,9 @@ interface FullScreenChatProps {
   activeSessionId: string | null;
   initialMessages: InitialMessage[];
   initialTitle: string | null;
+  // Fixed prompt auto-sent once on an empty draft (onboarding's health-scan
+  // handoff, §6.3:1243). Server-resolved — never client free text.
+  autorunPrompt?: string | null;
 }
 
 export function FullScreenChat({
@@ -44,6 +47,7 @@ export function FullScreenChat({
   activeSessionId,
   initialMessages,
   initialTitle,
+  autorunPrompt = null,
 }: FullScreenChatProps) {
   const [sessions, setSessions] = useState(initialSessions);
   const [activeId, setActiveId] = useState<string | null>(activeSessionId);
@@ -120,6 +124,7 @@ export function FullScreenChat({
         title={initialTitle}
         onSessionCreated={onSessionCreated}
         onPersisted={refetchSessions}
+        autorunPrompt={autorunPrompt}
       />
     </div>
   );

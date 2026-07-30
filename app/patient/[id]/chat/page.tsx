@@ -12,8 +12,10 @@ import { getCurrentPatient } from "@/lib/auth";
  */
 export default async function ChatNewPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ run?: string }>;
 }) {
   const { id } = await params;
   const current = await getCurrentPatient();
@@ -22,6 +24,12 @@ export default async function ChatNewPage({
   const sessions = await chatQueries.listSessions(current.patientId);
   const firstName =
     current.name.trim().split(/\s+/)[0] || "your family member";
+
+  // Onboarding's completion handoff (§6.3:1243): `?run=scan` lands here with
+  // the full health scan running as the first AI response. The prompt is fixed
+  // server-side — the param is a switch, not free text.
+  const { run } = await searchParams;
+  const autorunPrompt = run === "scan" ? "Run a full health scan" : null;
 
   return (
     <FullScreenChat
@@ -32,6 +40,7 @@ export default async function ChatNewPage({
       activeSessionId={null}
       initialMessages={[]}
       initialTitle={null}
+      autorunPrompt={autorunPrompt}
     />
   );
 }

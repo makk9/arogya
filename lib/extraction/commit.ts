@@ -64,7 +64,9 @@ export interface CommitContext {
   // discontinuedOn in the patient's local day (§9.6).
   timezone: string;
   // The originating Report — becomes `source_report_id` on committed entities.
-  reportId: string;
+  // Null for the onboarding interview's live-transparency writes (E4), which
+  // have no source document; the columns are nullable, so null passes through.
+  reportId: string | null;
   // Patient-local `YYYY-MM-DD`, the fallback for a required date the agent left
   // out (a lab/visit with no date on the page). ISO datetime fallback for the
   // timestamptz event clocks (vital / symptom).

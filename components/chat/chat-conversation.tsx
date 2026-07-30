@@ -117,6 +117,10 @@ interface ChatConversationProps {
   // Called after a reply finishes streaming, or after rename, so the parent can
   // refetch the history list (new session + freshly-set auto-title / new name).
   onPersisted: () => void;
+  // Fixed prompt auto-sent once when an empty draft mounts (onboarding's
+  // health-scan handoff). Resolved server-side from `?run=scan` — a switch,
+  // never client free text.
+  autorunPrompt?: string | null;
 }
 
 export function ChatConversation({
@@ -127,6 +131,7 @@ export function ChatConversation({
   title: initialTitle,
   onSessionCreated,
   onPersisted,
+  autorunPrompt = null,
 }: ChatConversationProps) {
   const router = useRouter();
   // Session id as state (not a ref) so the header … menu appears the moment a
@@ -230,6 +235,17 @@ export function ChatConversation({
     },
     [ensureSession, sendMessage],
   );
+
+  // Onboarding handoff: fire the fixed prompt once on an empty draft. Ref-
+  // guarded so a re-render never double-sends.
+  const autorunFiredRef = useRef(false);
+  useEffect(() => {
+    if (!autorunPrompt || autorunFiredRef.current) return;
+    if (initialSessionId !== null || initialMessages.length > 0) return;
+    autorunFiredRef.current = true;
+    // Deferred so the send's state updates happen outside the effect body.
+    queueMicrotask(() => void runQuestion(autorunPrompt));
+  }, [autorunPrompt, initialSessionId, initialMessages.length, runQuestion]);
 
   // The shared §5.5→§6.11 quick-log flow (classify · log · nudge · declined ·
   // disambiguator · retry · confirmation navigation) — one implementation for

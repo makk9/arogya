@@ -15,3 +15,4 @@ export { insightQueries } from "./insight";
 export { insightRunQueries } from "./insight-run";
 export { chatQueries } from "./chat";
 export { extractionSessionQueries } from "./extraction-session";
+export { onboardingSessionQueries } from "./onboarding-session";

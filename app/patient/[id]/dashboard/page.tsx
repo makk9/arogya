@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { after } from "next/server";
 
+import { ActivationBanner } from "@/components/dashboard/activation-banner";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { CurrentMedsCard } from "@/components/dashboard/current-meds-card";
 import { DashboardChatBar } from "@/components/dashboard/dashboard-chat-bar";
@@ -12,6 +13,7 @@ import { recentActivity } from "@/db/queries/dashboard";
 import { doctorQueries } from "@/db/queries/doctor";
 import { insightQueries } from "@/db/queries/insight";
 import { medicationQueries } from "@/db/queries/medication";
+import { onboardingSessionQueries } from "@/db/queries/onboarding-session";
 import { patientQueries } from "@/db/queries/patient";
 import { vitalQueries } from "@/db/queries/vital";
 import { getCurrentPatient } from "@/lib/auth";
@@ -52,16 +54,25 @@ export default async function DashboardPage({
     .toISOString()
     .slice(0, 10);
 
-  const [patient, glance, activeMeds, doctors, vitals, insights, activity] =
-    await Promise.all([
-      patientQueries.getById(current.patientId),
-      patientQueries.atAGlance(current.patientId, visitsSince, today),
-      medicationQueries.active(current.patientId),
-      doctorQueries.forPatient(current.patientId),
-      vitalQueries.forPatient(current.patientId),
-      insightQueries.forPatient(current.patientId),
-      recentActivity(current.patientId, today, 8),
-    ]);
+  const [
+    patient,
+    glance,
+    activeMeds,
+    doctors,
+    vitals,
+    insights,
+    activity,
+    onboarding,
+  ] = await Promise.all([
+    patientQueries.getById(current.patientId),
+    patientQueries.atAGlance(current.patientId, visitsSince, today),
+    medicationQueries.active(current.patientId),
+    doctorQueries.forPatient(current.patientId),
+    vitalQueries.forPatient(current.patientId),
+    insightQueries.forPatient(current.patientId),
+    recentActivity(current.patientId, today, 8),
+    onboardingSessionQueries.getForPatient(current.patientId),
+  ]);
   if (!patient) notFound();
 
   const doctorsById = new Map(doctors.map((d) => [d.id, d]));
@@ -91,6 +102,10 @@ export default async function DashboardPage({
       </h1>
 
       <div className="flex flex-col gap-4">
+        {/* §6.3:1249 — the interview's only launcher. Shown until the interview
+            completes; the N-of-4 counter + adaptive logic are Phase F. */}
+        {onboarding?.status !== "completed" ? <ActivationBanner /> : null}
+
         <PatientHeaderCard
           patientId={current.patientId}
           name={patient.name}

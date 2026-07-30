@@ -15,3 +15,4 @@ export * from "./insight";
 export * from "./insight-run";
 export * from "./extraction-session";
 export * from "./chat";
+export * from "./onboarding-session";

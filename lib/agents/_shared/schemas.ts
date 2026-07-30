@@ -93,35 +93,40 @@ export const insightSchema = z.object({
 // so a whole-output Zod wrapper would have no consumer.
 export type GeneratedInsight = z.infer<typeof insightSchema>;
 
-// Onboarding agent output — per design.md 10.3:3255, alternating chat + entity emissions
-const onboardingChatChunkSchema = z.object({
-  kind: z.literal("chat"),
-  content: z.string(),
-});
-const onboardingEntityChunkSchema = z.object({
-  kind: z.literal("entity"),
+// Onboarding agent output — per design.md 10.3:3255 (dual output: streamed
+// conversational prose + structured emissions). On the wire the emissions are
+// interleaved fenced JSON blocks inside the prose stream (```entity / ```phase),
+// stripped and validated per-block by the server transform
+// (lib/onboarding/stream.ts + app/api/onboarding). One malformed block is
+// dropped (logged, never written, never shown) without failing the turn.
+export const onboardingPhases = [
+  "patient",
+  "conditions",
+  "medications",
+  "doctors",
+  "allergies",
+  "family_history",
+  "lifestyle",
+  "loose_ends",
+  "complete",
+] as const;
+export const onboardingPhaseSchema = z.enum(onboardingPhases);
+
+// Entity emission body — same vocabulary as the extraction agent (§5.4
+// snake_case field names in `data`), plus the onboarding-only types
+// (patient / family_history / lifestyle / journal_entry). `type` stays a free
+// string here; lib/onboarding/commit.ts routes it and rejects unknowns.
+export const onboardingEntityEmissionSchema = z.object({
   type: z.string(),
+  intent: z.enum(["create", "update"]).optional(),
+  matched_entity_id: z.string().uuid().nullish(),
   data: z.record(z.string(), z.unknown()),
 });
-export const onboardingTurnOutputSchema = z.object({
-  emissions: z.array(
-    z.discriminatedUnion("kind", [
-      onboardingChatChunkSchema,
-      onboardingEntityChunkSchema,
-    ]),
-  ),
-  phase: z
-    .enum([
-      "patient",
-      "conditions",
-      "medications",
-      "doctors",
-      "allergies",
-      "family_history",
-      "lifestyle",
-      "loose_ends",
-      "complete",
-    ])
-    .optional(),
+export type OnboardingEntityEmission = z.infer<
+  typeof onboardingEntityEmissionSchema
+>;
+
+// Phase emission body — the agent advancing the interview.
+export const onboardingPhaseEmissionSchema = z.object({
+  phase: onboardingPhaseSchema,
 });
-export type OnboardingTurnOutput = z.infer<typeof onboardingTurnOutputSchema>;
