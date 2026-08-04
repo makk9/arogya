@@ -35,7 +35,9 @@ interface OnboardingChatProps {
   initialPhase: OnboardingPhase;
   completed: boolean;
   // Fired whenever an entity write lands, so the surface refetches the panel.
-  onEntity: () => void;
+  // Carries the written entity's id when known — updates flash/scroll too, not
+  // just brand-new cards.
+  onEntity: (id?: string) => void;
 }
 
 export function OnboardingChat({
@@ -108,7 +110,7 @@ export function OnboardingChat({
                 setStreaming(assistantText);
                 break;
               case "entity":
-                if (event.ok) onEntity();
+                if (event.ok) onEntity(event.id);
                 break;
               case "phase":
                 setPhase(event.phase);

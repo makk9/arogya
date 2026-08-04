@@ -46,6 +46,9 @@ export function OnboardingSurface({
   const [highlights, setHighlights] = useState<ReadonlySet<string>>(new Set());
   const [live, setLive] = useState(!completed);
   const knownIdsRef = useRef(snapshotIds(initialSnapshot));
+  // Ids from entity events since the last refetch — lets UPDATED cards flash
+  // and scroll like new ones (a new-id diff alone can't see an in-place edit).
+  const pendingEventIdsRef = useRef<Set<string>>(new Set());
   const clearTimerRef = useRef<number | null>(null);
   const refreshTimerRef = useRef<number | null>(null);
 
@@ -73,6 +76,10 @@ export function OnboardingSurface({
       const fresh = new Set(
         [...nextIds].filter((id) => !knownIdsRef.current.has(id)),
       );
+      for (const id of pendingEventIdsRef.current) {
+        if (nextIds.has(id)) fresh.add(id);
+      }
+      pendingEventIdsRef.current.clear();
       knownIdsRef.current = nextIds;
       setSnapshot(body.snapshot);
       setLive(body.session ? body.session.status === "active" : true);
@@ -97,15 +104,19 @@ export function OnboardingSurface({
   // and refetching the full snapshot per event would burst dozens of queries
   // against the pooler. One refetch per lull; the highlight diff still works
   // because it diffs against knownIdsRef, not the previous event.
-  const requestRefresh = useCallback(() => {
-    if (refreshTimerRef.current !== null) {
-      window.clearTimeout(refreshTimerRef.current);
-    }
-    refreshTimerRef.current = window.setTimeout(() => {
-      refreshTimerRef.current = null;
-      void refreshPanel();
-    }, 300);
-  }, [refreshPanel]);
+  const requestRefresh = useCallback(
+    (entityId?: string) => {
+      if (entityId) pendingEventIdsRef.current.add(entityId);
+      if (refreshTimerRef.current !== null) {
+        window.clearTimeout(refreshTimerRef.current);
+      }
+      refreshTimerRef.current = window.setTimeout(() => {
+        refreshTimerRef.current = null;
+        void refreshPanel();
+      }, 300);
+    },
+    [refreshPanel],
+  );
 
   // Upload-path commits (§6.3:1258) land in another tab — pick them up when the
   // user returns to this one.
