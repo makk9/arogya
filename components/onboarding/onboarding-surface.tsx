@@ -23,7 +23,7 @@ interface OnboardingSurfaceProps {
 }
 
 function snapshotIds(snapshot: OnboardingSnapshot): Set<string> {
-  return new Set(
+  const ids = new Set(
     [
       snapshot.conditions,
       snapshot.medications,
@@ -33,6 +33,12 @@ function snapshotIds(snapshot: OnboardingSnapshot): Set<string> {
       snapshot.journal,
     ].flatMap((rows) => rows.map((r) => r.id)),
   );
+  // Singletons: present from the start, so they only ever highlight via
+  // entity events (pending ∩ present) — identity and lifestyle updates flash
+  // like any card (they used to land silently — 2026-08-12).
+  ids.add(snapshot.patient.id);
+  if (snapshot.lifestyleId) ids.add(snapshot.lifestyleId);
+  return ids;
 }
 
 export function OnboardingSurface({

@@ -38,6 +38,9 @@ export interface OnboardingSnapshot {
   allergies: SnapshotRow[];
   familyHistory: SnapshotRow[];
   lifestyle: { label: string; value: string }[];
+  // The singleton profile's id — null until first write. Lets lifestyle
+  // upsert events participate in the panel's flash/scroll like entity cards.
+  lifestyleId: string | null;
   journal: SnapshotRow[];
 }
 
@@ -91,8 +94,10 @@ export async function loadOnboardingSnapshot(
     push("intensity", lifestyle.exerciseIntensity);
     push("sleep", lifestyle.sleepPattern);
     push("stress", lifestyle.stressLevel);
+    push("stress context", lifestyle.stressContext);
     push("tobacco", lifestyle.tobaccoUse);
     push("alcohol", lifestyle.alcoholUse);
+    push("notes", lifestyle.notes);
   }
 
   return {
@@ -130,6 +135,7 @@ export async function loadOnboardingSnapshot(
       subtitle: f.relationSpecific ?? relationLabel(f.relation),
     })),
     lifestyle: lifestyleFields,
+    lifestyleId: lifestyle?.id ?? null,
     journal: journal.slice(0, 5).map((j) => ({
       id: j.id,
       title: j.title ?? "Journal entry",

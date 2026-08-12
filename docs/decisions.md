@@ -1093,3 +1093,20 @@ Verified live 2026-07-29: completion turn → `insight_runs` row `succeeded · g
 **UI change:** highlights now key on entity-event ids, not just new-id diffs — UPDATED cards flash + scroll into view (they were invisible before, same complaint class as 2026-07-30 scroll fix).
 **Test hygiene:** full pre-run backups (session transcript via row_to_json/jsonb_populate_record round-trip — pg_dump blocked by 14-vs-17 version mismatch; patient + lifestyle rows), created_at-window sweeps, tracked-id deletes. Post-run: real transcript restored (7 messages, family_history phase), patient + lifestyle byte-identical, all counts at baseline.
 **Notable:** the agent spontaneously flagged Rosuvastatin vs the vault's existing Atorvastatin (two statins) during a test turn — cross-record reasoning showing up unprompted, exactly the §1.3 muscle.
+
+---
+
+**Date:** 2026-08-03
+**Decision:** **Onboarding context completeness closed (rehearsal findings): lifestyle summary + patient extras in the agent's context; shared matching dictionary enriched with med purpose/prescriber (resolved to names), condition severity, allergy reaction/severity.**
+**Context:** From-scratch rehearsal on the populated vault: agent re-asked the fully-filled lifestyle phase (invisible to it — not an extraction type, not in the supplement). Audit then found the same class three more times: patient extras (preferred name/blood type/height/weight) absent from the identity line; med purpose/prescriber stored as unresolved uuids; condition severity + allergy reaction absent.
+**Choice:** lifestyle values + patient extras go in onboarding's own context; the med/condition/allergy detail goes in the SHARED dictionary — extraction benefits identically (matching "the BP tablet Dr. Menon gave him" needs the same resolution), modest token cost. Fourth instance of the context-blindness class; every entity type the interview touches is now represented with the fields it would otherwise re-ask.
+**Verified:** tsc + eslint; live behavior lands on the user's next interview turn (hot reload).
+
+---
+
+**Date:** 2026-08-12
+**Decision:** **Singleton flash coverage (lifestyle box + identity header) + `stress context` in the panel's render list; round-2 rehearsal reconciled; rail confirmed per-spec (9 items — Lifestyle/Allergies live under the patient profile, §3).**
+**Context:** User answered lifestyle questions and saw no highlight — writes were landing correctly but the two singleton areas (lifestyle, patient identity) had no flash machinery (no data-entity-id, ids absent from the highlight bookkeeping), and stress_context wasn't in the snapshot's field list at all. Verified fixed by driving the user's real completed session with two truthful turns (stress-context restore + identity extras): both flashed, both wrote.
+**Also:** §5.8 post-completion additions work naturally (agent accepts, re-offers the scan). Family-history identity rule (2026-08-04, uncommitted until now): (relative, condition) pair — new condition for a known relative is a CREATE; fixed the note-stuffing failure ("Also had Type 2 Diabetes" appended to the colon-cancer row's notes).
+**Reconciliation:** calcium+D3 and elder-brother rows recreated (tmp purge ate the backup file — lesson: rehearsal backups belong in a persistent dir, not /tmp; all values were recoverable from session output); med purposes relinked (Atorvastatin→Dyslipidemia, Tamsulosin→BPH, Shallaki→Osteoarthritis). Open user calls: diet restrictions + tobacco (live interview answers contradict the pre-rehearsal record; live answers currently stand); Aspirin purpose/prescribers unset (never captured).
+**Verified:** tsc + eslint; Playwright pass on the live session (both flashes, zero page errors); counts restored (10 meds · 6 conds · 2 allergies · 5 famhx · 3 journal).

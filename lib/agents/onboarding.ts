@@ -10,6 +10,7 @@ import type { OnboardingPhase } from "@/db/schema";
 import {
   familyHistoryQueries,
   journalQueries,
+  lifestyleQueries,
   patientQueries,
 } from "@/db/queries";
 import { AgentError } from "@/lib/agents/_shared/errors";
@@ -87,7 +88,7 @@ Entity types and their \`data\` fields (include ONLY fields the user actually st
 - "condition" — name, status, severity, notes, category ("cardiovascular"|"endocrine"|"renal"|"neurological"|"musculoskeletal"|"mental_health"|"oncology"|"hematological"|"dermatological"|"gastrointestinal"|"respiratory"|"autoimmune"|"other"). Hypertension → cardiovascular; type 2 diabetes → endocrine.
 - "doctor" — name, specialty, notes.
 - "allergy" — substance, reaction, severity, category ("drug"|"food"|"environmental"|"other").
-- "family_history" — relation ("parent"|"sibling"|"child"|"grandparent"|"aunt_uncle"|"cousin"|"other"), relation_specific (the user's own words, e.g. "younger brother"), condition_name, age_of_onset, outcome, notes. The relation is relative to the PATIENT, not the user.
+- "family_history" — relation ("parent"|"sibling"|"child"|"grandparent"|"aunt_uncle"|"cousin"|"other"), relation_specific (the user's own words, e.g. "younger brother"), condition_name, age_of_onset, outcome, notes. The relation is relative to the PATIENT, not the user. IDENTITY IS THE (relative, condition) PAIR — one entry per condition per relative. A NEW condition for a relative who already has entries is a CREATE ("his father had diabetes" when the father's entry on record is heart disease → new entry, never a note or update on the other condition's entry). Update an entry only when the user adds to or corrects THAT SAME condition for that relative.
 - "lifestyle" — diet_pattern, diet_restrictions (array of strings), exercise_pattern, exercise_intensity ("sedentary"|"light"|"moderate"|"active"|"very_active"), sleep_pattern, stress_level ("low"|"moderate"|"high"|"variable"), stress_context, tobacco_use ("never"|"former"|"current"), alcohol_use ("never"|"occasional"|"regular"|"former"), notes. Emit ONE lifestyle block per turn combining whatever was stated.
 - "journal_entry" — title, content, mood ("concerned"|"neutral"|"hopeful"|"frustrated"|"other"). Use for the phase-8 primary concern, written in the user's own terms.
 - Recent events, if they come up in loose_ends: "visit" — visit_date, doctor, reason, summary, notes. "lab_report" — title, report_type, report_date, ordering_doctor, results (array of {marker, value, unit, reference_range, flag}). "symptom_episode" — symptom, started_at, severity, body_area ("head"|"chest"|"abdomen"|"back"|"arms"|"legs"|"skin"|"general"|"other"), notes. "vital_reading" — type (e.g. blood_pressure, weight), value, unit, measured_at.
@@ -128,12 +129,46 @@ Plain, warm, direct (never chummy, never clinical-cold). No "Great question!", n
 export async function buildOnboardingUpdateTargets(
   patientId: string,
 ): Promise<string> {
-  const [familyHistory, journal] = await Promise.all([
+  const [familyHistory, journal, lifestyle] = await Promise.all([
     familyHistoryQueries.forPatient(patientId),
     journalQueries.forPatient(patientId),
+    lifestyleQueries.getForPatient(patientId),
   ]);
 
   const sections: string[] = [];
+
+  // Without this the lifestyle phase looks uncaptured on a populated vault and
+  // gets re-asked from scratch (found in the 2026-08-03 rehearsal). Values, not
+  // just field names — so the agent can reference them naturally.
+  if (lifestyle) {
+    const fields: Array<[string, string | null]> = [
+      ["diet", lifestyle.dietPattern],
+      [
+        "restrictions",
+        lifestyle.dietRestrictions?.length
+          ? lifestyle.dietRestrictions.join(", ")
+          : null,
+      ],
+      ["exercise", lifestyle.exercisePattern],
+      ["exercise intensity", lifestyle.exerciseIntensity],
+      ["sleep", lifestyle.sleepPattern],
+      ["stress", lifestyle.stressLevel],
+      ["stress context", lifestyle.stressContext],
+      ["tobacco", lifestyle.tobaccoUse],
+      ["alcohol", lifestyle.alcoholUse],
+    ];
+    const lines = fields
+      .filter((f): f is [string, string] => !!f[1])
+      .map(([k, v]) => `- ${k}: ${v}`);
+    if (lines.length > 0) {
+      sections.push(
+        [
+          "## Lifestyle on record (phase 7 ground already covered — only ask about gaps)",
+          ...lines,
+        ].join("\n"),
+      );
+    }
+  }
   if (familyHistory.length > 0) {
     const lines = familyHistory.map((f) => {
       const who = f.relationSpecific ?? f.relation.replace(/_/g, "/");
@@ -196,7 +231,7 @@ export async function runOnboardingTurn(
     // phase 1 from scratch (seen in smoke testing). The seed placeholder name
     // is still worth confirming; real identity fields are not.
     identity = patient
-      ? `Patient record so far: name ${patient.name}${patient.dateOfBirth ? `, born ${patient.dateOfBirth}` : ""}${patient.sex !== "unspecified" ? `, ${patient.sex}` : ""}${patient.city ? `, ${patient.city}` : ""}, ${patient.country}. Fields already filled here are known — confirm or fill gaps in phase 1 rather than asking again.`
+      ? `Patient record so far: name ${patient.name}${patient.preferredName ? ` (goes by ${patient.preferredName})` : ""}${patient.dateOfBirth ? `, born ${patient.dateOfBirth}` : ""}${patient.sex !== "unspecified" ? `, ${patient.sex}` : ""}${patient.bloodType ? `, blood group ${patient.bloodType}` : ""}${patient.heightCm ? `, ${patient.heightCm} cm` : ""}${patient.currentWeightKg ? `, ${patient.currentWeightKg} kg` : ""}${patient.city ? `, ${patient.city}` : ""}, ${patient.country}. Fields already filled here are known — confirm or fill gaps in phase 1 rather than asking again.`
       : "";
   } catch (err) {
     throw new AgentError(

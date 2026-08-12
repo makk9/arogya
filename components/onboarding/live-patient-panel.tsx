@@ -134,7 +134,12 @@ export function LivePatientPanel({
 
   return (
     <div ref={containerRef} className="flex h-full flex-col overflow-y-auto px-6 py-5">
-      <div className="mb-4 flex items-start justify-between gap-4">
+      <div
+        data-entity-id={patient.id}
+        className={`mb-4 flex items-start justify-between gap-4 rounded-lg px-2 py-1 transition-colors duration-1000 ${
+          highlights.has(patient.id) ? "bg-accent" : "bg-transparent"
+        }`}
+      >
         <div className="min-w-0">
           <InlinePatchField
             key={patient.name}
@@ -204,7 +209,14 @@ export function LivePatientPanel({
               Nothing here yet — it fills in as you talk.
             </p>
           ) : (
-            <div className="rounded-lg border border-border px-3 py-2">
+            <div
+              data-entity-id={snapshot.lifestyleId ?? undefined}
+              className={`rounded-lg border border-border px-3 py-2 transition-colors duration-1000 ${
+                snapshot.lifestyleId && highlights.has(snapshot.lifestyleId)
+                  ? "bg-accent"
+                  : "bg-transparent"
+              }`}
+            >
               {snapshot.lifestyle.map((f) => (
                 <p key={f.label} className="text-sm text-foreground">
                   <span className="text-muted-foreground">{f.label}: </span>

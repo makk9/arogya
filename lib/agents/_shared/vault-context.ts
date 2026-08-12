@@ -342,6 +342,12 @@ export async function buildMatchingDictionary(
 
   const sections: string[] = [];
 
+  // Resolve the meds' purpose/prescriber links to names — without them the
+  // agents re-ask for facts already linked ("what's the Metformin for?") and
+  // can't match phrasing like "the BP tablet Dr. Menon gave him" (2026-08-03).
+  const conditionNameById = new Map(conditions.map((c) => [c.id, c.name]));
+  const doctorNameById = new Map(doctors.map((d) => [d.id, d.name]));
+
   if (medications.length > 0) {
     const lines = medications.map((m) => {
       const brand = m.brandName ? ` (brand ${m.brandName})` : "";
@@ -349,14 +355,25 @@ export async function buildMatchingDictionary(
         .filter((v) => v && v.length > 0)
         .join(", ");
       const doseTail = dose.length > 0 ? ` — ${dose}` : "";
-      return `- ${m.name}${brand}${doseTail}, ${m.status} (id: ${m.id})`;
+      const linked = [
+        m.purpose && conditionNameById.has(m.purpose)
+          ? `for ${conditionNameById.get(m.purpose)}`
+          : null,
+        m.prescribingDoctor && doctorNameById.has(m.prescribingDoctor)
+          ? `prescribed by ${doctorNameById.get(m.prescribingDoctor)}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(", ");
+      return `- ${m.name}${brand}${doseTail}, ${m.status}${linked ? ` — ${linked}` : ""} (id: ${m.id})`;
     });
     sections.push(["## Medications", ...lines].join("\n"));
   }
 
   if (conditions.length > 0) {
     const lines = conditions.map(
-      (c) => `- ${c.name}, ${c.status} (id: ${c.id})`,
+      (c) =>
+        `- ${c.name}, ${c.status}${c.severity ? `, ${c.severity}` : ""} (id: ${c.id})`,
     );
     sections.push(["## Conditions", ...lines].join("\n"));
   }
@@ -370,7 +387,8 @@ export async function buildMatchingDictionary(
 
   if (allergies.length > 0) {
     const lines = allergies.map(
-      (a) => `- ${a.substance}, ${a.status} (id: ${a.id})`,
+      (a) =>
+        `- ${a.substance}, ${a.status}${a.severity && a.severity !== "unknown" ? `, ${a.severity}` : ""}${a.reaction ? ` — ${a.reaction}` : ""} (id: ${a.id})`,
     );
     sections.push(["## Allergies", ...lines].join("\n"));
   }
@@ -379,8 +397,8 @@ export async function buildMatchingDictionary(
   // draw / visit is create-new, but a note can ADD to an existing one listed
   // here (a marker to a lab, a note to a visit). Bounded to the most recent
   // dozen each to stay lean — enough to resolve "the June 15 lab" without
-  // dumping full history.
-  const doctorNameById = new Map(doctors.map((d) => [d.id, d.name]));
+  // dumping full history. (doctorNameById is declared with the state-entity
+  // maps above.)
   const eventSections: string[] = [];
 
   const recentLabs = [...labs]
