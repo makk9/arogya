@@ -41,7 +41,7 @@ interface Props {
 const SECTION_HEAD =
   "mb-3 font-mono text-xs uppercase tracking-wide text-muted-foreground";
 const FIELD_LABEL =
-  "mb-1 font-mono text-[10px] uppercase tracking-wide text-muted-foreground";
+  "mb-1 font-mono text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);

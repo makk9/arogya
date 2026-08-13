@@ -30,17 +30,19 @@ interface Props {
  * the schema stores canonical metric and conversion happens at the input edge
  * (lib/units.ts).
  *
- * Weight carries the spec's `history →` link (1678, 1694) into the grouped
- * vitals history view's weight section (E0a — the time-series surface the
- * earlier deviation was waiting on). The inline trend itself stays on the
- * dashboard's key-markers card; weight here remains the patient row's
- * `current_weight_kg` snapshot.
+ * This section is FACTS ONLY — vitals-history navigation lived here briefly
+ * (as §6.10:1678's weight-attached `history →`, then as its own cell) but a
+ * nav link has no fact to state, so no wording ever fit; it now lives in AT A
+ * GLANCE, the profile's navigation index (user findings 2026-08-12 ×3).
+ * Allergies stays because its count IS the fact. Weight remains the patient
+ * row's `current_weight_kg` snapshot; the inline trend stays on the
+ * dashboard's key-markers card.
  */
 
 const SECTION_HEAD =
   "mb-3 font-mono text-xs uppercase tracking-wide text-muted-foreground";
 const FIELD_LABEL =
-  "mb-1 font-mono text-[10px] uppercase tracking-wide text-muted-foreground";
+  "mb-1 font-mono text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
 const DASH = <span className="text-muted-foreground">—</span>;
 
 export function PatientMedicalProfileSection({
@@ -82,16 +84,7 @@ export function PatientMedicalProfileSection({
           />
         </div>
         <div>
-          <div className={FIELD_LABEL}>
-            weight
-            {" · "}
-            <Link
-              href={`/patient/${patientId}/vitals#type-weight`}
-              className="normal-case text-link underline-offset-2 hover:underline"
-            >
-              history →
-            </Link>
-          </div>
+          <div className={FIELD_LABEL}>weight</div>
           <PatientMeasurementField
             kind="weight"
             valueMetric={patient.currentWeightKg}

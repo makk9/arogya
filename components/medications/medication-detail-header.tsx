@@ -142,7 +142,7 @@ export function MedicationDetailHeader({
       {editing ? (
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
-            <div className="mb-1 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+            <div className="mb-1 font-mono text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               form
             </div>
             <InlineField
@@ -158,7 +158,7 @@ export function MedicationDetailHeader({
             />
           </div>
           <div>
-            <div className="mb-1 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+            <div className="mb-1 font-mono text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               started on
             </div>
             <InlineField

@@ -8,14 +8,15 @@ import {
   type VitalReading,
 } from "@/db/schema";
 import { symptomEpisodeInScope } from "./_shared";
+import { READING_TYPE_ORDER, type VitalReadingTypeValue } from "@/lib/vitals";
 
 /*
  * VitalReading queries — an EVENT entity with a reduced surface. No detail
- * page or rail item by design (§3:145 "the trend is the value"); readings
- * surface on the dashboard's key-markers card and the grouped vitals history
- * view (E0a), which entity links anchor into (`/vitals#r-<id>`). There's no
- * bySlug resolver and no update/correction (readings are immutable; a mistake
- * is deleted and re-entered, §4:433).
+ * page ("the trend is the value", §3:145); readings surface on the dashboard's
+ * key-markers card and the grouped vitals history view (E0a — a rail item
+ * since the 2026-08-12 promotion), which entity links anchor into
+ * (`/vitals#r-<id>`). There's no bySlug resolver and no update/correction
+ * (readings are immutable; a mistake is deleted and re-entered, §4:433).
  *
  * Patient scope rides patient_id, so a foreign id can never surface another
  * patient's rows. `linkedSymptomId` is scope-checked before insert (a mapped
@@ -37,6 +38,29 @@ export class VitalDomainError extends Error {
 }
 
 export const vitalQueries = {
+  // Which vital types have data, with per-type counts, in the canonical
+  // display order — the AT A GLANCE row's shape. Grouped aggregate instead of
+  // fetching every reading to derive type presence (that stops scaling the
+  // moment readings do). READING_TYPE_ORDER lives in lib/vitals precisely so
+  // the DB layer can compose canonical vitals ordering (E0a).
+  async typeCounts(
+    patientId: string,
+  ): Promise<Array<{ readingType: VitalReadingTypeValue; count: number }>> {
+    const rows = await db
+      .select({
+        readingType: vitalReadings.readingType,
+        count: sql<number>`count(*)`.mapWith(Number),
+      })
+      .from(vitalReadings)
+      .where(eq(vitalReadings.patientId, patientId))
+      .groupBy(vitalReadings.readingType);
+    const order = new Map(READING_TYPE_ORDER.map((t, i) => [t, i]));
+    return rows.sort(
+      (a, b) =>
+        (order.get(a.readingType) ?? 99) - (order.get(b.readingType) ?? 99),
+    );
+  },
+
   async forPatient(patientId: string): Promise<VitalReading[]> {
     return db
       .select()

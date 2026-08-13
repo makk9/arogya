@@ -8,6 +8,8 @@ import { PatientIdentitySection } from "@/components/patient/patient-identity-se
 import { PatientMedicalProfileSection } from "@/components/patient/patient-medical-profile-section";
 import { PatientNotesSection } from "@/components/patient/patient-notes-section";
 import { patientQueries } from "@/db/queries/patient";
+import { vitalQueries } from "@/db/queries/vital";
+import { READING_TYPE_LABEL } from "@/lib/vitals";
 import { getCurrentPatient } from "@/lib/auth";
 import { patientProfileSurfaceContext } from "@/lib/chat/surface-context";
 import { ageInYears, todayInTimezone } from "@/lib/datetime";
@@ -41,16 +43,24 @@ export default async function PatientProfilePage({
     .toISOString()
     .slice(0, 10);
 
-  // The row and the glance counts are independent — fetch in one wave.
-  const [patient, counts] = await Promise.all([
+  // The row, the glance counts, and the vitals presence are independent — one wave.
+  const [patient, counts, vitalTypes] = await Promise.all([
     patientQueries.getById(current.patientId),
     patientQueries.atAGlance(current.patientId, visitsSince, today),
+    vitalQueries.typeCounts(current.patientId),
   ]);
   if (!patient) notFound();
 
   const age = ageInYears(patient.dateOfBirth, today);
   const unitSystem = unitSystemForCountry(patient.country);
   const notesText = patient.notes?.trim() ?? "";
+
+  // AT A GLANCE's vitals row: which vitals are tracked (canonical order),
+  // previewed like the entity rows — first two type labels + overflow.
+  const vitalsGlance = {
+    count: vitalTypes.length,
+    names: vitalTypes.slice(0, 2).map((t) => READING_TYPE_LABEL[t.readingType]),
+  };
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
@@ -75,7 +85,11 @@ export default async function PatientProfilePage({
           unitSystem={unitSystem}
         />
 
-        <PatientAtAGlanceSection patientId={current.patientId} counts={counts} />
+        <PatientAtAGlanceSection
+          patientId={current.patientId}
+          counts={counts}
+          vitals={vitalsGlance}
+        />
 
         <PatientNotesSection notes={notesText} />
       </PatientDetailShell>

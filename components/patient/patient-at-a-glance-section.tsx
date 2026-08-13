@@ -6,6 +6,9 @@ import { formatAbsoluteDate } from "@/lib/datetime";
 interface Props {
   patientId: string;
   counts: PatientAtAGlance;
+  // Which vitals are tracked (canonical labels) + total type count — the
+  // row's "light context" names what's measured, not how many readings.
+  vitals: GlancePreview;
 }
 
 /*
@@ -70,7 +73,7 @@ function GlanceRow({
   );
 }
 
-export function PatientAtAGlanceSection({ patientId, counts }: Props) {
+export function PatientAtAGlanceSection({ patientId, counts, vitals }: Props) {
   const base = `/patient/${patientId}`;
   return (
     <section className="mb-8">
@@ -104,6 +107,14 @@ export function PatientAtAGlanceSection({ patientId, counts }: Props) {
               ? `last updated ${formatAbsoluteDate(counts.lifestyleUpdatedAt)}`
               : "not recorded yet"
           }
+        />
+        {/* Vitals history moved here from MEDICAL PROFILE (2026-08-12): it's
+            navigation, and this section is the profile's navigation index —
+            the context names WHAT's tracked, the medically meaningful bit. */}
+        <GlanceRow
+          href={`${base}/vitals`}
+          label="Vitals history"
+          context={previewContext(vitals, "none recorded")}
         />
         <GlanceRow
           href={`${base}/visits`}

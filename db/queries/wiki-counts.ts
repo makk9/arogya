@@ -1,7 +1,9 @@
-import { and, count, eq } from "drizzle-orm";
+import { and, eq, sql, type SQL } from "drizzle-orm";
+import type { PgTable } from "drizzle-orm/pg-core";
 
 import { db } from "@/db";
 import {
+  allergies,
   conditions,
   doctors,
   familyHistory,
@@ -9,32 +11,36 @@ import {
   journalEntries,
   labReports,
   medications,
+  patients,
   reports,
   symptomTypes,
   visits,
+  vitalReadings,
 } from "@/db/schema";
 import { realReportsWhere } from "./report";
 
 /**
- * Per-category row counts for the Health Wiki rail (§3 rail structure +
- * §6.1:1146 "nine category items + counts"). One count() per category; the
- * Symptoms item counts symptom *types* (the index unit — episodes nest under a
- * type on the timeline), Labs counts lab *reports* (results nest under a
- * report). Single-patient scale, so nine cheap aggregates per navigation is
- * fine; patient-scoped throughout.
+ * Per-category row counts for the Health Wiki rail. §3 spec'd nine items;
+ * Allergies + Vitals were promoted 2026-08-12 (user sign-off, decisions.md —
+ * "if it has a page, it's in the rail"; Lifestyle joined too but is a
+ * countless singleton). The Symptoms item counts symptom *types* (the index
+ * unit — episodes nest under a type on the timeline), Labs counts lab
+ * *reports* (results nest under a report), Vitals counts readings.
  *
- * These stay nine separate `count()`s rather than the single `COUNT(*) OVER()`
- * pass the patient profile's `atAGlance` uses (decisions.md F1) — that one also
- * pulls preview rows per entity, so collapsing waves paid off there; here we
- * need counts only, and nine parallel aggregates are one round-trip.
+ * One round-trip: the query anchors on the patient row and computes every
+ * count as a scalar subquery — the rail renders on every navigation, so a
+ * dozen sequential-ish pool checkouts per click was the wrong shape
+ * (2026-08-12 /check). Missing patient degrades to all-zeros.
  */
 export interface WikiCounts {
   medications: number;
   conditions: number;
+  allergies: number;
   doctors: number;
   familyHistory: number;
   visits: number;
   labs: number;
+  vitals: number;
   symptoms: number;
   reports: number;
   journal: number;
@@ -43,79 +49,53 @@ export interface WikiCounts {
   insightsNew: number;
 }
 
-async function countFor(
-  table:
-    | typeof medications
-    | typeof conditions
-    | typeof doctors
-    | typeof familyHistory
-    | typeof visits
-    | typeof labReports
-    | typeof symptomTypes
-    | typeof reports
-    | typeof journalEntries,
-  patientId: string,
-): Promise<number> {
-  const [row] = await db
-    .select({ c: count() })
-    .from(table)
-    .where(eq(table.patientId, patientId));
-  return row?.c ?? 0;
-}
-
-// Reports need the stub-excluding filter (§5.4 quick-log source stubs), so the
-// rail badge matches the §6.6 timeline exactly — not a plain row count.
-async function countRealReports(patientId: string): Promise<number> {
-  const [row] = await db
-    .select({ c: count() })
-    .from(reports)
-    .where(realReportsWhere(patientId));
-  return row?.c ?? 0;
-}
-
-async function countNewInsights(patientId: string): Promise<number> {
-  const [row] = await db
-    .select({ c: count() })
-    .from(insights)
-    .where(and(eq(insights.patientId, patientId), eq(insights.status, "new")));
-  return row?.c ?? 0;
+// A correlated `(select count(*) …)` scalar, coerced from postgres-js's
+// string-typed bigint.
+function countWhere(table: PgTable, where: SQL | undefined) {
+  return sql<number>`(select count(*) from ${table} where ${where})`.mapWith(
+    Number,
+  );
 }
 
 export async function wikiCounts(patientId: string): Promise<WikiCounts> {
-  const [
-    medicationsCount,
-    conditionsCount,
-    doctorsCount,
-    familyHistoryCount,
-    visitsCount,
-    labsCount,
-    symptomsCount,
-    reportsCount,
-    journalCount,
-    insightsNewCount,
-  ] = await Promise.all([
-    countFor(medications, patientId),
-    countFor(conditions, patientId),
-    countFor(doctors, patientId),
-    countFor(familyHistory, patientId),
-    countFor(visits, patientId),
-    countFor(labReports, patientId),
-    countFor(symptomTypes, patientId),
-    countRealReports(patientId),
-    countFor(journalEntries, patientId),
-    countNewInsights(patientId),
-  ]);
+  const rows = await db
+    .select({
+      medications: countWhere(medications, eq(medications.patientId, patients.id)),
+      conditions: countWhere(conditions, eq(conditions.patientId, patients.id)),
+      allergies: countWhere(allergies, eq(allergies.patientId, patients.id)),
+      doctors: countWhere(doctors, eq(doctors.patientId, patients.id)),
+      familyHistory: countWhere(familyHistory, eq(familyHistory.patientId, patients.id)),
+      visits: countWhere(visits, eq(visits.patientId, patients.id)),
+      labs: countWhere(labReports, eq(labReports.patientId, patients.id)),
+      vitals: countWhere(vitalReadings, eq(vitalReadings.patientId, patients.id)),
+      symptoms: countWhere(symptomTypes, eq(symptomTypes.patientId, patients.id)),
+      // Reports keep the stub-excluding filter (§5.4 quick-log source stubs)
+      // so the badge matches the §6.6 timeline exactly.
+      reports: countWhere(reports, realReportsWhere(patientId)),
+      journal: countWhere(journalEntries, eq(journalEntries.patientId, patients.id)),
+      insightsNew: countWhere(
+        insights,
+        and(eq(insights.patientId, patients.id), eq(insights.status, "new")),
+      ),
+    })
+    .from(patients)
+    .where(eq(patients.id, patientId))
+    .limit(1);
 
-  return {
-    medications: medicationsCount,
-    conditions: conditionsCount,
-    doctors: doctorsCount,
-    familyHistory: familyHistoryCount,
-    visits: visitsCount,
-    labs: labsCount,
-    symptoms: symptomsCount,
-    reports: reportsCount,
-    journal: journalCount,
-    insightsNew: insightsNewCount,
-  };
+  return (
+    rows[0] ?? {
+      medications: 0,
+      conditions: 0,
+      allergies: 0,
+      doctors: 0,
+      familyHistory: 0,
+      visits: 0,
+      labs: 0,
+      vitals: 0,
+      symptoms: 0,
+      reports: 0,
+      journal: 0,
+      insightsNew: 0,
+    }
+  );
 }

@@ -9,7 +9,8 @@ import { cn } from "@/lib/utils";
 /*
  * The Health Wiki rail (§3 "Health Wiki rail structure" + §6.1:1146). Three
  * zones: rail header (branding + patient switcher) · top-level surfaces · the
- * nine HEALTH WIKI category items with counts · footer.
+ * HEALTH WIKI category items with counts (twelve since 2026-08-12, in
+ * PROFILE/TIMELINE groups rendering §3's own State/Event type column) · footer.
  *
  * Scope / deviations (flagged in the handoff):
  *  - Dashboard (§6.1) shipped in Phase E (E0a) — the top top-level item; the
@@ -29,7 +30,8 @@ import { cn } from "@/lib/utils";
 interface WikiItem {
   label: string;
   segment: string;
-  count: number;
+  // Absent for countless singletons (Lifestyle) — no badge renders.
+  count?: number;
 }
 
 interface Props {
@@ -43,13 +45,22 @@ export function WikiRail({ patientId, patientName, relationship, counts }: Props
   const pathname = usePathname();
   const base = `/patient/${patientId}`;
 
-  const wikiItems: WikiItem[] = [
+  // Two groups mirroring §4's state/event split. §3 spec'd nine items;
+  // Allergies, Lifestyle, and Vitals were promoted 2026-08-12 (user sign-off,
+  // decisions.md): every surface with a page gets a rail item — the profile
+  // page is a summary hub, not a secret second navigation system.
+  const stateItems: WikiItem[] = [
     { label: "Medications", segment: "medications", count: counts.medications },
     { label: "Conditions", segment: "conditions", count: counts.conditions },
+    { label: "Allergies", segment: "allergies", count: counts.allergies },
     { label: "Doctors", segment: "doctors", count: counts.doctors },
     { label: "Family history", segment: "family-history", count: counts.familyHistory },
+    { label: "Lifestyle", segment: "lifestyle" },
+  ];
+  const eventItems: WikiItem[] = [
     { label: "Visits", segment: "visits", count: counts.visits },
     { label: "Labs", segment: "labs", count: counts.labs },
+    { label: "Vitals", segment: "vitals", count: counts.vitals },
     { label: "Symptoms", segment: "symptoms", count: counts.symptoms },
     { label: "Reports", segment: "reports", count: counts.reports },
     { label: "Journal", segment: "journal", count: counts.journal },
@@ -58,6 +69,27 @@ export function WikiRail({ patientId, patientName, relationship, counts }: Props
   // A segment is active when the path is that section or anything under it.
   const isActive = (segment: string) =>
     pathname === `${base}/${segment}` || pathname.startsWith(`${base}/${segment}/`);
+
+  const renderItem = (item: WikiItem) => {
+    const active = isActive(item.segment);
+    return (
+      <Link
+        key={item.segment}
+        href={`${base}/${item.segment}`}
+        className={cn(
+          "flex items-center justify-between gap-2 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-muted/60",
+          active ? "bg-muted font-medium" : "text-foreground/80",
+        )}
+      >
+        <span>{item.label}</span>
+        {item.count !== undefined && item.count > 0 ? (
+          <span className="shrink-0 font-mono text-[0.7rem] text-muted-foreground">
+            {item.count}
+          </span>
+        ) : null}
+      </Link>
+    );
+  };
 
   const profileActive = pathname === base;
   const dashboardActive = isActive("dashboard");
@@ -136,26 +168,31 @@ export function WikiRail({ patientId, patientName, relationship, counts }: Props
         <span className="px-3 pb-1 font-mono text-[0.65rem] uppercase tracking-wide text-muted-foreground">
           Health wiki
         </span>
-        {wikiItems.map((item) => {
-          const active = isActive(item.segment);
-          return (
-            <Link
-              key={item.segment}
-              href={`${base}/${item.segment}`}
-              className={cn(
-                "flex items-center justify-between gap-2 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-muted/60",
-                active ? "bg-muted font-medium" : "text-foreground/80",
-              )}
-            >
-              <span>{item.label}</span>
-              {item.count > 0 ? (
-                <span className="shrink-0 font-mono text-[0.7rem] text-muted-foreground">
-                  {item.count}
-                </span>
-              ) : null}
-            </Link>
-          );
-        })}
+        {/* Labeled sub-groups (user calls 2026-08-12 ×2: a bare divider read
+            as "what is this dividing?", and CURRENT/HISTORY misread as a time
+            split): PROFILE = state entities, the enduring description;
+            TIMELINE = event entities, dated happenings (§4). "The visit goes
+            on the timeline; the prescription it produced joins his profile."
+            role="group" + aria-label so screen readers get the structure; the
+            visible labels are decorative duplicates, hence aria-hidden. */}
+        <div role="group" aria-label="Profile" className="flex flex-col gap-0.5">
+          <span
+            aria-hidden
+            className="px-3 pb-0.5 pt-1 font-mono text-[0.65rem] uppercase tracking-wide text-muted-foreground/70"
+          >
+            Profile
+          </span>
+          {stateItems.map((item) => renderItem(item))}
+        </div>
+        <div role="group" aria-label="Timeline" className="mt-2 flex flex-col gap-0.5">
+          <span
+            aria-hidden
+            className="px-3 pb-0.5 font-mono text-[0.65rem] uppercase tracking-wide text-muted-foreground/70"
+          >
+            Timeline
+          </span>
+          {eventItems.map((item) => renderItem(item))}
+        </div>
       </div>
 
       {/* Footer — search affordance (v1-excluded; inert) */}
