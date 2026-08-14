@@ -8,8 +8,13 @@ import {
   trendValueLabel,
 } from "@/components/lifestyle/lifestyle-options";
 import { LifestyleInlineField } from "@/components/lifestyle/lifestyle-inline-field";
+import {
+  LogChangeHint,
+  LogChangeValue,
+} from "@/components/log-change-affordance";
 import { useMaybeLifestyleEdit } from "@/components/lifestyle/lifestyle-edit-context";
 import { useMaybeLifestyleLogChange } from "@/components/lifestyle/lifestyle-log-change-context";
+import type { LifestyleTrendFieldKey } from "@/components/lifestyle/lifestyle-options";
 import type { LifestyleProfile } from "@/db/schema";
 
 interface Props {
@@ -28,9 +33,11 @@ interface Props {
  *    inside the Exercise narrative block (decisions.md 2026-06-10)
  *
  * Edit-mode rule (the singleton's create-form analog): an EMPTY trend field is
- * inline-editable (first population); a populated one stays read-only with the
- * hint routing to `+ Log a change`. Companion fields (dietRestrictions,
- * stressContext) are always editable.
+ * inline-editable (first population); a populated one is a click target that
+ * opens the `+ Log a change` dialog preselected to that field — the user's
+ * "click the information to change it" instinct routes to the change-log
+ * write path instead of dead-ending (change logs, never overwrites).
+ * Companion fields (dietRestrictions, stressContext) are always editable.
  */
 
 const SECTION_HEAD =
@@ -47,19 +54,18 @@ export function LifestyleCurrentSection({ profile }: Props) {
   const editing = editCtx?.editing ?? false;
   const logChange = useMaybeLifestyleLogChange();
 
-  // A trend field renders its inline editor only while empty.
-  const trendEditable = (value: string | null) => editing && !value;
-  const anyTrendLocked =
-    editing &&
-    [
-      profile?.dietPattern,
-      profile?.exercisePattern,
-      profile?.sleepPattern,
-      profile?.exerciseIntensity,
-      profile?.stressLevel,
-      profile?.tobaccoUse,
-      profile?.alcoholUse,
-    ].some((v) => v != null);
+  // An EMPTY trend field mounts its InlineField (first population) — which
+  // self-manages display vs editor, so the dash is a click-to-edit target at
+  // rest and an editor in edit mode. Populated trend fields never mount it;
+  // they route through `+ Log a change`.
+  const trendEditable = (value: string | null) => !value;
+
+  // Populated trend values open the Log-a-change dialog scoped to themselves.
+  const logChangeFor = (
+    field: LifestyleTrendFieldKey,
+    value: string | null,
+  ): (() => void) | null =>
+    value && logChange ? () => logChange.open(field) : null;
 
   const restrictions = profile?.dietRestrictions ?? [];
 
@@ -73,6 +79,7 @@ export function LifestyleCurrentSection({ profile }: Props) {
           fieldKey="dietPattern"
           value={profile?.dietPattern ?? null}
           editable={trendEditable(profile?.dietPattern ?? null)}
+          onLogChange={logChangeFor("dietPattern", profile?.dietPattern ?? null)}
           placeholder="Vegetarian, mostly home-cooked. Recently cut sugar."
         />
         <NarrativeBlock
@@ -80,6 +87,10 @@ export function LifestyleCurrentSection({ profile }: Props) {
           fieldKey="exercisePattern"
           value={profile?.exercisePattern ?? null}
           editable={trendEditable(profile?.exercisePattern ?? null)}
+          onLogChange={logChangeFor(
+            "exercisePattern",
+            profile?.exercisePattern ?? null,
+          )}
           placeholder="30-min walk most mornings. Yoga twice a week."
           subRow={
             <div className="mt-2">
@@ -97,10 +108,18 @@ export function LifestyleCurrentSection({ profile }: Props) {
               ) : (
                 <span className="text-sm">
                   {profile?.exerciseIntensity ? (
-                    trendValueLabel(
-                      "exerciseIntensity",
-                      profile.exerciseIntensity,
-                    )
+                    <LogChangeValue
+                      ariaLabel="Log a change to exercise intensity"
+                      onLogChange={logChangeFor(
+                        "exerciseIntensity",
+                        profile.exerciseIntensity,
+                      )}
+                    >
+                      {trendValueLabel(
+                        "exerciseIntensity",
+                        profile.exerciseIntensity,
+                      )}
+                    </LogChangeValue>
                   ) : (
                     <Empty />
                   )}
@@ -114,20 +133,13 @@ export function LifestyleCurrentSection({ profile }: Props) {
           fieldKey="sleepPattern"
           value={profile?.sleepPattern ?? null}
           editable={trendEditable(profile?.sleepPattern ?? null)}
+          onLogChange={logChangeFor(
+            "sleepPattern",
+            profile?.sleepPattern ?? null,
+          )}
           placeholder="Sleeps 10pm–6am, naps after lunch."
         />
       </div>
-
-      {anyTrendLocked && logChange ? (
-        <button
-          type="button"
-          onClick={logChange.open}
-          className="mt-2 text-left text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-        >
-          Use &quot;+ Log a change&quot; in History to update fields that
-          already have a value — that keeps the trend story.
-        </button>
-      ) : null}
 
       <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg bg-muted/40 px-4 py-3 md:grid-cols-4">
         <div>
@@ -145,15 +157,21 @@ export function LifestyleCurrentSection({ profile }: Props) {
           ) : (
             <div className="text-sm">
               {profile?.stressLevel ? (
-                trendValueLabel("stressLevel", profile.stressLevel)
+                <LogChangeValue
+                  ariaLabel="Log a change to stress level"
+                  onLogChange={logChangeFor("stressLevel", profile.stressLevel)}
+                >
+                  {trendValueLabel("stressLevel", profile.stressLevel)}
+                </LogChangeValue>
               ) : (
                 <Empty />
               )}
             </div>
           )}
-          {/* Inline context quote (§6.5:1415) — companion field, always
-              editable in edit mode. */}
-          {editing ? (
+          {/* Inline context quote (§6.5:1415) — companion field, plain
+              PATCH. Mounted whenever populated (the quote is a click-to-edit
+              target) or in edit mode (so it can be first-populated). */}
+          {editing || profile?.stressContext ? (
             <LifestyleInlineField
               fieldKey="stressContext"
               value={profile?.stressContext ?? null}
@@ -162,12 +180,14 @@ export function LifestyleCurrentSection({ profile }: Props) {
               ariaLabel="Stress context"
               placeholder="worries about son in US"
               className="mt-1"
-              displayValue={null}
+              displayValue={
+                profile?.stressContext ? (
+                  <div className="mt-0.5 text-xs italic text-muted-foreground">
+                    &ldquo;{profile.stressContext}&rdquo;
+                  </div>
+                ) : null
+              }
             />
-          ) : profile?.stressContext ? (
-            <div className="mt-0.5 text-xs italic text-muted-foreground">
-              &ldquo;{profile.stressContext}&rdquo;
-            </div>
           ) : null}
         </div>
         <div>
@@ -185,7 +205,12 @@ export function LifestyleCurrentSection({ profile }: Props) {
           ) : (
             <div className="text-sm">
               {profile?.tobaccoUse ? (
-                trendValueLabel("tobaccoUse", profile.tobaccoUse)
+                <LogChangeValue
+                  ariaLabel="Log a change to tobacco use"
+                  onLogChange={logChangeFor("tobaccoUse", profile.tobaccoUse)}
+                >
+                  {trendValueLabel("tobaccoUse", profile.tobaccoUse)}
+                </LogChangeValue>
               ) : (
                 <Empty />
               )}
@@ -207,7 +232,12 @@ export function LifestyleCurrentSection({ profile }: Props) {
           ) : (
             <div className="text-sm">
               {profile?.alcoholUse ? (
-                trendValueLabel("alcoholUse", profile.alcoholUse)
+                <LogChangeValue
+                  ariaLabel="Log a change to alcohol use"
+                  onLogChange={logChangeFor("alcoholUse", profile.alcoholUse)}
+                >
+                  {trendValueLabel("alcoholUse", profile.alcoholUse)}
+                </LogChangeValue>
               ) : (
                 <Empty />
               )}
@@ -236,11 +266,14 @@ export function LifestyleCurrentSection({ profile }: Props) {
 }
 
 // One narrative block: mono label, prose body (§6.5:1413's hybrid layout).
+// A populated body is a click target for `+ Log a change` scoped to its field;
+// the ghost hint sits on the label row so the card doesn't grow on hover.
 function NarrativeBlock({
   label,
   fieldKey,
   value,
   editable,
+  onLogChange,
   placeholder,
   subRow,
 }: {
@@ -248,11 +281,12 @@ function NarrativeBlock({
   fieldKey: "dietPattern" | "exercisePattern" | "sleepPattern";
   value: string | null;
   editable: boolean;
+  onLogChange: (() => void) | null;
   placeholder: string;
   subRow?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div className="relative rounded-lg border border-border bg-card p-4">
       <div className={FIELD_LABEL}>{label}</div>
       {editable ? (
         <LifestyleInlineField
@@ -262,8 +296,24 @@ function NarrativeBlock({
           clearable={false}
           ariaLabel={label}
           placeholder={placeholder}
-          displayValue={null}
+          // Editable ⇔ empty: at rest the dash is the click-to-edit target
+          // for first population; in edit mode the textarea renders directly.
+          displayValue={
+            <p className="whitespace-pre-wrap text-sm leading-relaxed">
+              <Empty />
+            </p>
+          }
         />
+      ) : value && onLogChange ? (
+        <button
+          type="button"
+          onClick={onLogChange}
+          aria-label={`Log a change to ${label}`}
+          className="group -mx-1.5 -my-1 block w-full rounded-md px-1.5 py-1 text-left transition-colors hover:bg-muted/50 focus-visible:bg-muted/50"
+        >
+          <p className="whitespace-pre-wrap text-sm leading-relaxed">{value}</p>
+          <LogChangeHint />
+        </button>
       ) : (
         <p className="whitespace-pre-wrap text-sm leading-relaxed">
           {value ?? <Empty />}

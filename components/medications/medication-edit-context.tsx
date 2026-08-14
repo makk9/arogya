@@ -6,6 +6,12 @@ interface MedicationEditValue {
   editing: boolean;
   setEditing: (next: boolean) => void;
   medicationId: string;
+  /**
+   * True on frozen records (discontinued): blocks per-field click-to-edit
+   * self-activation, which would otherwise bypass the shell's no-op
+   * setEditing freeze.
+   */
+  locked?: boolean;
 }
 
 const MedicationEditContext = createContext<MedicationEditValue | null>(null);

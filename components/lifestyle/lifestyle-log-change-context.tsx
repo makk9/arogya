@@ -2,12 +2,16 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 
-// Two consumers (History section's `+ Log a change` button + Current section's
-// in-edit-mode hint) need to open the same dialog the shell owns. Mirrors
+import type { LifestyleTrendFieldKey } from "@/components/lifestyle/lifestyle-options";
+
+// Consumers (History section's `+ Log a change` button + the Current section's
+// clickable value boxes) need to open the same dialog the shell owns. Passing
+// a field preselects it in the dialog — the click-where-the-data-is entry
+// point; omitting it starts from the default selector state. Mirrors
 // allergy-log-change-context.tsx.
 
 interface LifestyleLogChangeValue {
-  open: () => void;
+  open: (field?: LifestyleTrendFieldKey) => void;
 }
 
 const LifestyleLogChangeContext =

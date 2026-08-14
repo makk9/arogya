@@ -1,9 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import { useLifestyleEdit } from "@/components/lifestyle/lifestyle-edit-context";
+import { InlineDisplayTarget } from "@/components/log-change-affordance";
+import {
+  stringToWire,
+  useInlineEdit,
+  type ToWire,
+} from "@/components/use-inline-edit";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -27,6 +33,11 @@ import { cn } from "@/lib/utils";
  * an empty one renders this for first population (decisions.md 2026-06-10).
  * The server enforces the same rule, so a stale page degrades to a field
  * error, not a silent overwrite.
+ *
+ * Two ways into the editor (decisions.md 2026-08-13): click the value itself
+ * (that one field self-activates, focused) or the header Edit toggle. State
+ * + commit mechanics live in the shared useInlineEdit hook; this file owns
+ * the lifestyle field map and the rendered controls.
  */
 
 type Variant = "text" | "textarea" | "tags" | "select";
@@ -56,18 +67,6 @@ interface InlineFieldProps {
   options?: ReadonlyArray<{ value: string; label: string }>;
 }
 
-interface ApiErrorBody {
-  error?: {
-    code?: string;
-    message?: string;
-    details?: {
-      fieldErrors?: Record<string, string[]>;
-      formErrors?: string[];
-      rejectedFields?: Record<string, string>;
-    };
-  };
-}
-
 export function LifestyleInlineField({
   fieldKey,
   value: initialValue,
@@ -82,72 +81,44 @@ export function LifestyleInlineField({
 }: InlineFieldProps) {
   const { editing } = useLifestyleEdit();
   const router = useRouter();
-  const [draft, setDraft] = useState<string>(initialValue ?? "");
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // Sync local draft when the upstream value changes (router.refresh after a
-  // successful PATCH, or a parallel write). Adjusting state during render per
-  // React's "you might not need an effect" guidance.
-  const [prevInitial, setPrevInitial] = useState<string | null>(initialValue);
-  if (initialValue !== prevInitial) {
-    setPrevInitial(initialValue);
-    setDraft(initialValue ?? "");
-    setError(null);
-  }
 
-  if (!editing) {
-    return <>{displayValue}</>;
-  }
-
-  const commit = async (next: string) => {
-    const initialStr = initialValue ?? "";
-    if (next === initialStr) return; // no-op
-
-    // tags: comma-separated input → trimmed string[]; empty → null.
-    let wireValue: string | string[] | null;
-    if (next === "" && clearable) {
-      wireValue = null;
-    } else if (variant === "tags") {
-      const parts = next
-        .split(",")
-        .map((p) => p.trim())
-        .filter((p) => p.length > 0);
-      wireValue = parts.length > 0 ? parts : null;
-      if (wireValue === null && !clearable) return;
-    } else {
-      wireValue = next;
-    }
-
-    setError(null);
-    setPending(true);
-    try {
-      const res = await fetch("/api/lifestyle", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [fieldKey]: wireValue }),
-      });
-      if (res.ok) {
-        router.refresh();
-        return;
-      }
-      const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody;
-      // The lock rejection's API copy names a POST endpoint (a teaching
-      // surface for API callers); in the UI — reachable only via a stale page
-      // whose field got populated elsewhere — say it in product terms.
-      if (parsed.error?.details?.rejectedFields?.[fieldKey]) {
-        setError(
-          "This already has a value — use + Log a change in History to update it.",
-        );
-        return;
-      }
-      const fieldMsg = parsed.error?.details?.fieldErrors?.[fieldKey]?.[0];
-      setError(fieldMsg ?? parsed.error?.message ?? "Couldn't save.");
-    } catch {
-      setError("Couldn't reach the server.");
-    } finally {
-      setPending(false);
-    }
+  // tags: comma-separated input → trimmed string[]; empty → null.
+  const toWire = (next: string): ToWire => {
+    if (variant !== "tags") return stringToWire(clearable)(next);
+    if (next === "" && clearable) return { value: null };
+    const parts = next
+      .split(",")
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
+    if (parts.length === 0 && !clearable) return { skip: true };
+    return { value: parts.length > 0 ? parts : null };
   };
+
+  const field = useInlineEdit({
+    initialValue,
+    fieldKey,
+    required: false,
+    ariaLabel,
+    editing,
+    endpoint: "/api/lifestyle",
+    toWire,
+    // The lock rejection's API copy names a POST endpoint (a teaching surface
+    // for API callers); in the UI — reachable only via a stale page whose
+    // field got populated elsewhere — say it in product terms.
+    mapApiError: (body) =>
+      body.error?.details?.rejectedFields?.[fieldKey]
+        ? "This already has a value — use + Log a change in History to update it."
+        : null,
+    onSaved: () => router.refresh(),
+  });
+
+  if (!field.active) {
+    return (
+      <InlineDisplayTarget ariaLabel={ariaLabel} onActivate={field.activate}>
+        {displayValue}
+      </InlineDisplayTarget>
+    );
+  }
 
   // Select variant commits on value change instead of blur. `items` is passed
   // to the Select root so Base UI's <SelectValue> renders the option label.
@@ -157,14 +128,13 @@ export function LifestyleInlineField({
       <div className={cn("flex flex-col gap-1", className)}>
         <Select
           // null, not undefined: Base UI's controlled empty value is null.
-          value={draft || null}
+          value={field.draft || null}
           items={items}
-          disabled={pending}
-          onValueChange={(next) => {
-            const v = next ?? "";
-            setDraft(v);
-            void commit(v);
-          }}
+          disabled={field.pending}
+          // Self-activation goes straight to the open option list.
+          defaultOpen={field.selfActive}
+          onOpenChange={field.selectOpenChange}
+          onValueChange={(next) => field.commitFromSelect(next ?? "")}
         >
           <SelectTrigger
             aria-label={ariaLabel}
@@ -172,7 +142,8 @@ export function LifestyleInlineField({
           >
             <SelectValue placeholder={placeholder ?? "Select…"} />
           </SelectTrigger>
-          <SelectContent>
+          {/* w-auto over the anchor-width pin: narrow cells clip long labels. */}
+          <SelectContent className="w-auto min-w-(--anchor-width) max-w-sm">
             {items.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}
@@ -180,7 +151,9 @@ export function LifestyleInlineField({
             ))}
           </SelectContent>
         </Select>
-        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+        {field.error ? (
+          <p className="text-xs text-destructive">{field.error}</p>
+        ) : null}
       </div>
     );
   }
@@ -189,16 +162,20 @@ export function LifestyleInlineField({
     return (
       <div className={cn("flex flex-col gap-1", className)}>
         <Textarea
-          value={draft}
+          value={field.draft}
           aria-label={ariaLabel}
           rows={3}
           placeholder={placeholder}
-          disabled={pending}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => void commit(draft)}
+          disabled={field.pending}
+          autoFocus={field.selfActive}
+          onChange={(e) => field.setDraft(e.target.value)}
+          onBlur={field.blurCommit}
+          onKeyDown={field.keyDown({ enterCommits: false })}
           className={inputClassName}
         />
-        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+        {field.error ? (
+          <p className="text-xs text-destructive">{field.error}</p>
+        ) : null}
       </div>
     );
   }
@@ -207,16 +184,20 @@ export function LifestyleInlineField({
     <div className={cn("flex flex-col gap-1", className)}>
       <Input
         type="text"
-        value={draft}
+        value={field.draft}
         aria-label={ariaLabel}
         placeholder={placeholder}
         autoComplete="off"
-        disabled={pending}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => void commit(draft)}
+        disabled={field.pending}
+        autoFocus={field.selfActive}
+        onChange={(e) => field.setDraft(e.target.value)}
+        onBlur={field.blurCommit}
+        onKeyDown={field.keyDown({ enterCommits: true })}
         className={inputClassName}
       />
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {field.error ? (
+        <p className="text-xs text-destructive">{field.error}</p>
+      ) : null}
     </div>
   );
 }

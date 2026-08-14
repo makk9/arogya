@@ -76,6 +76,12 @@ interface Props {
   currentManagingDoctorId: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Preselects the changed field when opened from a value card in the Current
+   * section. The shell keys this dialog per open, so mount-time defaults are
+   * enough — no reset effect needed.
+   */
+  initialField?: ConditionChangeFormValues["field"] | null;
 }
 
 type DialogState =
@@ -108,6 +114,7 @@ export function ConditionLogChangeDialog({
   currentManagingDoctorId,
   open,
   onOpenChange,
+  initialField,
 }: Props) {
   const router = useRouter();
   const [bannerError, setBannerError] = useState<string | null>(null);
@@ -121,9 +128,19 @@ export function ConditionLogChangeDialog({
   );
   const firstStatus = availableStatuses[0]?.value ?? "";
 
+  const startField: ConditionChangeFormValues["field"] =
+    initialField ?? "status";
+
+  // Default newValue for a freshly-selected field.
+  const defaultFor = (field: ConditionChangeFormValues["field"]): string => {
+    if (field === "status") return firstStatus;
+    if (field === "severity") return SEVERITY_OPTIONS[0]?.value ?? "";
+    return ""; // managing_doctor — force an explicit pick
+  };
+
   const defaultValues: ConditionChangeFormValues = {
-    field: "status",
-    newValue: firstStatus,
+    field: startField,
+    newValue: defaultFor(startField),
     reason: "",
     // Browser-local "today" — user-tz form defaults per decisions.md 2026-06-10.
     changedAt: todayLocal(),
@@ -147,12 +164,12 @@ export function ConditionLogChangeDialog({
   // Local mirror of the field selector so we don't call RHF's `watch`
   // (react-compiler flags it as not memoizable).
   const [activeField, setActiveField] =
-    useState<ConditionChangeFormValues["field"]>("status");
+    useState<ConditionChangeFormValues["field"]>(startField);
 
   const closeAndReset = () => {
     onOpenChange(false);
     reset(defaultValues);
-    setActiveField("status");
+    setActiveField(startField);
     setBannerError(null);
     setState({ kind: "normal" });
   };
@@ -173,13 +190,6 @@ export function ConditionLogChangeDialog({
     "reason",
     "changedAt",
   ];
-
-  // Default newValue for a freshly-selected field.
-  const defaultFor = (field: ConditionChangeFormValues["field"]): string => {
-    if (field === "status") return firstStatus;
-    if (field === "severity") return SEVERITY_OPTIONS[0]?.value ?? "";
-    return ""; // managing_doctor — force an explicit pick
-  };
 
   const onSubmit = handleSubmit(async (values) => {
     setBannerError(null);

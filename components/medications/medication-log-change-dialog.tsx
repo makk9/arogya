@@ -71,6 +71,12 @@ interface Props {
   currentPrescribingDoctorId: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Preselects the changed field when opened from a value card in the Current
+   * section. The shell keys this dialog per open, so mount-time defaults are
+   * enough — no reset effect needed.
+   */
+  initialField?: MedicationChangeFormValues["field"] | null;
 }
 
 type DialogState =
@@ -107,14 +113,18 @@ export function MedicationLogChangeDialog({
   currentPrescribingDoctorId,
   open,
   onOpenChange,
+  initialField,
 }: Props) {
   const router = useRouter();
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [state, setState] = useState<DialogState>({ kind: "normal" });
 
+  const startField: MedicationChangeFormValues["field"] =
+    initialField ?? "dose";
+
   const defaultValues: MedicationChangeFormValues = {
-    field: "dose",
-    newValue: "",
+    field: startField,
+    newValue: startField === "status" ? "paused" : "",
     reason: "",
     // Browser-local "today" — user-tz form defaults per decisions.md 2026-06-10.
     changedAt: todayLocal(),
@@ -141,12 +151,12 @@ export function MedicationLogChangeDialog({
   // updates both RHF state and this mirror; the conditional render below
   // reads the mirror.
   const [activeField, setActiveField] =
-    useState<MedicationChangeFormValues["field"]>("dose");
+    useState<MedicationChangeFormValues["field"]>(startField);
 
   const closeAndReset = () => {
     onOpenChange(false);
     reset(defaultValues);
-    setActiveField("dose");
+    setActiveField(startField);
     setBannerError(null);
     setState({ kind: "normal" });
   };

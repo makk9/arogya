@@ -8,8 +8,12 @@ import {
   STATUS_OPTIONS,
 } from "@/components/conditions/condition-options";
 import { ConditionInlineField } from "@/components/conditions/condition-inline-field";
-import { useMaybeConditionEdit } from "@/components/conditions/condition-edit-context";
 import { useMaybeConditionLogChange } from "@/components/conditions/condition-log-change-context";
+import {
+  LogChangeCard,
+  LogChangeValue,
+  ValueEditAction,
+} from "@/components/log-change-affordance";
 import type { Condition, Doctor } from "@/db/schema";
 import { formatAbsoluteDate } from "@/lib/datetime";
 import { displayDoctorName } from "@/lib/doctor-display";
@@ -30,14 +34,17 @@ interface Props {
  * managing doctor in the compact grid. Clones medication-current-section.tsx.
  *
  * Doctor refs are live Links to the doctor detail page (Phase D: the page now
- * exists). In edit mode:
- *   - status, severity, managingDoctor stay read-only (change-logged — route
- *     through `+ Log a change`)
+ * exists). The status + severity cards are click targets that open the
+ * `+ Log a change` dialog preselected to their field (decisions.md
+ * 2026-08-12); severity is clickable even at "Not assessed" — the dialog is
+ * its only write path. Managing doctor stays a nav link (navigation wins).
+ *
+ * In edit mode:
+ *   - status, severity, managingDoctor stay read-only (change-logged — the
+ *     cards still route through `+ Log a change` on click)
  *   - diagnosedBy swaps to a doctor select (PATCH-editable; the server
  *     scope-checks the uuid)
  *   - category swaps to an InlineField select; diagnosedOn to a date input
- *   - a single muted hint renders below the cards explaining where to log
- *     clinical changes; the hint is a button that opens the log-change dialog.
  *
  * Status / severity pills are neutral semantic tokens (no color-coding) — the
  * brand accent is stone-only/deferred (7.2). The med detail header's hardcoded
@@ -85,8 +92,6 @@ export function ConditionCurrentSection({
   diagnosedByDoctor,
   doctorOptions,
 }: Props) {
-  const editCtx = useMaybeConditionEdit();
-  const editing = editCtx?.editing ?? false;
   const logChange = useMaybeConditionLogChange();
 
   return (
@@ -94,13 +99,21 @@ export function ConditionCurrentSection({
       <h2 className={SECTION_HEAD}>Current</h2>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <div className="rounded-lg border border-border bg-card p-4">
+        <LogChangeCard
+          onLogChange={logChange ? () => logChange.open("status") : null}
+          ariaLabel="Log a change to status"
+          className="rounded-lg border border-border bg-card p-4"
+        >
           <div className="text-2xl font-semibold leading-tight">
             {STATUS_LABEL[condition.status] ?? condition.status}
           </div>
           <div className="mt-1 text-xs text-muted-foreground">status</div>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-4">
+        </LogChangeCard>
+        <LogChangeCard
+          onLogChange={logChange ? () => logChange.open("severity") : null}
+          ariaLabel="Log a change to severity"
+          className="rounded-lg border border-border bg-card p-4"
+        >
           <div className="text-2xl font-semibold leading-tight">
             {condition.severity ? (
               SEVERITY_LABEL[condition.severity] ?? condition.severity
@@ -109,19 +122,8 @@ export function ConditionCurrentSection({
             )}
           </div>
           <div className="mt-1 text-xs text-muted-foreground">severity</div>
-        </div>
+        </LogChangeCard>
       </div>
-
-      {editing && logChange ? (
-        <button
-          type="button"
-          onClick={logChange.open}
-          className="mt-2 text-left text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-        >
-          Use &quot;+ Log a change&quot; in History to update status, severity,
-          or managing doctor.
-        </button>
-      ) : null}
 
       <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg bg-muted/40 px-4 py-3 md:grid-cols-4">
         <div>
@@ -173,6 +175,9 @@ export function ConditionCurrentSection({
             required={false}
             clearable
             ariaLabel="Diagnosed by"
+            // Populated → the doctor link keeps the click (navigation wins),
+            // the ✎ edits. Empty → the dash is the click-to-edit target.
+            displayIsInteractive={Boolean(condition.diagnosedBy)}
             options={doctorOptions.map((d) => ({
               value: d.id,
               label: `${displayDoctorName(d.name)} · ${d.specialty}`,
@@ -187,7 +192,31 @@ export function ConditionCurrentSection({
         <div>
           <div className={FIELD_LABEL}>managing doctor</div>
           <div className="text-sm">
-            <DoctorValue patientId={patientId} doctor={managingDoctor} />
+            {managingDoctor ? (
+              // Link keeps the click (navigation wins); the ✎ routes changes
+              // to the log-change dialog.
+              <ValueEditAction
+                onAction={
+                  logChange ? () => logChange.open("managing_doctor") : null
+                }
+                ariaLabel="Log a change to managing doctor"
+                title="Log a change"
+              >
+                <DoctorValue patientId={patientId} doctor={managingDoctor} />
+              </ValueEditAction>
+            ) : (
+              // No link to conflict with while unset — the empty value is a
+              // log-change target so first assignment doesn't require finding
+              // the History button.
+              <LogChangeValue
+                ariaLabel="Log a change to managing doctor"
+                onLogChange={
+                  logChange ? () => logChange.open("managing_doctor") : null
+                }
+              >
+                <span className="text-muted-foreground">—</span>
+              </LogChangeValue>
+            )}
           </div>
         </div>
       </div>

@@ -6,6 +6,7 @@ import { DoctorEditProvider } from "@/components/doctors/doctor-edit-context";
 import { DoctorLogChangeProvider } from "@/components/doctors/doctor-log-change-context";
 import { DoctorLogChangeDialog } from "@/components/doctors/doctor-log-change-dialog";
 import type { Doctor } from "@/db/schema";
+import type { DoctorChangeFormValues } from "@/lib/schemas/forms/doctor";
 
 interface Props {
   doctor: Doctor;
@@ -22,8 +23,21 @@ interface Props {
 export function DoctorDetailShell({ doctor, children }: Props) {
   const [editing, setEditing] = useState(false);
   const [logChangeOpen, setLogChangeOpen] = useState(false);
+  // `open(field)` preselects that field in the dialog; the dialog is keyed
+  // per open so each launch mounts fresh with the right defaults.
+  const [initialField, setInitialField] = useState<
+    DoctorChangeFormValues["field"] | null
+  >(null);
+  const [dialogKey, setDialogKey] = useState(0);
 
-  const openLogChange = useCallback(() => setLogChangeOpen(true), []);
+  const openLogChange = useCallback(
+    (field?: DoctorChangeFormValues["field"]) => {
+      setInitialField(field ?? null);
+      setDialogKey((k) => k + 1);
+      setLogChangeOpen(true);
+    },
+    [],
+  );
 
   const editProviderValue = {
     editing,
@@ -41,6 +55,8 @@ export function DoctorDetailShell({ doctor, children }: Props) {
       </DoctorEditProvider>
 
       <DoctorLogChangeDialog
+        key={dialogKey}
+        initialField={initialField}
         doctorId={doctor.id}
         doctorName={doctor.name}
         open={logChangeOpen}

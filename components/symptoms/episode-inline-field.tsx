@@ -1,10 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import { useEpisodeEdit } from "@/components/symptoms/episode-edit-context";
 import { NOT_SET } from "@/components/symptoms/symptom-options";
+import { InlineDisplayTarget } from "@/components/log-change-affordance";
+import { useInlineEdit, type ToWire } from "@/components/use-inline-edit";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -17,11 +19,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 /*
- * Per-cell editable primitive on the SymptomEpisode detail page. Clones
- * visit-inline-field and adds two variants the episode needs: `datetime` (the
- * timestamptz started/ended fields — input is datetime-local, the wire value is
- * a full ISO string) and `number` (duration in minutes — the wire value is a JS
- * number or null, matching the PATCH schema).
+ * Per-cell editable primitive on the SymptomEpisode detail page. Two ways in
+ * (decisions.md 2026-08-13):
+ *  - click the value itself — that one field self-activates its editor,
+ *    focused; blur/select commits and returns it to display
+ *  - the header Edit toggle — every field activates at once (bulk fix-ups)
+ *
+ * State + commit mechanics live in the shared useInlineEdit hook; this file
+ * owns the episode field map and the rendered controls, plus two variants the
+ * episode needs: `datetime` (the timestamptz started/ended fields — input is
+ * datetime-local via toDraft, the wire value is a full ISO string) and
+ * `number` (duration in minutes — the wire value is a JS number or null,
+ * matching the PATCH schema).
  *
  * The field set is the FULL episode PATCH surface — events have no change log,
  * so nothing routes through a `+ Log a change` dialog (§6.7: Edit corrects the
@@ -47,23 +56,18 @@ interface InlineFieldProps {
   required: boolean;
   clearable: boolean;
   displayValue: ReactNode;
+  /**
+   * True when displayValue is itself interactive (the linked-visit link;
+   * navigation wins) — the at-rest display then gets a hover-revealed ✎
+   * instead of the full click-to-edit wrap.
+   */
+  displayIsInteractive?: boolean;
   className?: string;
   inputClassName?: string;
   placeholder?: string;
   ariaLabel: string;
   options?: ReadonlyArray<{ value: string; label: string }>;
   rows?: number;
-}
-
-interface ApiErrorBody {
-  error?: {
-    code?: string;
-    message?: string;
-    details?: {
-      fieldErrors?: Record<string, string[]>;
-      formErrors?: string[];
-    };
-  };
 }
 
 // Stored ISO → datetime-local input value ("YYYY-MM-DDTHH:mm", browser tz).
@@ -88,6 +92,7 @@ export function EpisodeInlineField({
   required,
   clearable,
   displayValue,
+  displayIsInteractive = false,
   className,
   inputClassName,
   placeholder,
@@ -97,88 +102,70 @@ export function EpisodeInlineField({
 }: InlineFieldProps) {
   const { editing, episodeId } = useEpisodeEdit();
   const router = useRouter();
-  const initialInput = toInputValue(variant, initialValue);
-  const [draft, setDraft] = useState<string>(initialInput);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // Sync local draft when upstream value changes (router.refresh after PATCH).
-  const [prevInitial, setPrevInitial] = useState<string | null>(initialValue);
-  if (initialValue !== prevInitial) {
-    setPrevInitial(initialValue);
-    setDraft(toInputValue(variant, initialValue));
-    setError(null);
-  }
 
-  if (!editing) {
-    return <>{displayValue}</>;
-  }
-
-  const commit = async (nextInput: string) => {
-    if (nextInput === initialInput) return; // no-op
-    if (!nextInput && required) {
-      setError(`${ariaLabel} is required.`);
-      return;
-    }
-
-    // Build the wire value per variant.
-    let wireValue: string | number | null;
-    if (!nextInput) {
-      wireValue = clearable ? null : "";
-    } else if (variant === "datetime") {
+  // Build the wire value per variant.
+  const toWire = (nextInput: string): ToWire => {
+    if (!nextInput) return { value: clearable ? null : "" };
+    if (variant === "datetime") {
       const d = new Date(nextInput);
       if (Number.isNaN(d.getTime())) {
-        setError("Enter a valid date and time.");
-        return;
+        return { error: "Enter a valid date and time." };
       }
-      wireValue = d.toISOString();
-    } else if (variant === "number") {
+      return { value: d.toISOString() };
+    }
+    if (variant === "number") {
       const n = Number(nextInput);
       if (!Number.isInteger(n) || n <= 0) {
-        setError("Enter a whole number of minutes.");
-        return;
+        return { error: "Enter a whole number of minutes." };
       }
-      wireValue = n;
-    } else {
-      wireValue = nextInput;
+      return { value: n };
     }
-
-    setError(null);
-    setPending(true);
-    try {
-      const res = await fetch(`/api/symptom-episodes/${episodeId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [fieldKey]: wireValue }),
-      });
-      if (res.ok) {
-        router.refresh();
-        return;
-      }
-      const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody;
-      const fieldMsg = parsed.error?.details?.fieldErrors?.[fieldKey]?.[0];
-      setError(fieldMsg ?? parsed.error?.message ?? "Couldn't save.");
-    } catch {
-      setError("Couldn't reach the server.");
-    } finally {
-      setPending(false);
-    }
+    return { value: nextInput };
   };
+
+  const field = useInlineEdit({
+    initialValue,
+    // Also the no-op baseline + Escape-revert target, so datetime drafts
+    // round-trip through the local form, not the raw ISO.
+    toDraft: (v) => toInputValue(variant, v),
+    fieldKey,
+    required,
+    ariaLabel,
+    editing,
+    endpoint: `/api/symptom-episodes/${episodeId}`,
+    toWire,
+    onSaved: () => router.refresh(),
+  });
+
+  if (!field.active) {
+    return (
+      <InlineDisplayTarget
+        interactive={displayIsInteractive}
+        ariaLabel={ariaLabel}
+        onActivate={field.activate}
+      >
+        {displayValue}
+      </InlineDisplayTarget>
+    );
+  }
 
   if (variant === "select") {
     const items = clearable
       ? [{ value: NOT_SET, label: "—" }, ...(options ?? [])]
       : [...(options ?? [])];
-    const selectValue = clearable ? draft || NOT_SET : draft || null;
+    const selectValue = clearable ? field.draft || NOT_SET : field.draft || null;
     return (
       <div className={cn("flex flex-col gap-1", className)}>
         <Select
           value={selectValue}
           items={items}
-          disabled={pending}
+          disabled={field.pending}
+          // Self-activation goes straight to the open option list — the click
+          // on the value IS the click on the trigger.
+          defaultOpen={field.selfActive}
+          onOpenChange={field.selectOpenChange}
           onValueChange={(next) => {
-            const v = next === NOT_SET || !next ? "" : next;
-            setDraft(v);
-            void commit(v);
+            field.commitFromSelect(next === NOT_SET || !next ? "" : next);
           }}
         >
           <SelectTrigger
@@ -187,7 +174,10 @@ export function EpisodeInlineField({
           >
             <SelectValue placeholder={placeholder ?? "Select…"} />
           </SelectTrigger>
-          <SelectContent>
+          {/* w-auto over the default anchor-width pin: these selects sit in
+              narrow grid cells, and long labels (visit descriptions) would
+              clip. Anchor width stays the floor; max-w-sm caps growth. */}
+          <SelectContent className="w-auto min-w-(--anchor-width) max-w-sm">
             {items.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}
@@ -195,7 +185,9 @@ export function EpisodeInlineField({
             ))}
           </SelectContent>
         </Select>
-        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+        {field.error ? (
+          <p className="text-xs text-destructive">{field.error}</p>
+        ) : null}
       </div>
     );
   }
@@ -204,16 +196,20 @@ export function EpisodeInlineField({
     return (
       <div className={cn("flex flex-col gap-1", className)}>
         <Textarea
-          value={draft}
+          value={field.draft}
           aria-label={ariaLabel}
           rows={rows ?? 4}
           placeholder={placeholder}
-          disabled={pending}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => void commit(draft)}
+          disabled={field.pending}
+          autoFocus={field.selfActive}
+          onChange={(e) => field.setDraft(e.target.value)}
+          onBlur={field.blurCommit}
+          onKeyDown={field.keyDown({ enterCommits: false })}
           className={inputClassName}
         />
-        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+        {field.error ? (
+          <p className="text-xs text-destructive">{field.error}</p>
+        ) : null}
       </div>
     );
   }
@@ -225,16 +221,20 @@ export function EpisodeInlineField({
     <div className={cn("flex flex-col gap-1", className)}>
       <Input
         type={inputType}
-        value={draft}
+        value={field.draft}
         aria-label={ariaLabel}
         placeholder={placeholder}
         autoComplete="off"
-        disabled={pending}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => void commit(draft)}
+        disabled={field.pending}
+        autoFocus={field.selfActive}
+        onChange={(e) => field.setDraft(e.target.value)}
+        onBlur={field.blurCommit}
+        onKeyDown={field.keyDown({ enterCommits: true })}
         className={inputClassName}
       />
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {field.error ? (
+        <p className="text-xs text-destructive">{field.error}</p>
+      ) : null}
     </div>
   );
 }

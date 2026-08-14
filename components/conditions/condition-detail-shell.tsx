@@ -9,6 +9,7 @@ import {
   type DoctorOption,
 } from "@/components/conditions/condition-log-change-dialog";
 import type { Condition } from "@/db/schema";
+import type { ConditionChangeFormValues } from "@/lib/schemas/forms/condition";
 
 interface Props {
   condition: Condition;
@@ -33,8 +34,21 @@ interface Props {
 export function ConditionDetailShell({ condition, doctors, children }: Props) {
   const [editing, setEditing] = useState(false);
   const [logChangeOpen, setLogChangeOpen] = useState(false);
+  // `open(field)` preselects that field in the dialog; the dialog is keyed
+  // per open so each launch mounts fresh with the right defaults.
+  const [initialField, setInitialField] = useState<
+    ConditionChangeFormValues["field"] | null
+  >(null);
+  const [dialogKey, setDialogKey] = useState(0);
 
-  const openLogChange = useCallback(() => setLogChangeOpen(true), []);
+  const openLogChange = useCallback(
+    (field?: ConditionChangeFormValues["field"]) => {
+      setInitialField(field ?? null);
+      setDialogKey((k) => k + 1);
+      setLogChangeOpen(true);
+    },
+    [],
+  );
 
   const editProviderValue = {
     editing,
@@ -52,6 +66,8 @@ export function ConditionDetailShell({ condition, doctors, children }: Props) {
       </ConditionEditProvider>
 
       <ConditionLogChangeDialog
+        key={dialogKey}
+        initialField={initialField}
         conditionId={condition.id}
         conditionName={condition.name}
         doctors={doctors}

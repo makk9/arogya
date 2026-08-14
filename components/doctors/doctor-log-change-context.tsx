@@ -2,12 +2,15 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 
-// Two consumers (History section's `+ Log a change` button + Current section's
-// in-edit-mode hint) need to open the same dialog the shell owns. Same shape as
-// the Condition sibling.
+import type { DoctorChangeFormValues } from "@/lib/schemas/forms/doctor";
+
+// Consumers (History section's `+ Log a change` button + Current section's
+// clickable value cards) need to open the same dialog the shell owns. Passing
+// a field preselects it in the dialog — the click-where-the-data-is entry
+// point (decisions.md 2026-08-12). Same shape as the Condition sibling.
 
 interface DoctorLogChangeValue {
-  open: () => void;
+  open: (field?: DoctorChangeFormValues["field"]) => void;
 }
 
 const DoctorLogChangeContext = createContext<DoctorLogChangeValue | null>(null);

@@ -1,8 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
+import { InlineDisplayTarget } from "@/components/log-change-affordance";
+import { stringToWire, useInlineEdit } from "@/components/use-inline-edit";
 import { NOT_SET } from "@/components/symptoms/symptom-options";
 import { useTypeEdit } from "@/components/symptoms/type-edit-context";
 import { Input } from "@/components/ui/input";
@@ -17,11 +19,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 /*
- * Per-cell editable primitive on the SymptomType detail page. Clones
- * visit-inline-field's generic-select shape, PATCHing /api/symptom-types/[id].
- * SymptomType has no change log, so every column is a plain inline edit (§4 —
- * no symptom_type_changes table). `name` is required + not clearable (identity);
- * status is required (enum, default active); the rest clear to null.
+ * Per-cell editable primitive on the SymptomType detail page. Two ways in
+ * (decisions.md 2026-08-13):
+ *  - click the value itself — that one field self-activates its editor,
+ *    focused; blur/select commits and returns it to display
+ *  - the header Edit toggle — every field activates at once (bulk fix-ups)
+ *
+ * State + commit mechanics live in the shared useInlineEdit hook; this file
+ * owns the symptom-type field map and the rendered controls, PATCHing
+ * /api/symptom-types/[id]. SymptomType has no change log, so every column is a
+ * plain inline edit (§4 — no symptom_type_changes table). `name` is required +
+ * not clearable (identity); status is required (enum, default active); the
+ * rest clear to null.
  */
 
 type Variant = "text" | "textarea" | "date" | "select";
@@ -33,23 +42,18 @@ interface InlineFieldProps {
   required: boolean;
   clearable: boolean;
   displayValue: ReactNode;
+  /**
+   * True when displayValue is itself interactive (the linked-condition link;
+   * navigation wins) — the at-rest display then gets a hover-revealed ✎
+   * instead of the full click-to-edit wrap.
+   */
+  displayIsInteractive?: boolean;
   className?: string;
   inputClassName?: string;
   placeholder?: string;
   ariaLabel: string;
   options?: ReadonlyArray<{ value: string; label: string }>;
   rows?: number;
-}
-
-interface ApiErrorBody {
-  error?: {
-    code?: string;
-    message?: string;
-    details?: {
-      fieldErrors?: Record<string, string[]>;
-      formErrors?: string[];
-    };
-  };
 }
 
 export function TypeInlineField({
@@ -59,6 +63,7 @@ export function TypeInlineField({
   required,
   clearable,
   displayValue,
+  displayIsInteractive = false,
   className,
   inputClassName,
   placeholder,
@@ -68,66 +73,46 @@ export function TypeInlineField({
 }: InlineFieldProps) {
   const { editing, typeId } = useTypeEdit();
   const router = useRouter();
-  const [draft, setDraft] = useState<string>(initialValue ?? "");
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [prevInitial, setPrevInitial] = useState<string | null>(initialValue);
-  if (initialValue !== prevInitial) {
-    setPrevInitial(initialValue);
-    setDraft(initialValue ?? "");
-    setError(null);
+
+  const field = useInlineEdit({
+    initialValue,
+    fieldKey,
+    required,
+    ariaLabel,
+    editing,
+    endpoint: `/api/symptom-types/${typeId}`,
+    toWire: stringToWire(clearable),
+    onSaved: () => router.refresh(),
+  });
+
+  if (!field.active) {
+    return (
+      <InlineDisplayTarget
+        interactive={displayIsInteractive}
+        ariaLabel={ariaLabel}
+        onActivate={field.activate}
+      >
+        {displayValue}
+      </InlineDisplayTarget>
+    );
   }
-
-  if (!editing) {
-    return <>{displayValue}</>;
-  }
-
-  const commit = async (next: string) => {
-    const initialStr = initialValue ?? "";
-    if (next === initialStr) return; // no-op
-    if (!next && required) {
-      setError(`${ariaLabel} is required.`);
-      return;
-    }
-
-    const wireValue: string | null = next === "" && clearable ? null : next;
-    setError(null);
-    setPending(true);
-    try {
-      const res = await fetch(`/api/symptom-types/${typeId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [fieldKey]: wireValue }),
-      });
-      if (res.ok) {
-        router.refresh();
-        return;
-      }
-      const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody;
-      const fieldMsg = parsed.error?.details?.fieldErrors?.[fieldKey]?.[0];
-      setError(fieldMsg ?? parsed.error?.message ?? "Couldn't save.");
-    } catch {
-      setError("Couldn't reach the server.");
-    } finally {
-      setPending(false);
-    }
-  };
 
   if (variant === "select") {
     const items = clearable
       ? [{ value: NOT_SET, label: "—" }, ...(options ?? [])]
       : [...(options ?? [])];
-    const selectValue = clearable ? draft || NOT_SET : draft || null;
+    const selectValue = clearable ? field.draft || NOT_SET : field.draft || null;
     return (
       <div className={cn("flex flex-col gap-1", className)}>
         <Select
           value={selectValue}
           items={items}
-          disabled={pending}
+          disabled={field.pending}
+          // Self-activation goes straight to the open option list.
+          defaultOpen={field.selfActive}
+          onOpenChange={field.selectOpenChange}
           onValueChange={(next) => {
-            const v = next === NOT_SET || !next ? "" : next;
-            setDraft(v);
-            void commit(v);
+            field.commitFromSelect(next === NOT_SET || !next ? "" : next);
           }}
         >
           <SelectTrigger
@@ -136,7 +121,8 @@ export function TypeInlineField({
           >
             <SelectValue placeholder={placeholder ?? "Select…"} />
           </SelectTrigger>
-          <SelectContent>
+          {/* w-auto over the anchor-width pin: narrow cells clip long labels. */}
+          <SelectContent className="w-auto min-w-(--anchor-width) max-w-sm">
             {items.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}
@@ -144,7 +130,9 @@ export function TypeInlineField({
             ))}
           </SelectContent>
         </Select>
-        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+        {field.error ? (
+          <p className="text-xs text-destructive">{field.error}</p>
+        ) : null}
       </div>
     );
   }
@@ -153,16 +141,20 @@ export function TypeInlineField({
     return (
       <div className={cn("flex flex-col gap-1", className)}>
         <Textarea
-          value={draft}
+          value={field.draft}
           aria-label={ariaLabel}
           rows={rows ?? 4}
           placeholder={placeholder}
-          disabled={pending}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => void commit(draft)}
+          disabled={field.pending}
+          autoFocus={field.selfActive}
+          onChange={(e) => field.setDraft(e.target.value)}
+          onBlur={field.blurCommit}
+          onKeyDown={field.keyDown({ enterCommits: false })}
           className={inputClassName}
         />
-        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+        {field.error ? (
+          <p className="text-xs text-destructive">{field.error}</p>
+        ) : null}
       </div>
     );
   }
@@ -171,16 +163,20 @@ export function TypeInlineField({
     <div className={cn("flex flex-col gap-1", className)}>
       <Input
         type={variant === "date" ? "date" : "text"}
-        value={draft}
+        value={field.draft}
         aria-label={ariaLabel}
         placeholder={placeholder}
         autoComplete="off"
-        disabled={pending}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => void commit(draft)}
+        disabled={field.pending}
+        autoFocus={field.selfActive}
+        onChange={(e) => field.setDraft(e.target.value)}
+        onBlur={field.blurCommit}
+        onKeyDown={field.keyDown({ enterCommits: true })}
         className={inputClassName}
       />
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {field.error ? (
+        <p className="text-xs text-destructive">{field.error}</p>
+      ) : null}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { AllergyEditProvider } from "@/components/allergies/allergy-edit-context
 import { AllergyLogChangeProvider } from "@/components/allergies/allergy-log-change-context";
 import { AllergyLogChangeDialog } from "@/components/allergies/allergy-log-change-dialog";
 import type { Allergy } from "@/db/schema";
+import type { AllergyChangeFormValues } from "@/lib/schemas/forms/allergy";
 
 interface Props {
   allergy: Allergy;
@@ -25,8 +26,21 @@ interface Props {
 export function AllergyDetailShell({ allergy, children }: Props) {
   const [editing, setEditing] = useState(false);
   const [logChangeOpen, setLogChangeOpen] = useState(false);
+  // `open(field)` preselects that field in the dialog; the dialog is keyed
+  // per open so each launch mounts fresh with the right defaults.
+  const [initialField, setInitialField] = useState<
+    AllergyChangeFormValues["field"] | null
+  >(null);
+  const [dialogKey, setDialogKey] = useState(0);
 
-  const openLogChange = useCallback(() => setLogChangeOpen(true), []);
+  const openLogChange = useCallback(
+    (field?: AllergyChangeFormValues["field"]) => {
+      setInitialField(field ?? null);
+      setDialogKey((k) => k + 1);
+      setLogChangeOpen(true);
+    },
+    [],
+  );
 
   const editProviderValue = {
     editing,
@@ -44,6 +58,8 @@ export function AllergyDetailShell({ allergy, children }: Props) {
       </AllergyEditProvider>
 
       <AllergyLogChangeDialog
+        key={dialogKey}
+        initialField={initialField}
         allergyId={allergy.id}
         substance={allergy.substance}
         currentStatus={allergy.status}

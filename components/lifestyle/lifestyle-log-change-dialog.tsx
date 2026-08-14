@@ -60,6 +60,12 @@ interface Props {
   profile: LifestyleProfile | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Preselects the changed field when opened from a specific value box in the
+   * Current section. The shell keys this dialog per open, so mount-time
+   * defaults are enough — no reset effect needed.
+   */
+  initialField?: LifestyleTrendFieldKey | null;
 }
 
 type DialogState =
@@ -79,8 +85,14 @@ interface ApiErrorBody {
   };
 }
 
-export function LifestyleLogChangeDialog({ profile, open, onOpenChange }: Props) {
+export function LifestyleLogChangeDialog({
+  profile,
+  open,
+  onOpenChange,
+  initialField,
+}: Props) {
   const router = useRouter();
+  const startField: LifestyleTrendFieldKey = initialField ?? "dietPattern";
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [state, setState] = useState<DialogState>({ kind: "normal" });
 
@@ -97,8 +109,8 @@ export function LifestyleLogChangeDialog({ profile, open, onOpenChange }: Props)
   };
 
   const defaultValues: LifestyleChangeFormValues = {
-    field: "dietPattern",
-    newValue: defaultFor("dietPattern"),
+    field: startField,
+    newValue: defaultFor(startField),
     reason: "",
     // Browser-local "today" — user-tz form defaults per decisions.md 2026-06-10.
     changedAt: todayLocal(),
@@ -122,7 +134,7 @@ export function LifestyleLogChangeDialog({ profile, open, onOpenChange }: Props)
   // Local mirror of the field selector so we don't call RHF's `watch`
   // (react-compiler flags it as not memoizable).
   const [activeField, setActiveField] =
-    useState<LifestyleTrendFieldKey>("dietPattern");
+    useState<LifestyleTrendFieldKey>(startField);
 
   const activeOptions = enumOptionsFor(activeField);
   const availableEnumOptions = activeOptions
@@ -132,7 +144,7 @@ export function LifestyleLogChangeDialog({ profile, open, onOpenChange }: Props)
   const closeAndReset = () => {
     onOpenChange(false);
     reset(defaultValues);
-    setActiveField("dietPattern");
+    setActiveField(startField);
     setBannerError(null);
     setState({ kind: "normal" });
   };

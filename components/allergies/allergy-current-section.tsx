@@ -8,8 +8,11 @@ import {
   STATUS_OPTIONS,
 } from "@/components/allergies/allergy-options";
 import { AllergyInlineField } from "@/components/allergies/allergy-inline-field";
-import { useMaybeAllergyEdit } from "@/components/allergies/allergy-edit-context";
 import { useMaybeAllergyLogChange } from "@/components/allergies/allergy-log-change-context";
+import {
+  LogChangeCard,
+  LogChangeValue,
+} from "@/components/log-change-affordance";
 import type { Allergy, Doctor } from "@/db/schema";
 import { formatAbsoluteDate } from "@/lib/datetime";
 import { displayDoctorName } from "@/lib/doctor-display";
@@ -29,9 +32,14 @@ interface Props {
  * reaction / status / first noted / confirmed by in the compact grid. Clones
  * condition-current-section.tsx.
  *
+ * The severity card + the status grid value are click targets that open the
+ * `+ Log a change` dialog preselected to their field (decisions.md
+ * 2026-08-12); severity is clickable even at "Unknown" — the dialog is its
+ * only write path.
+ *
  * In edit mode:
- *   - status, severity stay read-only (change-logged — route through
- *     `+ Log a change`); the muted hint below the cards opens the dialog
+ *   - status, severity stay read-only (change-logged — still route through
+ *     `+ Log a change` on click)
  *   - category swaps to a select INSIDE its prominent card (PATCH-editable,
  *     unlike Condition's prominent fields, which are all change-logged)
  *   - reaction → text input; firstNoted → date input; confirmedBy → doctor
@@ -78,8 +86,6 @@ export function AllergyCurrentSection({
   confirmedByDoctor,
   doctorOptions,
 }: Props) {
-  const editCtx = useMaybeAllergyEdit();
-  const editing = editCtx?.editing ?? false;
   const logChange = useMaybeAllergyLogChange();
 
   return (
@@ -103,7 +109,11 @@ export function AllergyCurrentSection({
           </div>
           <div className="mt-1 text-xs text-muted-foreground">category</div>
         </div>
-        <div className="rounded-lg border border-border bg-card p-4">
+        <LogChangeCard
+          onLogChange={logChange ? () => logChange.open("severity") : null}
+          ariaLabel="Log a change to severity"
+          className="rounded-lg border border-border bg-card p-4"
+        >
           <div className="text-2xl font-semibold leading-tight">
             {allergy.severity ? (
               SEVERITY_LABEL[allergy.severity] ?? allergy.severity
@@ -112,19 +122,8 @@ export function AllergyCurrentSection({
             )}
           </div>
           <div className="mt-1 text-xs text-muted-foreground">severity</div>
-        </div>
+        </LogChangeCard>
       </div>
-
-      {editing && logChange ? (
-        <button
-          type="button"
-          onClick={logChange.open}
-          className="mt-2 text-left text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-        >
-          Use &quot;+ Log a change&quot; in History to update status or
-          severity.
-        </button>
-      ) : null}
 
       <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg bg-muted/40 px-4 py-3 md:grid-cols-4">
         <div>
@@ -149,7 +148,12 @@ export function AllergyCurrentSection({
         <div>
           <div className={FIELD_LABEL}>status</div>
           <div className="text-sm">
-            {STATUS_LABEL[allergy.status] ?? allergy.status}
+            <LogChangeValue
+              ariaLabel="Log a change to status"
+              onLogChange={logChange ? () => logChange.open("status") : null}
+            >
+              {STATUS_LABEL[allergy.status] ?? allergy.status}
+            </LogChangeValue>
           </div>
         </div>
         <div>
@@ -181,6 +185,10 @@ export function AllergyCurrentSection({
             required={false}
             clearable
             ariaLabel="Confirmed by"
+            // Populated → the doctor link keeps the click (navigation
+            // wins), the ✎ edits. Empty → the dash is the click-to-edit
+            // target.
+            displayIsInteractive={Boolean(allergy.confirmedBy)}
             options={doctorOptions.map((d) => ({
               value: d.id,
               label: `${displayDoctorName(d.name)} · ${d.specialty}`,

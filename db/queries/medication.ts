@@ -146,6 +146,18 @@ export const medicationQueries = {
     id: string,
     values: MedicationUpdate,
   ): Promise<Medication | null> {
+    // Same scope discipline as create(): purpose is PATCH-editable (the
+    // treats field), so a foreign condition uuid must map to a 400, not a
+    // cross-patient link that the FK alone would allow.
+    if (
+      values.purpose &&
+      !(await conditionInScope(patientId, values.purpose))
+    ) {
+      throw new MedicationDomainError("linked_entity_invalid", {
+        field: "purpose",
+        reason: "condition_not_found",
+      });
+    }
     const [row] = await db
       .update(medications)
       .set(values)

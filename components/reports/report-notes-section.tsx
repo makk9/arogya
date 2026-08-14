@@ -24,24 +24,22 @@ export function ReportNotesSection({ notes }: Props) {
       <h2 className="mb-3 font-mono text-xs uppercase tracking-wide text-muted-foreground">
         Notes
       </h2>
-      {editing ? (
-        <ReportInlineField
-          fieldKey="notes"
-          value={notes}
-          variant="textarea"
-          required={false}
-          clearable
-          ariaLabel="Notes"
-          placeholder="Your own annotations — why this document matters, what to follow up on."
-          displayValue={
-            <p className="whitespace-pre-wrap text-sm leading-relaxed">
-              {notes}
-            </p>
-          }
-        />
-      ) : (
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">{notes}</p>
-      )}
+      {/* ReportInlineField self-manages display vs editor (click-to-edit,
+          decisions.md 2026-08-13) — no editing branch needed here. */}
+      <ReportInlineField
+        fieldKey="notes"
+        value={notes}
+        variant="textarea"
+        required={false}
+        clearable
+        ariaLabel="Notes"
+        placeholder="Your own annotations — why this document matters, what to follow up on."
+        displayValue={
+          <p className="whitespace-pre-wrap text-sm leading-relaxed">
+            {notes}
+          </p>
+        }
+      />
     </section>
   );
 }

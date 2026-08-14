@@ -2,6 +2,8 @@
 
 import ReactMarkdown from "react-markdown";
 
+import { CLICK_TARGET_MARKDOWN_COMPONENTS } from "@/components/log-change-affordance";
+
 import { TypeInlineField } from "@/components/symptoms/type-inline-field";
 import { useMaybeTypeEdit } from "@/components/symptoms/type-edit-context";
 
@@ -29,27 +31,23 @@ export function TypeNotesSection({ notes }: Props) {
       <h2 className="mb-3 font-mono text-xs uppercase tracking-wide text-muted-foreground">
         Notes
       </h2>
-      {editing ? (
-        <TypeInlineField
-          fieldKey="notes"
-          value={notes}
-          variant="textarea"
-          rows={4}
-          required={false}
-          clearable
-          ariaLabel="Notes"
-          placeholder="Typical triggers, how it usually presents, what tends to help."
-          displayValue={
-            <div className={MARKDOWN_CLASS}>
-              <ReactMarkdown>{notes}</ReactMarkdown>
-            </div>
-          }
-        />
-      ) : (
-        <div className={MARKDOWN_CLASS}>
-          <ReactMarkdown>{notes}</ReactMarkdown>
-        </div>
-      )}
+      {/* InlineField self-manages display vs editor (click-to-edit,
+          decisions.md 2026-08-13) — no editing branch needed here. */}
+      <TypeInlineField
+        fieldKey="notes"
+        value={notes}
+        variant="textarea"
+        rows={4}
+        required={false}
+        clearable
+        ariaLabel="Notes"
+        placeholder="Typical triggers, how it usually presents, what tends to help."
+        displayValue={
+          <div className={MARKDOWN_CLASS}>
+            <ReactMarkdown components={CLICK_TARGET_MARKDOWN_COMPONENTS}>{notes}</ReactMarkdown>
+          </div>
+        }
+      />
     </section>
   );
 }

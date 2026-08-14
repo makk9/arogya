@@ -24,24 +24,22 @@ export function AllergyNotesSection({ notes }: Props) {
       <h2 className="mb-3 font-mono text-xs uppercase tracking-wide text-muted-foreground">
         Notes
       </h2>
-      {editing ? (
-        <AllergyInlineField
-          fieldKey="notes"
-          value={notes}
-          variant="textarea"
-          required={false}
-          clearable
-          ariaLabel="Notes"
-          placeholder="How it was discovered, what to avoid, cross-reactions a doctor flagged."
-          displayValue={
-            <p className="whitespace-pre-wrap text-sm leading-relaxed">
-              {notes}
-            </p>
-          }
-        />
-      ) : (
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">{notes}</p>
-      )}
+      {/* AllergyInlineField self-manages display vs editor (click-to-edit,
+          decisions.md 2026-08-13) — no editing branch needed here. */}
+      <AllergyInlineField
+        fieldKey="notes"
+        value={notes}
+        variant="textarea"
+        required={false}
+        clearable
+        ariaLabel="Notes"
+        placeholder="How it was discovered, what to avoid, cross-reactions a doctor flagged."
+        displayValue={
+          <p className="whitespace-pre-wrap text-sm leading-relaxed">
+            {notes}
+          </p>
+        }
+      />
     </section>
   );
 }

@@ -200,6 +200,10 @@ export default async function MedicationDetailPage({
           medication={medication}
           prescribingDoctor={prescribingDoctor}
           treatsCondition={treatsCondition}
+          conditionOptions={conditions.map((c) => ({
+            value: c.id,
+            label: c.name,
+          }))}
           doseInlineNote={doseInlineNote}
         />
 

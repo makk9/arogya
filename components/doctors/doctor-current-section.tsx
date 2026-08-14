@@ -1,8 +1,11 @@
 "use client";
 
 import { DoctorInlineField } from "@/components/doctors/doctor-inline-field";
-import { useMaybeDoctorEdit } from "@/components/doctors/doctor-edit-context";
 import { useMaybeDoctorLogChange } from "@/components/doctors/doctor-log-change-context";
+import {
+  LogChangeCard,
+  LogChangeValue,
+} from "@/components/log-change-affordance";
 import type { Doctor } from "@/db/schema";
 import {
   formatAbsoluteDate,
@@ -26,13 +29,15 @@ interface Props {
  * second grid row — they're not in §6.5's four named grid fields, but the
  * schema carries them and this is their only edit surface (flagged deviation).
  *
+ * The specialty card + the clinic grid value are click targets that open the
+ * `+ Log a change` dialog preselected to their field (decisions.md
+ * 2026-08-12).
+ *
  * In edit mode:
- *   - specialty + clinic stay read-only (change-logged — route through
- *     `+ Log a change`; decisions.md 2026-06-09)
+ *   - specialty + clinic stay read-only (change-logged — still route through
+ *     `+ Log a change` on click; decisions.md 2026-06-09)
  *   - last visit stays read-only (derived)
  *   - phone / email / address swap to InlineFields; firstVisit to a date input
- *   - a single muted hint below the card explains where to log the change-
- *     logged fields; the hint is a button that opens the log-change dialog.
  *
  * Phone renders masked at rest per §6.5:1414; the inline-edit input shows the
  * raw value (you can't correct what you can't see).
@@ -48,8 +53,6 @@ function Dash() {
 }
 
 export function DoctorCurrentSection({ doctor, lastVisit }: Props) {
-  const editCtx = useMaybeDoctorEdit();
-  const editing = editCtx?.editing ?? false;
   const logChange = useMaybeDoctorLogChange();
 
   const firstVisitDuration = doctor.firstVisit
@@ -66,7 +69,11 @@ export function DoctorCurrentSection({ doctor, lastVisit }: Props) {
     <section className="mb-8">
       <h2 className={SECTION_HEAD}>Current</h2>
 
-      <div className="flex items-center gap-4 rounded-lg border border-border bg-card p-4">
+      <LogChangeCard
+        onLogChange={logChange ? () => logChange.open("specialty") : null}
+        ariaLabel="Log a change to specialty"
+        className="flex items-center gap-4 rounded-lg border border-border bg-card p-4"
+      >
         <span
           aria-hidden
           className="flex size-12 shrink-0 items-center justify-center rounded-full bg-muted text-base font-medium text-muted-foreground"
@@ -79,23 +86,19 @@ export function DoctorCurrentSection({ doctor, lastVisit }: Props) {
           </div>
           <div className="mt-1 text-xs text-muted-foreground">specialty</div>
         </div>
-      </div>
-
-      {editing && logChange ? (
-        <button
-          type="button"
-          onClick={logChange.open}
-          className="mt-2 text-left text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-        >
-          Use &quot;+ Log a change&quot; in History to update specialty or
-          clinic.
-        </button>
-      ) : null}
+      </LogChangeCard>
 
       <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg bg-muted/40 px-4 py-3 md:grid-cols-4">
         <div>
           <div className={FIELD_LABEL}>clinic</div>
-          <div className="text-sm">{doctor.clinic ?? <Dash />}</div>
+          <div className="text-sm">
+            <LogChangeValue
+              ariaLabel="Log a change to clinic"
+              onLogChange={logChange ? () => logChange.open("clinic") : null}
+            >
+              {doctor.clinic ?? <Dash />}
+            </LogChangeValue>
+          </div>
         </div>
         <div>
           <div className={FIELD_LABEL}>phone</div>

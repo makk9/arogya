@@ -24,24 +24,22 @@ export function ConditionNotesSection({ notes }: Props) {
       <h2 className="mb-3 font-mono text-xs uppercase tracking-wide text-muted-foreground">
         Notes
       </h2>
-      {editing ? (
-        <ConditionInlineField
-          fieldKey="notes"
-          value={notes}
-          variant="textarea"
-          required={false}
-          clearable
-          ariaLabel="Notes"
-          placeholder="Family context, onset details, observations worth keeping."
-          displayValue={
-            <p className="whitespace-pre-wrap text-sm leading-relaxed">
-              {notes}
-            </p>
-          }
-        />
-      ) : (
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">{notes}</p>
-      )}
+      {/* ConditionInlineField self-manages display vs editor (click-to-edit,
+          decisions.md 2026-08-13) — no editing branch needed here. */}
+      <ConditionInlineField
+        fieldKey="notes"
+        value={notes}
+        variant="textarea"
+        required={false}
+        clearable
+        ariaLabel="Notes"
+        placeholder="Family context, onset details, observations worth keeping."
+        displayValue={
+          <p className="whitespace-pre-wrap text-sm leading-relaxed">
+            {notes}
+          </p>
+        }
+      />
     </section>
   );
 }

@@ -24,24 +24,23 @@ export function FamilyHistoryNotesSection({ notes }: Props) {
       <h2 className="mb-3 font-mono text-xs uppercase tracking-wide text-muted-foreground">
         Notes
       </h2>
-      {editing ? (
-        <FamilyHistoryInlineField
-          fieldKey="notes"
-          value={notes}
-          variant="textarea"
-          required={false}
-          clearable
-          ariaLabel="Notes"
-          placeholder="Family context a doctor might ask about — how it was discovered, how it progressed."
-          displayValue={
-            <p className="whitespace-pre-wrap text-sm leading-relaxed">
-              {notes}
-            </p>
-          }
-        />
-      ) : (
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">{notes}</p>
-      )}
+      {/* FamilyHistoryInlineField self-manages display vs editor
+          (click-to-edit, decisions.md 2026-08-13) — no editing branch needed
+          here. */}
+      <FamilyHistoryInlineField
+        fieldKey="notes"
+        value={notes}
+        variant="textarea"
+        required={false}
+        clearable
+        ariaLabel="Notes"
+        placeholder="Family context a doctor might ask about — how it was discovered, how it progressed."
+        displayValue={
+          <p className="whitespace-pre-wrap text-sm leading-relaxed">
+            {notes}
+          </p>
+        }
+      />
     </section>
   );
 }

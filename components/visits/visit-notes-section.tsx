@@ -24,24 +24,22 @@ export function VisitNotesSection({ notes }: Props) {
       <h2 className="mb-3 font-mono text-xs uppercase tracking-wide text-muted-foreground">
         Notes
       </h2>
-      {editing ? (
-        <VisitInlineField
-          fieldKey="notes"
-          value={notes}
-          variant="textarea"
-          required={false}
-          clearable
-          ariaLabel="Notes"
-          placeholder="Your own observations — how he seemed, what the doctor didn't say."
-          displayValue={
-            <p className="whitespace-pre-wrap text-sm leading-relaxed">
-              {notes}
-            </p>
-          }
-        />
-      ) : (
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">{notes}</p>
-      )}
+      {/* VisitInlineField self-manages display vs editor (click-to-edit,
+          decisions.md 2026-08-13) — no editing branch needed here. */}
+      <VisitInlineField
+        fieldKey="notes"
+        value={notes}
+        variant="textarea"
+        required={false}
+        clearable
+        ariaLabel="Notes"
+        placeholder="Your own observations — how he seemed, what the doctor didn't say."
+        displayValue={
+          <p className="whitespace-pre-wrap text-sm leading-relaxed">
+            {notes}
+          </p>
+        }
+      />
     </section>
   );
 }

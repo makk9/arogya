@@ -2,12 +2,15 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 
-// Two consumers (History section's `+ Log a change` button + Current section's
-// in-edit-mode hint) need to open the same dialog the shell owns. Mirrors
-// condition-log-change-context.tsx.
+import type { AllergyChangeFormValues } from "@/lib/schemas/forms/allergy";
+
+// Consumers (History section's `+ Log a change` button + Current section's
+// clickable value cards) need to open the same dialog the shell owns. Passing
+// a field preselects it in the dialog — the click-where-the-data-is entry
+// point (decisions.md 2026-08-12). Mirrors condition-log-change-context.tsx.
 
 interface AllergyLogChangeValue {
-  open: () => void;
+  open: (field?: AllergyChangeFormValues["field"]) => void;
 }
 
 const AllergyLogChangeContext = createContext<AllergyLogChangeValue | null>(

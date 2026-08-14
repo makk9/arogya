@@ -57,6 +57,12 @@ interface Props {
   currentStatus: Allergy["status"];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Preselects the changed field when opened from a value card in the Current
+   * section. The shell keys this dialog per open, so mount-time defaults are
+   * enough — no reset effect needed.
+   */
+  initialField?: AllergyChangeFormValues["field"] | null;
 }
 
 type DialogState =
@@ -86,6 +92,7 @@ export function AllergyLogChangeDialog({
   currentStatus,
   open,
   onOpenChange,
+  initialField,
 }: Props) {
   const router = useRouter();
   const [bannerError, setBannerError] = useState<string | null>(null);
@@ -96,9 +103,17 @@ export function AllergyLogChangeDialog({
   );
   const firstStatus = availableStatuses[0]?.value ?? "";
 
+  const startField: AllergyChangeFormValues["field"] = initialField ?? "status";
+
+  // Default newValue for a freshly-selected field.
+  const defaultFor = (field: AllergyChangeFormValues["field"]): string => {
+    if (field === "status") return firstStatus;
+    return SEVERITY_OPTIONS[0]?.value ?? "";
+  };
+
   const defaultValues: AllergyChangeFormValues = {
-    field: "status",
-    newValue: firstStatus,
+    field: startField,
+    newValue: defaultFor(startField),
     reason: "",
     // Browser-local "today" — user-tz form defaults per decisions.md 2026-06-10.
     changedAt: todayLocal(),
@@ -122,12 +137,12 @@ export function AllergyLogChangeDialog({
   // Local mirror of the field selector so we don't call RHF's `watch`
   // (react-compiler flags it as not memoizable).
   const [activeField, setActiveField] =
-    useState<AllergyChangeFormValues["field"]>("status");
+    useState<AllergyChangeFormValues["field"]>(startField);
 
   const closeAndReset = () => {
     onOpenChange(false);
     reset(defaultValues);
-    setActiveField("status");
+    setActiveField(startField);
     setBannerError(null);
     setState({ kind: "normal" });
   };
@@ -148,12 +163,6 @@ export function AllergyLogChangeDialog({
     "reason",
     "changedAt",
   ];
-
-  // Default newValue for a freshly-selected field.
-  const defaultFor = (field: AllergyChangeFormValues["field"]): string => {
-    if (field === "status") return firstStatus;
-    return SEVERITY_OPTIONS[0]?.value ?? "";
-  };
 
   const onSubmit = handleSubmit(async (values) => {
     setBannerError(null);

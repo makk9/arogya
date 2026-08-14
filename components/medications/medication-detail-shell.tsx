@@ -10,6 +10,7 @@ import {
   type VisitOption,
 } from "@/components/medications/medication-log-change-dialog";
 import type { Medication } from "@/db/schema";
+import type { MedicationChangeFormValues } from "@/lib/schemas/forms/medication";
 
 interface Props {
   medication: Medication;
@@ -40,8 +41,21 @@ export function MedicationDetailShell({
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [logChangeOpen, setLogChangeOpen] = useState(false);
+  // `open(field)` preselects that field in the dialog; the dialog is keyed
+  // per open so each launch mounts fresh with the right defaults.
+  const [initialField, setInitialField] = useState<
+    MedicationChangeFormValues["field"] | null
+  >(null);
+  const [dialogKey, setDialogKey] = useState(0);
 
-  const openLogChange = useCallback(() => setLogChangeOpen(true), []);
+  const openLogChange = useCallback(
+    (field?: MedicationChangeFormValues["field"]) => {
+      setInitialField(field ?? null);
+      setDialogKey((k) => k + 1);
+      setLogChangeOpen(true);
+    },
+    [],
+  );
 
   const isDiscontinued = medication.status === "discontinued";
   const showLogChange = !isDiscontinued;
@@ -50,8 +64,13 @@ export function MedicationDetailShell({
   // setEditing is a no-op AND a frozen editing=false. Header still reads the
   // value (no crash) but won't render the Edit button.
   const editProviderValue = isDiscontinued
-    ? { editing: false, setEditing: () => {}, medicationId: medication.id }
-    : { editing, setEditing, medicationId: medication.id };
+    ? {
+        editing: false,
+        setEditing: () => {},
+        medicationId: medication.id,
+        locked: true,
+      }
+    : { editing, setEditing, medicationId: medication.id, locked: false };
 
   const logChangeProviderValue = { open: openLogChange };
 
@@ -73,6 +92,8 @@ export function MedicationDetailShell({
 
       {showLogChange ? (
         <MedicationLogChangeDialog
+          key={dialogKey}
+          initialField={initialField}
           medicationId={medication.id}
           medicationName={medication.name}
           doctors={doctors}

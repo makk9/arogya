@@ -107,6 +107,10 @@ export function TypeCurrentSection({
             required={false}
             clearable
             ariaLabel="Linked condition"
+            // Populated → the condition link keeps the click (navigation
+            // wins), the ✎ edits. Empty → the dash is the click-to-edit
+            // target.
+            displayIsInteractive={Boolean(type.linkedCondition)}
             options={conditionOptions.map((c) => ({ value: c.id, label: c.name }))}
             displayValue={
               <span className="text-sm">

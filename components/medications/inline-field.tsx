@@ -1,13 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import {
   CATEGORY_OPTIONS,
   FORM_OPTIONS,
 } from "@/components/medications/medication-options";
 import { useMedicationEdit } from "@/components/medications/medication-edit-context";
+import { InlineDisplayTarget } from "@/components/log-change-affordance";
+import { stringToWire, useInlineEdit } from "@/components/use-inline-edit";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -20,21 +22,33 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 /*
- * Per-cell editable primitive on the Medication detail page. Click into a
- * field while edit mode is on, type, blur → PATCH /api/medications/[id].
+ * Per-cell editable primitive on the Medication detail page. Two ways in
+ * (decisions.md 2026-08-13):
+ *  - click the value itself — that one field self-activates its editor,
+ *    focused; blur/select commits and returns it to display
+ *  - the header Edit toggle — every field activates at once (bulk fix-ups)
  *
- * Per design.md 9.6:2787, single-field inline edits use the useState + onBlur
- * pattern (not RHF). Each blur fires a discrete PATCH with one key; the page
- * router.refresh()'s on success so the next render shows server truth. On
- * failure, the inline error renders under the field and the local value is
- * kept (re-render pulls server state if the user navigates away or refreshes).
+ * State + commit mechanics live in the shared useInlineEdit hook; this file
+ * owns the medication field map and the rendered controls. Per design.md
+ * 9.6:2793, single-field inline edits use the useState + onBlur pattern (not
+ * RHF); each commit fires a discrete PATCH with one key and router.refresh()'s
+ * on success. Errors keep the editor active so they stay visible; Escape
+ * reverts, Enter commits (single-line variants).
  *
- * Skips the PATCH when the value hasn't changed from initial, or when a
- * required field is blanked. For clearable fields, an empty value PATCHes
- * `null` (matches the API schema's `.nullable()` treatment).
+ * `locked` on the edit context (discontinued meds) disables self-activation —
+ * the value renders inert, matching the frozen Edit button.
  */
 
-type Variant = "text" | "textarea" | "date" | "select-form" | "select-category";
+type Variant =
+  | "text"
+  | "textarea"
+  | "date"
+  | "select-form"
+  | "select-category"
+  | "select-condition";
+
+// Sentinel for the clearable selects' explicit "None" row (commits null).
+const NONE_VALUE = "__none";
 
 interface InlineFieldProps {
   fieldKey:
@@ -42,6 +56,7 @@ interface InlineFieldProps {
     | "brandName"
     | "form"
     | "category"
+    | "purpose"
     | "startedOn"
     | "notes";
   value: string | null;
@@ -49,22 +64,19 @@ interface InlineFieldProps {
   required: boolean;
   clearable: boolean;
   displayValue: ReactNode;
+  /** Options for variant "select-condition" (value = uuid, label = name). */
+  options?: ReadonlyArray<{ value: string; label: string }>;
+  /**
+   * True when displayValue is itself interactive (the treats condition link;
+   * navigation wins) — the at-rest display then gets a hover-revealed ✎
+   * instead of the full click-to-edit wrap.
+   */
+  displayIsInteractive?: boolean;
   // Visual flags — keep the inline input aligned with the surrounding text.
   className?: string;
   inputClassName?: string;
   placeholder?: string;
   ariaLabel: string;
-}
-
-interface ApiErrorBody {
-  error?: {
-    code?: string;
-    message?: string;
-    details?: {
-      fieldErrors?: Record<string, string[]>;
-      formErrors?: string[];
-    };
-  };
 }
 
 export function InlineField({
@@ -74,79 +86,78 @@ export function InlineField({
   required,
   clearable,
   displayValue,
+  options,
+  displayIsInteractive = false,
   className,
   inputClassName,
   placeholder,
   ariaLabel,
 }: InlineFieldProps) {
-  const { editing, medicationId } = useMedicationEdit();
+  const { editing, medicationId, locked } = useMedicationEdit();
   const router = useRouter();
-  const [draft, setDraft] = useState<string>(initialValue ?? "");
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // Sync local draft when the upstream value changes (router.refresh after a
-  // successful PATCH, or a parallel write). Adjusting state during render per
-  // React's "you might not need an effect" guidance — cheaper than useEffect
-  // and avoids the lint rule against setState-in-effect.
-  const [prevInitial, setPrevInitial] = useState<string | null>(initialValue);
-  if (initialValue !== prevInitial) {
-    setPrevInitial(initialValue);
-    setDraft(initialValue ?? "");
-    setError(null);
+
+  const field = useInlineEdit({
+    initialValue,
+    fieldKey,
+    required,
+    ariaLabel,
+    editing,
+    endpoint: `/api/medications/${medicationId}`,
+    toWire: stringToWire(clearable),
+    onSaved: () => router.refresh(),
+  });
+
+  if (!field.active) {
+    return (
+      <InlineDisplayTarget
+        locked={locked ?? false}
+        interactive={displayIsInteractive}
+        ariaLabel={ariaLabel}
+        onActivate={field.activate}
+      >
+        {displayValue}
+      </InlineDisplayTarget>
+    );
   }
-
-  if (!editing) {
-    return <>{displayValue}</>;
-  }
-
-  const commit = async (next: string) => {
-    const initialStr = initialValue ?? "";
-    if (next === initialStr) return; // no-op
-    if (!next && required) {
-      setError(`${ariaLabel} is required.`);
-      return;
-    }
-
-    const wireValue: string | null = next === "" && clearable ? null : next;
-    setError(null);
-    setPending(true);
-    try {
-      const res = await fetch(`/api/medications/${medicationId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [fieldKey]: wireValue }),
-      });
-      if (res.ok) {
-        router.refresh();
-        return;
-      }
-      const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody;
-      const fieldMsg = parsed.error?.details?.fieldErrors?.[fieldKey]?.[0];
-      setError(fieldMsg ?? parsed.error?.message ?? "Couldn't save.");
-    } catch {
-      setError("Couldn't reach the server.");
-    } finally {
-      setPending(false);
-    }
-  };
 
   // Select variants don't blur the same way as text inputs — they commit on
   // value change instead.
-  if (variant === "select-form" || variant === "select-category") {
-    const options =
-      variant === "select-form" ? FORM_OPTIONS : CATEGORY_OPTIONS;
+  if (
+    variant === "select-form" ||
+    variant === "select-category" ||
+    variant === "select-condition"
+  ) {
+    const baseOptions =
+      variant === "select-form"
+        ? FORM_OPTIONS
+        : variant === "select-category"
+          ? CATEGORY_OPTIONS
+          : (options ?? []);
+    // Clearable selects carry an explicit None row — the only way a select
+    // can express "clear this" (maps to a null PATCH).
+    const items = clearable
+      ? [{ value: NONE_VALUE, label: "None" }, ...baseOptions]
+      : [...baseOptions];
     return (
       <div className={cn("flex flex-col gap-1", className)}>
         <Select
           // null, not undefined: Base UI's controlled empty value is null —
           // undefined makes the Select uncontrolled, and the first pick flips it
           // to controlled (console warning).
-          value={draft || null}
-          disabled={pending}
+          value={field.draft || (clearable ? NONE_VALUE : null)}
+          // items so the trigger renders the label, not the raw value — load-
+          // bearing for select-condition, where the value is a uuid
+          // (decisions.md 2026-06-02).
+          items={items}
+          disabled={field.pending}
+          // Self-activation goes straight to the open option list — the click
+          // on the value IS the click on the trigger.
+          defaultOpen={field.selfActive}
+          onOpenChange={field.selectOpenChange}
           onValueChange={(next) => {
-            const v = next ?? "";
-            setDraft(v);
-            void commit(v);
+            field.commitFromSelect(
+              next == null || next === NONE_VALUE ? "" : next,
+            );
           }}
         >
           <SelectTrigger
@@ -155,16 +166,24 @@ export function InlineField({
           >
             <SelectValue placeholder={placeholder ?? "Select…"} />
           </SelectTrigger>
-          <SelectContent>
-            {options.map((opt) => (
+          {/* w-auto over the default anchor-width pin: these selects sit in
+              narrow grid cells, and long labels (condition names) would clip.
+              Anchor width stays the floor; max-w-sm caps growth. */}
+          <SelectContent className="w-auto min-w-(--anchor-width) max-w-sm">
+            {variant === "select-condition" && baseOptions.length === 0 ? (
+              <SelectItem value="__no-options" disabled>
+                No conditions on file
+              </SelectItem>
+            ) : null}
+            {items.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        {error ? (
-          <p className="text-xs text-destructive">{error}</p>
+        {field.error ? (
+          <p className="text-xs text-destructive">{field.error}</p>
         ) : null}
       </div>
     );
@@ -174,17 +193,19 @@ export function InlineField({
     return (
       <div className={cn("flex flex-col gap-1", className)}>
         <Textarea
-          value={draft}
+          value={field.draft}
           aria-label={ariaLabel}
           rows={4}
           placeholder={placeholder}
-          disabled={pending}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => void commit(draft)}
+          disabled={field.pending}
+          autoFocus={field.selfActive}
+          onChange={(e) => field.setDraft(e.target.value)}
+          onBlur={field.blurCommit}
+          onKeyDown={field.keyDown({ enterCommits: false })}
           className={inputClassName}
         />
-        {error ? (
-          <p className="text-xs text-destructive">{error}</p>
+        {field.error ? (
+          <p className="text-xs text-destructive">{field.error}</p>
         ) : null}
       </div>
     );
@@ -194,17 +215,19 @@ export function InlineField({
     <div className={cn("flex flex-col gap-1", className)}>
       <Input
         type={variant === "date" ? "date" : "text"}
-        value={draft}
+        value={field.draft}
         aria-label={ariaLabel}
         placeholder={placeholder}
         autoComplete="off"
-        disabled={pending}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => void commit(draft)}
+        disabled={field.pending}
+        autoFocus={field.selfActive}
+        onChange={(e) => field.setDraft(e.target.value)}
+        onBlur={field.blurCommit}
+        onKeyDown={field.keyDown({ enterCommits: true })}
         className={inputClassName}
       />
-      {error ? (
-        <p className="text-xs text-destructive">{error}</p>
+      {field.error ? (
+        <p className="text-xs text-destructive">{field.error}</p>
       ) : null}
     </div>
   );

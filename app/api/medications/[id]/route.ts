@@ -1,6 +1,13 @@
-import { medicationQueries } from "@/db/queries/medication";
+import {
+  MedicationDomainError,
+  medicationQueries,
+} from "@/db/queries/medication";
 import { apiError } from "@/lib/api/error";
-import { parseJsonBody, validateUuidParam } from "@/lib/api/route-helpers";
+import {
+  fieldErrorsFromReason,
+  parseJsonBody,
+  validateUuidParam,
+} from "@/lib/api/route-helpers";
 import { getCurrentPatient } from "@/lib/auth";
 import { errorCode, logger } from "@/lib/logger";
 import { updateMedicationSchema } from "@/lib/schemas/api/medication";
@@ -97,6 +104,18 @@ export async function PATCH(req: Request, ctx: Ctx): Promise<Response> {
     }
     return Response.json({ medication });
   } catch (err) {
+    if (
+      err instanceof MedicationDomainError &&
+      err.kind === "linked_entity_invalid"
+    ) {
+      return apiError(
+        "validation_failed",
+        "Invalid linked entity",
+        fieldErrorsFromReason(err.meta ?? {}, {
+          condition_not_found: "Condition not found in this patient's record.",
+        }),
+      );
+    }
     logger.error({
       op: "medications.update",
       code: errorCode(err),

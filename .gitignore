@@ -156,3 +156,6 @@ vite.config.ts.timestamp-*
 .vite/
 # Local design reference scratch (per-developer)
 Rough UI Wireframes/
+
+# Personal strategy notes (never commit)
+docs/strategy-brief.md

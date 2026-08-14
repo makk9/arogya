@@ -1,10 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import { useJournalEdit } from "@/components/journal/journal-edit-context";
 import { NOT_SET } from "@/components/journal/journal-options";
+import { InlineDisplayTarget } from "@/components/log-change-affordance";
+import { stringToWire, useInlineEdit } from "@/components/use-inline-edit";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -18,10 +20,18 @@ import { cn } from "@/lib/utils";
 
 /*
  * Per-cell editable primitive on the Journal detail page. Clones
- * report-inline-field.tsx. Field set is the FULL Journal PATCH surface — events
- * have no change log, so nothing routes through a `+ Log a change` dialog (§6.7:
- * Edit corrects the event in place). entryDate / content are required + NOT
- * clearable (NOT NULL columns); title and mood clear to null.
+ * report-inline-field.tsx. Two ways in (decisions.md 2026-08-13):
+ *  - click the value itself — that one field self-activates its editor,
+ *    focused; blur/select commits and returns it to display
+ *  - the header Edit toggle — every field activates at once (bulk fix-ups)
+ *
+ * State + commit mechanics live in the shared useInlineEdit hook; this file
+ * owns the journal field map and the rendered controls.
+ *
+ * Field set is the FULL Journal PATCH surface — events have no change log, so
+ * nothing routes through a `+ Log a change` dialog (§6.7: Edit corrects the
+ * event in place). entryDate / content are required + NOT clearable (NOT NULL
+ * columns); title and mood clear to null.
  */
 
 type Variant = "text" | "textarea" | "date" | "select";
@@ -41,17 +51,6 @@ interface InlineFieldProps {
   rows?: number;
 }
 
-interface ApiErrorBody {
-  error?: {
-    code?: string;
-    message?: string;
-    details?: {
-      fieldErrors?: Record<string, string[]>;
-      formErrors?: string[];
-    };
-  };
-}
-
 export function JournalInlineField({
   fieldKey,
   value: initialValue,
@@ -68,66 +67,45 @@ export function JournalInlineField({
 }: InlineFieldProps) {
   const { editing, entryId } = useJournalEdit();
   const router = useRouter();
-  const [draft, setDraft] = useState<string>(initialValue ?? "");
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [prevInitial, setPrevInitial] = useState<string | null>(initialValue);
-  if (initialValue !== prevInitial) {
-    setPrevInitial(initialValue);
-    setDraft(initialValue ?? "");
-    setError(null);
+
+  const field = useInlineEdit({
+    initialValue,
+    fieldKey,
+    required,
+    ariaLabel,
+    editing,
+    endpoint: `/api/journal/${entryId}`,
+    toWire: stringToWire(clearable),
+    onSaved: () => router.refresh(),
+  });
+
+  if (!field.active) {
+    return (
+      <InlineDisplayTarget ariaLabel={ariaLabel} onActivate={field.activate}>
+        {displayValue}
+      </InlineDisplayTarget>
+    );
   }
-
-  if (!editing) {
-    return <>{displayValue}</>;
-  }
-
-  const commit = async (next: string) => {
-    const initialStr = initialValue ?? "";
-    if (next === initialStr) return; // no-op
-    if (!next && required) {
-      setError(`${ariaLabel} is required.`);
-      return;
-    }
-
-    const wireValue: string | null = next === "" && clearable ? null : next;
-    setError(null);
-    setPending(true);
-    try {
-      const res = await fetch(`/api/journal/${entryId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [fieldKey]: wireValue }),
-      });
-      if (res.ok) {
-        router.refresh();
-        return;
-      }
-      const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody;
-      const fieldMsg = parsed.error?.details?.fieldErrors?.[fieldKey]?.[0];
-      setError(fieldMsg ?? parsed.error?.message ?? "Couldn't save.");
-    } catch {
-      setError("Couldn't reach the server.");
-    } finally {
-      setPending(false);
-    }
-  };
 
   if (variant === "select") {
     const items = clearable
       ? [{ value: NOT_SET, label: "—" }, ...(options ?? [])]
       : [...(options ?? [])];
-    const selectValue = clearable ? draft || NOT_SET : draft || null;
+    const selectValue = clearable
+      ? field.draft || NOT_SET
+      : field.draft || null;
     return (
       <div className={cn("flex flex-col gap-1", className)}>
         <Select
           value={selectValue}
           items={items}
-          disabled={pending}
+          disabled={field.pending}
+          // Self-activation goes straight to the open option list — the click
+          // on the value IS the click on the trigger.
+          defaultOpen={field.selfActive}
+          onOpenChange={field.selectOpenChange}
           onValueChange={(next) => {
-            const v = next === NOT_SET || !next ? "" : next;
-            setDraft(v);
-            void commit(v);
+            field.commitFromSelect(next === NOT_SET || !next ? "" : next);
           }}
         >
           <SelectTrigger
@@ -136,7 +114,9 @@ export function JournalInlineField({
           >
             <SelectValue placeholder={placeholder ?? "Select…"} />
           </SelectTrigger>
-          <SelectContent>
+          {/* w-auto over the default anchor-width pin: narrow cells clip long
+              labels. Anchor width stays the floor; max-w-sm caps growth. */}
+          <SelectContent className="w-auto min-w-(--anchor-width) max-w-sm">
             {items.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}
@@ -144,7 +124,9 @@ export function JournalInlineField({
             ))}
           </SelectContent>
         </Select>
-        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+        {field.error ? (
+          <p className="text-xs text-destructive">{field.error}</p>
+        ) : null}
       </div>
     );
   }
@@ -153,16 +135,20 @@ export function JournalInlineField({
     return (
       <div className={cn("flex flex-col gap-1", className)}>
         <Textarea
-          value={draft}
+          value={field.draft}
           aria-label={ariaLabel}
           rows={rows ?? 4}
           placeholder={placeholder}
-          disabled={pending}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => void commit(draft)}
+          disabled={field.pending}
+          autoFocus={field.selfActive}
+          onChange={(e) => field.setDraft(e.target.value)}
+          onBlur={field.blurCommit}
+          onKeyDown={field.keyDown({ enterCommits: false })}
           className={inputClassName}
         />
-        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+        {field.error ? (
+          <p className="text-xs text-destructive">{field.error}</p>
+        ) : null}
       </div>
     );
   }
@@ -171,16 +157,20 @@ export function JournalInlineField({
     <div className={cn("flex flex-col gap-1", className)}>
       <Input
         type={variant === "date" ? "date" : "text"}
-        value={draft}
+        value={field.draft}
         aria-label={ariaLabel}
         placeholder={placeholder}
         autoComplete="off"
-        disabled={pending}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => void commit(draft)}
+        disabled={field.pending}
+        autoFocus={field.selfActive}
+        onChange={(e) => field.setDraft(e.target.value)}
+        onBlur={field.blurCommit}
+        onKeyDown={field.keyDown({ enterCommits: true })}
         className={inputClassName}
       />
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {field.error ? (
+        <p className="text-xs text-destructive">{field.error}</p>
+      ) : null}
     </div>
   );
 }

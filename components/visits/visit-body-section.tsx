@@ -2,6 +2,8 @@
 
 import ReactMarkdown from "react-markdown";
 
+import { CLICK_TARGET_MARKDOWN_COMPONENTS } from "@/components/log-change-affordance";
+
 import { VisitInlineField } from "@/components/visits/visit-inline-field";
 import { useMaybeVisitEdit } from "@/components/visits/visit-edit-context";
 import type { Visit } from "@/db/schema";
@@ -18,7 +20,8 @@ import type { Visit } from "@/db/schema";
  * rationale, carried over); a fully empty body renders a quiet invitation
  * instead of nothing — the body is the page's main content, and its absence
  * should read as "not captured yet", not a layout bug. Edit mode always shows
- * every field.
+ * every field; each rendered field also self-manages its own click-to-edit
+ * activation (decisions.md 2026-08-13), so no per-field editing branches.
  */
 
 interface Props {
@@ -59,86 +62,78 @@ export function VisitBodySection({ visit }: Props) {
           {chiefComplaint || editing ? (
             <div>
               <h3 className={SUB_LABEL_CLASS}>Chief complaint</h3>
-              {editing ? (
-                <VisitInlineField
-                  fieldKey="chiefComplaint"
-                  value={visit.chiefComplaint}
-                  variant="text"
-                  required={false}
-                  clearable
-                  ariaLabel="Chief complaint"
-                  placeholder="Why the visit happened…"
-                  displayValue={null}
-                />
-              ) : (
-                <p className="text-sm leading-relaxed">{chiefComplaint}</p>
-              )}
+              <VisitInlineField
+                fieldKey="chiefComplaint"
+                value={visit.chiefComplaint}
+                variant="text"
+                required={false}
+                clearable
+                ariaLabel="Chief complaint"
+                placeholder="Why the visit happened…"
+                displayValue={
+                  <p className="text-sm leading-relaxed">{chiefComplaint}</p>
+                }
+              />
             </div>
           ) : null}
 
           {summary || editing ? (
             <div>
               <h3 className={SUB_LABEL_CLASS}>Summary</h3>
-              {editing ? (
-                <VisitInlineField
-                  fieldKey="summary"
-                  value={visit.summary}
-                  variant="textarea"
-                  rows={6}
-                  required={false}
-                  clearable
-                  ariaLabel="Summary"
-                  placeholder="What happened — observations, discussion, readings."
-                  displayValue={null}
-                />
-              ) : (
-                <div className={MARKDOWN_CLASS}>
-                  <ReactMarkdown>{summary}</ReactMarkdown>
-                </div>
-              )}
+              <VisitInlineField
+                fieldKey="summary"
+                value={visit.summary}
+                variant="textarea"
+                rows={6}
+                required={false}
+                clearable
+                ariaLabel="Summary"
+                placeholder="What happened — observations, discussion, readings."
+                displayValue={
+                  <div className={MARKDOWN_CLASS}>
+                    <ReactMarkdown components={CLICK_TARGET_MARKDOWN_COMPONENTS}>{summary}</ReactMarkdown>
+                  </div>
+                }
+              />
             </div>
           ) : null}
 
           {diagnosisText || editing ? (
             <div>
               <h3 className={SUB_LABEL_CLASS}>Diagnosis</h3>
-              {editing ? (
-                <VisitInlineField
-                  fieldKey="diagnosisText"
-                  value={visit.diagnosisText}
-                  variant="text"
-                  required={false}
-                  clearable
-                  ariaLabel="Diagnosis"
-                  placeholder="As the doctor stated it…"
-                  displayValue={null}
-                />
-              ) : (
-                <p className="text-sm leading-relaxed">{diagnosisText}</p>
-              )}
+              <VisitInlineField
+                fieldKey="diagnosisText"
+                value={visit.diagnosisText}
+                variant="text"
+                required={false}
+                clearable
+                ariaLabel="Diagnosis"
+                placeholder="As the doctor stated it…"
+                displayValue={
+                  <p className="text-sm leading-relaxed">{diagnosisText}</p>
+                }
+              />
             </div>
           ) : null}
 
           {nextSteps || editing ? (
             <div>
               <h3 className={SUB_LABEL_CLASS}>Next steps</h3>
-              {editing ? (
-                <VisitInlineField
-                  fieldKey="nextSteps"
-                  value={visit.nextSteps}
-                  variant="textarea"
-                  rows={3}
-                  required={false}
-                  clearable
-                  ariaLabel="Next steps"
-                  placeholder="Recheck in 8 weeks, schedule lipid panel…"
-                  displayValue={null}
-                />
-              ) : (
-                <div className={MARKDOWN_CLASS}>
-                  <ReactMarkdown>{nextSteps}</ReactMarkdown>
-                </div>
-              )}
+              <VisitInlineField
+                fieldKey="nextSteps"
+                value={visit.nextSteps}
+                variant="textarea"
+                rows={3}
+                required={false}
+                clearable
+                ariaLabel="Next steps"
+                placeholder="Recheck in 8 weeks, schedule lipid panel…"
+                displayValue={
+                  <div className={MARKDOWN_CLASS}>
+                    <ReactMarkdown components={CLICK_TARGET_MARKDOWN_COMPONENTS}>{nextSteps}</ReactMarkdown>
+                  </div>
+                }
+              />
             </div>
           ) : null}
         </div>

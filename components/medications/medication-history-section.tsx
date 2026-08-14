@@ -45,7 +45,7 @@ export function MedicationHistorySection({
             type="button"
             variant="outline"
             size="sm"
-            onClick={logChange.open}
+            onClick={() => logChange.open()}
           >
             + Log a change
           </Button>

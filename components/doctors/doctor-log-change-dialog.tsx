@@ -54,6 +54,12 @@ interface Props {
   doctorName: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Preselects the changed field when opened from a value card in the Current
+   * section. The shell keys this dialog per open, so mount-time defaults are
+   * enough — no reset effect needed.
+   */
+  initialField?: DoctorChangeFormValues["field"] | null;
 }
 
 interface ApiErrorBody {
@@ -82,12 +88,16 @@ export function DoctorLogChangeDialog({
   doctorName,
   open,
   onOpenChange,
+  initialField,
 }: Props) {
   const router = useRouter();
   const [bannerError, setBannerError] = useState<string | null>(null);
 
+  const startField: DoctorChangeFormValues["field"] =
+    initialField ?? "specialty";
+
   const defaultValues: DoctorChangeFormValues = {
-    field: "specialty",
+    field: startField,
     newValue: "",
     reason: "",
     // Browser-local "today" — user-tz form defaults per decisions.md 2026-06-10.
@@ -112,12 +122,12 @@ export function DoctorLogChangeDialog({
   // Local mirror of the field selector so we don't call RHF's `watch`
   // (react-compiler flags it as not memoizable).
   const [activeField, setActiveField] =
-    useState<DoctorChangeFormValues["field"]>("specialty");
+    useState<DoctorChangeFormValues["field"]>(startField);
 
   const closeAndReset = () => {
     onOpenChange(false);
     reset(defaultValues);
-    setActiveField("specialty");
+    setActiveField(startField);
     setBannerError(null);
   };
 

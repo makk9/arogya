@@ -57,66 +57,63 @@ export function EpisodeBodySection({
         </p>
       ) : (
         <div className="flex flex-col gap-4">
+          {/* Each EpisodeInlineField self-manages display vs editor
+              (click-to-edit, decisions.md 2026-08-13) — the wrappers keep only
+              the omit-when-empty rule. */}
           {description || editing ? (
             <div>
               <h3 className={SUB_LABEL_CLASS}>What it felt like</h3>
-              {editing ? (
-                <EpisodeInlineField
-                  fieldKey="description"
-                  value={episode.description}
-                  variant="textarea"
-                  rows={4}
-                  required={false}
-                  clearable
-                  ariaLabel="Description"
-                  placeholder="What the episode felt like…"
-                  displayValue={null}
-                />
-              ) : (
-                <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                  {description}
-                </p>
-              )}
+              <EpisodeInlineField
+                fieldKey="description"
+                value={episode.description}
+                variant="textarea"
+                rows={4}
+                required={false}
+                clearable
+                ariaLabel="Description"
+                placeholder="What the episode felt like…"
+                displayValue={
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                    {description}
+                  </p>
+                }
+              />
             </div>
           ) : null}
 
           {triggers || editing ? (
             <div>
               <h3 className={SUB_LABEL_CLASS}>Triggers</h3>
-              {editing ? (
-                <EpisodeInlineField
-                  fieldKey="triggers"
-                  value={episode.triggers}
-                  variant="text"
-                  required={false}
-                  clearable
-                  ariaLabel="Triggers"
-                  placeholder="After getting up too fast, skipped breakfast…"
-                  displayValue={null}
-                />
-              ) : (
-                <p className="text-sm leading-relaxed">{triggers}</p>
-              )}
+              <EpisodeInlineField
+                fieldKey="triggers"
+                value={episode.triggers}
+                variant="text"
+                required={false}
+                clearable
+                ariaLabel="Triggers"
+                placeholder="After getting up too fast, skipped breakfast…"
+                displayValue={
+                  <p className="text-sm leading-relaxed">{triggers}</p>
+                }
+              />
             </div>
           ) : null}
 
           {relief || editing ? (
             <div>
               <h3 className={SUB_LABEL_CLASS}>What helped</h3>
-              {editing ? (
-                <EpisodeInlineField
-                  fieldKey="relief"
-                  value={episode.relief}
-                  variant="text"
-                  required={false}
-                  clearable
-                  ariaLabel="Relief"
-                  placeholder="Sat down for 5 minutes, took Pudin Hara…"
-                  displayValue={null}
-                />
-              ) : (
-                <p className="text-sm leading-relaxed">{relief}</p>
-              )}
+              <EpisodeInlineField
+                fieldKey="relief"
+                value={episode.relief}
+                variant="text"
+                required={false}
+                clearable
+                ariaLabel="Relief"
+                placeholder="Sat down for 5 minutes, took Pudin Hara…"
+                displayValue={
+                  <p className="text-sm leading-relaxed">{relief}</p>
+                }
+              />
             </div>
           ) : null}
 
@@ -154,7 +151,7 @@ export function EpisodeBodySection({
             </div>
           ) : null}
 
-          {editing ? (
+          {editing || (episode.linkedVisitId && linkedVisitLabel) ? (
             <div>
               <h3 className={SUB_LABEL_CLASS}>Prompted a doctor visit</h3>
               <EpisodeInlineField
@@ -166,18 +163,20 @@ export function EpisodeBodySection({
                 ariaLabel="Prompted visit"
                 placeholder="No linked visit…"
                 options={visitOptions}
-                displayValue={null}
+                // Populated → the visit link keeps the click (navigation
+                // wins), the ✎ edits.
+                displayIsInteractive={Boolean(episode.linkedVisitId)}
+                displayValue={
+                  episode.linkedVisitId && linkedVisitLabel ? (
+                    <Link
+                      href={`/patient/${patientId}/visits/${episode.linkedVisitId}`}
+                      className="text-sm text-link underline-offset-4 hover:underline"
+                    >
+                      {linkedVisitLabel} →
+                    </Link>
+                  ) : null
+                }
               />
-            </div>
-          ) : episode.linkedVisitId && linkedVisitLabel ? (
-            <div>
-              <h3 className={SUB_LABEL_CLASS}>Prompted a doctor visit</h3>
-              <Link
-                href={`/patient/${patientId}/visits/${episode.linkedVisitId}`}
-                className="text-sm text-link underline-offset-4 hover:underline"
-              >
-                {linkedVisitLabel} →
-              </Link>
             </div>
           ) : null}
         </div>

@@ -1,10 +1,16 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import { RELATION_OPTIONS } from "@/components/family-history/family-history-options";
 import { useFamilyHistoryEdit } from "@/components/family-history/family-history-edit-context";
+import { InlineDisplayTarget } from "@/components/log-change-affordance";
+import {
+  stringToWire,
+  useInlineEdit,
+  type ToWire,
+} from "@/components/use-inline-edit";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -17,9 +23,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 /*
- * Per-cell editable primitive on the FamilyHistory detail page. Clones
- * allergy-inline-field.tsx. Click into a field while edit mode is on, type,
- * blur → PATCH /api/family-history/[id].
+ * Per-cell editable primitive on the FamilyHistory detail page. Two ways in
+ * (decisions.md 2026-08-13):
+ *  - click the value itself — that one field self-activates its editor,
+ *    focused; blur/select commits and returns it to display
+ *  - the header Edit toggle — every field activates at once (bulk fix-ups)
+ *
+ * State + commit mechanics live in the shared useInlineEdit hook; this file
+ * owns the family-history field map and the rendered controls, PATCHing
+ * /api/family-history/[id].
  *
  * Unlike every other state entity, the field set is the WHOLE column set —
  * FamilyHistory has no change log (§4:558), so nothing is locked behind a
@@ -51,17 +63,6 @@ interface InlineFieldProps {
   ariaLabel: string;
 }
 
-interface ApiErrorBody {
-  error?: {
-    code?: string;
-    message?: string;
-    details?: {
-      fieldErrors?: Record<string, string[]>;
-      formErrors?: string[];
-    };
-  };
-}
-
 export function FamilyHistoryInlineField({
   fieldKey,
   value: initialValue,
@@ -76,68 +77,34 @@ export function FamilyHistoryInlineField({
 }: InlineFieldProps) {
   const { editing, entryId } = useFamilyHistoryEdit();
   const router = useRouter();
-  const [draft, setDraft] = useState<string>(initialValue ?? "");
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // Sync local draft when the upstream value changes (router.refresh after a
-  // successful PATCH, or a parallel write). Adjusting state during render per
-  // React's "you might not need an effect" guidance.
-  const [prevInitial, setPrevInitial] = useState<string | null>(initialValue);
-  if (initialValue !== prevInitial) {
-    setPrevInitial(initialValue);
-    setDraft(initialValue ?? "");
-    setError(null);
-  }
 
-  if (!editing) {
-    return <>{displayValue}</>;
-  }
-
-  const commit = async (next: string) => {
-    const initialStr = initialValue ?? "";
-    if (next === initialStr) return; // no-op
-    if (!next && required) {
-      setError(`${ariaLabel} is required.`);
-      return;
-    }
-
-    // The number variant crosses the wire as a number (or null when cleared);
-    // everything else as string|null.
-    let wireValue: string | number | null;
-    if (next === "" && clearable) {
-      wireValue = null;
-    } else if (variant === "number") {
-      const parsed = Number(next);
-      if (!Number.isInteger(parsed)) {
-        setError("Enter an age in years.");
-        return;
-      }
-      wireValue = parsed;
-    } else {
-      wireValue = next;
-    }
-
-    setError(null);
-    setPending(true);
-    try {
-      const res = await fetch(`/api/family-history/${entryId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [fieldKey]: wireValue }),
-      });
-      if (res.ok) {
-        router.refresh();
-        return;
-      }
-      const parsed = (await res.json().catch(() => ({}))) as ApiErrorBody;
-      const fieldMsg = parsed.error?.details?.fieldErrors?.[fieldKey]?.[0];
-      setError(fieldMsg ?? parsed.error?.message ?? "Couldn't save.");
-    } catch {
-      setError("Couldn't reach the server.");
-    } finally {
-      setPending(false);
-    }
+  // The number variant crosses the wire as a number (or null when cleared);
+  // everything else as string|null.
+  const numberToWire = (next: string): ToWire => {
+    if (next === "" && clearable) return { value: null };
+    const parsed = Number(next);
+    if (!Number.isInteger(parsed)) return { error: "Enter an age in years." };
+    return { value: parsed };
   };
+
+  const field = useInlineEdit({
+    initialValue,
+    fieldKey,
+    required,
+    ariaLabel,
+    editing,
+    endpoint: `/api/family-history/${entryId}`,
+    toWire: variant === "number" ? numberToWire : stringToWire(clearable),
+    onSaved: () => router.refresh(),
+  });
+
+  if (!field.active) {
+    return (
+      <InlineDisplayTarget ariaLabel={ariaLabel} onActivate={field.activate}>
+        {displayValue}
+      </InlineDisplayTarget>
+    );
+  }
 
   // Select variant commits on value change instead of blur. `items` is passed
   // to the Select root so Base UI's <SelectValue> renders the option label.
@@ -146,14 +113,14 @@ export function FamilyHistoryInlineField({
       <div className={cn("flex flex-col gap-1", className)}>
         <Select
           // null, not undefined: Base UI's controlled empty value is null.
-          value={draft || null}
+          value={field.draft || null}
           items={RELATION_OPTIONS}
-          disabled={pending}
-          onValueChange={(next) => {
-            const v = next ?? "";
-            setDraft(v);
-            void commit(v);
-          }}
+          disabled={field.pending}
+          // Self-activation goes straight to the open option list — the click
+          // on the value IS the click on the trigger.
+          defaultOpen={field.selfActive}
+          onOpenChange={field.selectOpenChange}
+          onValueChange={(next) => field.commitFromSelect(next ?? "")}
         >
           <SelectTrigger
             aria-label={ariaLabel}
@@ -161,7 +128,10 @@ export function FamilyHistoryInlineField({
           >
             <SelectValue placeholder={placeholder ?? "Select…"} />
           </SelectTrigger>
-          <SelectContent>
+          {/* w-auto over the default anchor-width pin: this select sits in a
+              narrow grid cell, and long relation labels would clip. Anchor
+              width stays the floor; max-w-sm caps growth. */}
+          <SelectContent className="w-auto min-w-(--anchor-width) max-w-sm">
             {RELATION_OPTIONS.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}
@@ -169,7 +139,9 @@ export function FamilyHistoryInlineField({
             ))}
           </SelectContent>
         </Select>
-        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+        {field.error ? (
+          <p className="text-xs text-destructive">{field.error}</p>
+        ) : null}
       </div>
     );
   }
@@ -178,16 +150,20 @@ export function FamilyHistoryInlineField({
     return (
       <div className={cn("flex flex-col gap-1", className)}>
         <Textarea
-          value={draft}
+          value={field.draft}
           aria-label={ariaLabel}
           rows={4}
           placeholder={placeholder}
-          disabled={pending}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => void commit(draft)}
+          disabled={field.pending}
+          autoFocus={field.selfActive}
+          onChange={(e) => field.setDraft(e.target.value)}
+          onBlur={field.blurCommit}
+          onKeyDown={field.keyDown({ enterCommits: false })}
           className={inputClassName}
         />
-        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+        {field.error ? (
+          <p className="text-xs text-destructive">{field.error}</p>
+        ) : null}
       </div>
     );
   }
@@ -199,16 +175,20 @@ export function FamilyHistoryInlineField({
         inputMode={variant === "number" ? "numeric" : undefined}
         min={variant === "number" ? 0 : undefined}
         max={variant === "number" ? 130 : undefined}
-        value={draft}
+        value={field.draft}
         aria-label={ariaLabel}
         placeholder={placeholder}
         autoComplete="off"
-        disabled={pending}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => void commit(draft)}
+        disabled={field.pending}
+        autoFocus={field.selfActive}
+        onChange={(e) => field.setDraft(e.target.value)}
+        onBlur={field.blurCommit}
+        onKeyDown={field.keyDown({ enterCommits: true })}
         className={inputClassName}
       />
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {field.error ? (
+        <p className="text-xs text-destructive">{field.error}</p>
+      ) : null}
     </div>
   );
 }
