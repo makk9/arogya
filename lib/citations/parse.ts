@@ -7,6 +7,9 @@
  *                         "§ entity-type:slug"       (specific entity)
  *                         "§ entity-type: slug"      (space variant, tolerated)
  *                         "§ entity-type: slug/sub"  (date suffix per 6.9:1634, v1.5 form — tolerated)
+ *                         "§ entity-type:part:part"  (compound slugs — serializers emit
+ *                            `vital:blood_pressure:2026-07-22` and `lab-result:<marker>:<date>`;
+ *                            the whole compound is the slug, incl. snake_case parts)
  *   ↗  external citation: "↗ source-name"            (terminates at sentence punctuation / ')' / newline / EOS)
  *
  * The tokenizer is the load-bearing contract with the serializer side
@@ -22,13 +25,16 @@ export type CitationSegment =
 
 // One alternation with two capturing groups for the vault form (entityType + optional slug)
 // and one capturing group for the external form. `g` so we can drive with matchAll.
-// Vault entity-type/slug charset matches `slugify()` output in format.ts:3-11 — lowercase
-// alnum + hyphen, plus `/` for v1.5 date-suffix tolerance per 6.9:1634.
+// Entity-type charset matches `slugify()` output in format.ts:3-11 — lowercase alnum +
+// hyphen. The slug additionally allows `_` (vital slugs embed snake_case reading types),
+// `/` for v1.5 date-suffix tolerance per 6.9:1634, and further `:`-joined parts
+// (`blood_pressure:2026-07-22`, `<marker>:<date>`) — each extra colon must be followed
+// by another slug chunk, so a sentence colon after the citation is never captured.
 // External form terminates at sentence punctuation, `)`, newline, EOS, or the next
 // citation glyph (`§` / `↗`). The `\s*` in the lookahead absorbs trailing whitespace
 // so it isn't captured into `raw` — keeps adjacent externals from gluing together.
 const CITATION_RE =
-  /§\s*([a-z][a-z0-9-]*)(?:\s*:\s*([a-z0-9/-]+))?|↗\s+([^.,;!?)\n§↗]+?)(?=\s*(?:[.,;!?)\n§↗]|$))/gu;
+  /§\s*([a-z][a-z0-9-]*)(?:\s*:\s*([a-z0-9_/-]+(?::[a-z0-9_/-]+)*))?|↗\s+([^.,;!?)\n§↗]+?)(?=\s*(?:[.,;!?)\n§↗]|$))/gu;
 
 export function tokenizeCitations(input: string): CitationSegment[] {
   if (input.length === 0) return [];

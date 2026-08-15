@@ -340,11 +340,18 @@ export const labResultQueries = {
   async byMarkerSlug(
     patientId: string,
     markerSlug: string,
+    // Serializer citations carry the result date (`lab-result:<marker>:<date>`);
+    // when provided, resolve that exact measurement. Without it (older bare
+    // citations), fall back to the most recent match as before.
+    resultDate?: string,
   ): Promise<{ result: LabResult; report: LabReport } | null> {
     const results = await labResultQueries.forPatient(patientId);
-    const match = results.find(
+    const markerMatches = results.filter(
       (r) => slugify(r.markerNormalized ?? r.marker) === markerSlug,
     );
+    const match = resultDate
+      ? markerMatches.find((r) => formatISODate(r.resultDate) === resultDate)
+      : markerMatches[0];
     if (!match?.labReportId) return null;
     const report = await labReportQueries.getById(patientId, match.labReportId);
     if (!report) return null;

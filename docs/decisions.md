@@ -1232,3 +1232,16 @@ Verified live 2026-07-29: completion turn → `insight_runs` row `succeeded · g
 4. **Blocker:** `/*.pdf` added to .gitignore — exported briefs downloaded into the repo root carry real PHI and must never be committable (the existing `arogya-brief-delta-2026-08-15.pdf` is now ignored, left in place for the user).
 Concern 3 (three coexisting citation grammars) stays deliberate — consolidation is bound to the queued tokenizer carryover audit. Concern 5 (briefIndex 404 on persist failure) accepted for v1.
 **Verified:** tsc + eslint clean. Filename header correct via curl. New Playwright driver (cancel flow) 4/4: dialog opens working, Cancel visible, closes without trap, and after the server-side generation completed (~90s) the session count was unchanged — persist correctly skipped. NOTE: /tmp/arogya-verify + dev server were wiped by a machine restart mid-session; harness rebuilt, drivers re-created.
+
+---
+
+**Date:** 2026-08-15
+**Decision:** **Citation tokenizer fixed for compound slugs (multi-colon + snake_case) — the truncated-pill bug closed; PDF-side workarounds consolidated into the shared parser; lab-result pills now resolve the exact cited measurement.**
+**Context:** Serializers emit `vital:blood_pressure:<date>` and `lab-result:<marker>:<date>`, but the tokenizer's slug charset had no `_` and no second `:` — chat rendered `§ vital:blood` pills with literal `_pressure:2026-07-22` dangling after them (also leaked into insight-card previews). Found during E7 real-data validation; queued as the top carryover; user directed the fix.
+**Choices:**
+1. **Regex:** slug is now `[a-z0-9_/-]+(?::[a-z0-9_/-]+)*` — each extra colon must be followed by another slug chunk, so a sentence colon after a citation is never captured (asserted). Entity-type charset unchanged.
+2. **Contract locked:** parser suite grew 9 → 18 assertions — compound vital, compound lab-result, trailing-sentence-colon, adjacent-comma fixtures + round-trips for the three compound serializer shapes (the bug existed because none was asserted).
+3. **Lab-result precision:** `by-marker/[slug]` route now accepts `<marker>[:date]` (Zod transform); `byMarkerSlug` gained an optional `resultDate` — exact cited measurement when the date is present, prior latest-match behavior for bare-marker citations. The route comment had *claimed* the parser strips the date upstream; it never did.
+4. **Consolidation:** `brief-parse.ts` dangling-tail swallow deleted; `brief-stats.ts` rewritten on `tokenizeCitations` (custom scan regex deleted) — one citation grammar again. Separator tidy-ups retained.
+5. **Retroactive:** truncation was render-time only, so all existing chat history heals with no data migration. `vital` pills stay inert but now render whole; interactive vital config (type+date → vitals-page row anchor) noted as follow-up in citation-pill.tsx.
+**Verified:** tsc + eslint clean; parser suite 18/18; pill-resolve suite 6/6; Playwright on the real brief session 7/7 (no dangling text outside pills — the sole "hit" was the RSC flight payload in a script tag; 5 distinct vital slugs; lab-result popover resolves marker+value for the cited date, screenshot confirms). Brief PDF regression: identical output, footer still 26 data points / Jan 10 – Jul 22 — the consolidated grammar reproduces the workarounds exactly.

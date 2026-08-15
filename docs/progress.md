@@ -5,7 +5,7 @@
 
 ---
 
-## Current Phase: **Phases A–E ✓ ALL COMPLETE (2026-08-15) — v1 functionally done.** NEXT: citation-tokenizer bug fix, then Phase F polish + deployment track.
+## Current Phase: **Phases A–E ✓ ALL COMPLETE (2026-08-15) — v1 functionally done; tokenizer bug closed.** NEXT: Phase F polish, then deployment track.
 
 ### Phases A–D ✓ (committed; see git history + decisions.md)
 - **A** Foundation (Next/TS/Tailwind/Drizzle/Supabase, 14-table schema, stub auth) · **B** Agent infra (`vault-context.ts` excludeBriefs/includeInsights modes · serializers · `AgentError` · Zod `_shared/schemas.ts` · synthesis/router · citation parser → `CitationPill`/`AiMessage`) · **C** Medication vertical = reference impl · **D** All 13 surfaces + wiki rail + shared infra (`lib/api/route-helpers.ts`, `lib/logger.ts`, `db/queries/entity-links.ts`).
@@ -15,7 +15,7 @@
 - **E7 doctor brief (2026-08-15):** brief format LOCKED in synthesis prompt (first-line marker `<!-- arogya:brief:delta|handoff -->`, exact `##` sections, "None recorded.", human dates, measurement-date attribution — all prompt edits user-signed) · `lib/pdf/` (`brief-parse` strip+structure, `brief-stats` footer N/range from citations, `brief-document` @react-pdf/renderer template) · `GET /api/chat/sessions/:id/brief-pdf?index=N` regenerates from the persisted message (briefs addressed by POSITION among marker messages — fresh streams have no DB id client-side) · `Download PDF` under brief messages in full-screen chat; marker display-stripped in `AiMessage` (react-markdown renders comments literally — incl. partial-prefix hiding mid-stream) · **one-click `DoctorBriefButton`** on doctor pages → `POST /api/doctors/[id]/brief`: headless synthesis (delta if completed visits else handoff, no clarifying Qs), persists titled session, cancellable (client abort + server skips persist on `req.signal.aborted` — no orphan sessions). Logged §5.7 deviation, user-directed.
 - Validated claim-by-claim against the real vault (2 live Opus runs) + /check'd, all concerns closed. `/*.pdf` gitignored — exported briefs in repo root carry real PHI.
 
-**Carryover audits queued (decisions.md):** **citation tokenizer multi-colon/underscore slugs** — chat pills render `§ vital:blood` + literal `_pressure:2026-07-22` on every vital/lab-result citation (visible on real data; load-bearing parser + smoke round-trip contract; when fixed, consolidate the two deliberate PDF-side workarounds in `lib/pdf/brief-parse.ts` + `brief-stats.ts`); broaden `outcomesForReport` to 7 `source_report_id` entities; journal/insight `linked_entities` AI-tagging; vital chat-quick-log; symptom↔condition dedup; Report source-file upload/PDF/`status`; CONTACT/primary-language cols; rail RECENT group; rail-expansion enhancement; drawer `stone-*` literals → tokens.
+**Carryover audits queued (decisions.md):** ~~citation tokenizer~~ ✓ CLOSED 2026-08-15 (compound slugs parse whole; PDF workarounds consolidated); broaden `outcomesForReport` to 7 `source_report_id` entities; journal/insight `linked_entities` AI-tagging; vital chat-quick-log; symptom↔condition dedup; Report source-file upload/PDF/`status`; CONTACT/primary-language cols; rail RECENT group; rail-expansion enhancement; drawer `stone-*` literals → tokens.
 
 ### Phase F — Polish (queue)
 - Activation-banner logic: `setup · N of 4`, hide once core-4 covered + adaptive empty-state chips (§6.1; shell shipped in E4).
@@ -27,17 +27,18 @@
 
 ---
 
-### Last Session (2026-08-15: E7 shipped end-to-end + hardened — Phase E milestone complete)
-- Built the full E7 PDF leg + one-click brief path (see Phase E block above). Three user sign-offs: locked-format prompt edit; @react-pdf/renderer; footer N = distinct cited entities.
-- **First real Opus brief validated against the vault:** content accurate; found+fixed 5 rendering bugs across two rounds — `_pressure:…` dangling slug tails (tokenizer charset has no `_`/second `:`), footer undercount (BP readings collapsed to one key), split bullet at page break (`wrap={false}` + `minPresenceAhead`), `(,,, )` separator litter from multi-citation parens, react-pdf `render`-prop page number never renders (dropped it — spec doesn't ask).
-- **Gotchas:** Next.js rejects sibling dynamic segments with different names (`api/doctors/[doctorId]` 500'd the whole tree — moved under `[id]`); `server-only` blocks tsx scripts unless `--conditions react-server` (project convention, breaks react-pdf though — test PDFs via the route); machine restart mid-session wiped /tmp/arogya-verify + dev server — harness rebuilt (`verify-brief-pdf/button/cancel.mjs`), server restarted on :3000.
-- /check: spec-compliant; concerns closed same session (cancellable dialog + no-orphan guard, assertion/cast cleanup, `dateInTimezone` filename fix, PHI gitignore blocker). decisions.md has 6 entries for 2026-08-15.
-- User is actively generating briefs through the button (real session for Dr. Kavita Menon exists beyond my test ones).
+### Last Session (2026-08-15 pt 2: citation-tokenizer fix — the top carryover, closed same day E7 shipped)
+- **Compound slugs now tokenize whole** (`lib/citations/parse.ts`): slug = `[a-z0-9_/-]+(?::[a-z0-9_/-]+)*` — `§ vital:blood_pressure:2026-07-22` / `§ lab-result:<marker>:<date>` are one pill each; a sentence colon after a citation is never captured. Render-time-only bug → all existing chat history + insight-card previews healed retroactively, no migration.
+- **Contract locked:** `scripts/check-citation-parser.ts` 9 → 18 assertions (compound/trailing-colon/adjacent-comma fixtures + round-trips for the 3 compound serializer shapes — the bug shipped because none was asserted).
+- **Lab-result pills got date-precise:** `by-marker/[slug]` accepts `<marker>[:date]`, `byMarkerSlug` takes optional `resultDate` — popover resolves the exact cited measurement (bare-marker legacy → latest-match as before). The route comment had falsely claimed the parser stripped the date.
+- **PDF workarounds consolidated:** `brief-parse.ts` dangling-tail swallow deleted; `brief-stats.ts` rewritten on `tokenizeCitations` — one citation grammar again. Brief PDF regression byte-identical (footer still 26 / Jan 10 – Jul 22).
+- Verified: parser 18/18 · pill-resolve 6/6 · Playwright real-session 7/7 (screenshot: whole pills + resolving popover) · tsc/eslint clean. Driver gotcha: body-clone innerText includes `<script>` RSC flight payload — exclude script/style before asserting text absence.
+- Earlier same day (pt 1, committed dd22973): E7 PDF leg + one-click brief + /check closure — see decisions.md 2026-08-15 (×7 entries total).
 
 ### Next Steps
-1. **Citation-pill tokenizer fix** (own session): multi-colon/underscore slugs in `lib/citations/parse.ts` + smoke round-trip contract; then collapse the PDF-side workarounds.
-2. **Phase F** starting with activation-banner logic (see queue above).
-3. **Deployment + demo-vault track** — turns "v1 done" into "showable portfolio piece."
+1. **Phase F** starting with activation-banner logic (see queue above).
+2. **Deployment + demo-vault track** — turns "v1 done" into "showable portfolio piece."
+3. Optional small: interactive `vital` pill config (type+date → vitals-page row anchor; needs a by-slug endpoint — pointer in citation-pill.tsx header).
 
 - **Open data calls (user, unchanged):** diet restrictions + tobacco (live interview answers stand); Aspirin purpose/prescriber never captured.
 - **Pending design.md doc-fixes:** **NEW —** §5.7/§6.5:1188 briefs now also generable one-click from the doctor page (user-directed deviation 2026-08-15); §10.3:3155 brief addendum superseded by the locked-format version in `synthesis.ts` (marker, exact headers, human dates, measurement-date attribution). **Carried:** (§6.12/§4:243) form date defaults browser-local; (§6.5) Notes-omit-when-empty; (§6.8) "WATCH" isn't a status; §6.1/§3 "chat centerpiece" wording vs :1147; §3/§6.1:1146 "nine category items" → twelve; §6.10:1694 `history →` pattern retired; §6.5:1390 values self-activate on click + change-logged values as preselected entry points; §9.3:2375 `surfaceContext` → typed `SurfaceRef`. **Phase D carryovers:** list-card refs inert; periwinkle dark-mode (v1.5).

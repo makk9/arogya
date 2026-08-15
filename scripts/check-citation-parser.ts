@@ -122,6 +122,65 @@ const cases: readonly Case[] = [
     input: "§",
     expected: [{ kind: "text", text: "§" }],
   },
+  // Compound slugs (2026-08-15 fix): serializers emit multi-colon slugs with
+  // snake_case parts; the whole compound is the slug — nothing dangles as text.
+  {
+    label: "vault-compound-snake-case",
+    input: "BP was high § vital:blood_pressure:2026-07-22 that day",
+    expected: [
+      { kind: "text", text: "BP was high " },
+      {
+        kind: "vault",
+        entityType: "vital",
+        slug: "blood_pressure:2026-07-22",
+        raw: "§ vital:blood_pressure:2026-07-22",
+      },
+      { kind: "text", text: " that day" },
+    ],
+  },
+  {
+    label: "vault-compound-marker-date",
+    input: "(§ lab-result:ldl-cholesterol:2026-06-15)",
+    expected: [
+      { kind: "text", text: "(" },
+      {
+        kind: "vault",
+        entityType: "lab-result",
+        slug: "ldl-cholesterol:2026-06-15",
+        raw: "§ lab-result:ldl-cholesterol:2026-06-15",
+      },
+      { kind: "text", text: ")" },
+    ],
+  },
+  {
+    label: "vault-trailing-sentence-colon",
+    input: "see § med:amlodipine: the dose changed",
+    expected: [
+      { kind: "text", text: "see " },
+      {
+        kind: "vault",
+        entityType: "med",
+        slug: "amlodipine",
+        raw: "§ med:amlodipine",
+      },
+      { kind: "text", text: ": the dose changed" },
+    ],
+  },
+  {
+    label: "vault-adjacent-comma",
+    input: "§ vital:blood_pressure:2026-04-01, § med:aspirin.",
+    expected: [
+      {
+        kind: "vault",
+        entityType: "vital",
+        slug: "blood_pressure:2026-04-01",
+        raw: "§ vital:blood_pressure:2026-04-01",
+      },
+      { kind: "text", text: ", " },
+      { kind: "vault", entityType: "med", slug: "aspirin", raw: "§ med:aspirin" },
+      { kind: "text", text: "." },
+    ],
+  },
 ];
 
 function deepEqual(a: unknown, b: unknown): boolean {
@@ -171,6 +230,36 @@ function run(): void {
       label: "unresolved",
       slugIndex: new Map(),
       expected: { kind: "vault", entityType: "unresolved", slug: id },
+    },
+    // Compound serializer slugs (vital-reading.ts, lab-report.ts, symptom.ts)
+    // must survive the round trip whole — the 2026-08-14 pill-truncation bug
+    // existed because none of these shapes was asserted here.
+    {
+      label: "vital-compound",
+      slugIndex: new Map([[id, "vital:blood_pressure:2026-07-22"]]),
+      expected: {
+        kind: "vault",
+        entityType: "vital",
+        slug: "blood_pressure:2026-07-22",
+      },
+    },
+    {
+      label: "lab-result-compound",
+      slugIndex: new Map([[id, "lab-result:ldl-cholesterol:2026-06-15"]]),
+      expected: {
+        kind: "vault",
+        entityType: "lab-result",
+        slug: "ldl-cholesterol:2026-06-15",
+      },
+    },
+    {
+      label: "episode-suffix",
+      slugIndex: new Map([[id, "symptom-episode:2026-07-22-4"]]),
+      expected: {
+        kind: "vault",
+        entityType: "symptom-episode",
+        slug: "2026-07-22-4",
+      },
     },
   ];
 

@@ -40,29 +40,16 @@ export interface BriefDoc {
   sections: BriefSection[];
 }
 
-// Serializer slugs can carry extra colon groups (`lab-result:ldl:2026-03-01`)
-// and underscores (`vital:blood_pressure:2026-04-01`) that the tokenizer —
-// whose slug charset has neither a second `:` nor `_` — leaves behind as a
-// dangling `_pressure:2026-04-01`-style text remainder after the citation
-// segment. Swallow that remainder when it immediately follows a removed
-// citation.
-const DANGLING_SLUG_TAIL_RE = /^(?:[:_][a-z0-9/-]+)+/;
-
 /**
  * Remove `§`/`↗` citation glyphs from one line of text and tidy the wound:
- * collapse doubled spaces, drop parens/brackets left empty by the removal, and
- * unstick space-before-punctuation.
+ * collapse doubled spaces, drop parens/brackets left holding only separators,
+ * and unstick comma/space-before-punctuation. The tokenizer consumes compound
+ * slugs whole (multi-colon, snake_case — 2026-08-15 fix), so no dangling-tail
+ * handling is needed here.
  */
 export function stripCitations(line: string): string {
-  const segments = tokenizeCitations(line);
-  const withoutCitations = segments
-    .map((seg, i) => {
-      if (seg.kind !== "text") return "";
-      const prev = segments[i - 1];
-      return prev && prev.kind === "vault"
-        ? seg.text.replace(DANGLING_SLUG_TAIL_RE, "")
-        : seg.text;
-    })
+  const withoutCitations = tokenizeCitations(line)
+    .map((seg) => (seg.kind === "text" ? seg.text : ""))
     .join("");
   return (
     withoutCitations

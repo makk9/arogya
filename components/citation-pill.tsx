@@ -12,10 +12,11 @@
  * target isn't its own page — lab markers have no detail page, so the pill
  * lands on the parent §6.7 lab report where the marker is shown.
  *
- * Remaining inert pills: `vital` (create-only, no detail page — the synthesis
- * prompt cites `§ vital:bp` but there's nowhere to land) and external `↗`
- * citations, both of which would dead-end a popover. As more detail pages land,
- * add an entry to INTERACTIVE_ENTITY_CONFIGS.
+ * Remaining inert pills: `vital` (cites as `§ vital:blood_pressure:2026-07-22`;
+ * the E0a vitals history page + row anchors now exist, so an interactive config
+ * resolving type+date → `/vitals#r-<id>` is a natural follow-up — needs a
+ * by-slug endpoint first) and external `↗` citations. As resolvers land, add
+ * entries to INTERACTIVE_ENTITY_CONFIGS.
  *
  * `lifestyle` is the odd one out: the slug is the fixed `profile` (singleton,
  * serializers/lifestyle.ts), so its endpoint ignores the slug and hits the

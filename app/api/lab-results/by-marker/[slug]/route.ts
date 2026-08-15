@@ -8,11 +8,19 @@ import { errorCode, logger } from "@/lib/logger";
 // postgres-js (transitively via labResultQueries → @/db) requires Node.
 export const runtime = "nodejs";
 
-// A lab-result citation's marker slug is `slugify(markerNormalized ?? marker)`
-// (serializers/lab-report.ts labResultSlug), e.g. `§ lab-result:creatinine`.
-// The `lab-result:` prefix (and any trailing `:date`) is stripped by the parser
-// upstream, leaving the bare marker slug here.
-const slugParamSchema = z.string().regex(/^[a-z0-9-]+$/);
+// A lab-result citation slug is `<marker>[:date]` — `slugify(markerNormalized
+// ?? marker)` plus the result date the serializer embeds
+// (serializers/lab-report.ts labResultSlug, e.g. `§ lab-result:creatinine:2026-06-15`).
+// The parser strips only the `lab-result:` type prefix; the compound slug
+// arrives here whole. The date selects the exact cited measurement; a bare
+// marker (older messages) resolves to the most recent match.
+const slugParamSchema = z
+  .string()
+  .regex(/^([a-z0-9-]+)(?::(\d{4}-\d{2}-\d{2}))?$/)
+  .transform((raw) => {
+    const [marker, date] = raw.split(":");
+    return { marker, date };
+  });
 
 type Ctx = { params: Promise<{ slug: string }> };
 
@@ -30,7 +38,11 @@ export async function GET(_req: Request, ctx: Ctx): Promise<Response> {
   const { patientId } = await getCurrentPatient();
 
   try {
-    const found = await labResultQueries.byMarkerSlug(patientId, parsed.data);
+    const found = await labResultQueries.byMarkerSlug(
+      patientId,
+      parsed.data.marker,
+      parsed.data.date,
+    );
     if (!found) {
       return apiError("not_found", "Lab result not found");
     }
