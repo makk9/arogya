@@ -25,12 +25,17 @@
  * Uses `en-CA` locale because it emits ISO 8601 `YYYY-MM-DD` natively.
  */
 export function todayInTimezone(timezone: string): string {
+  return dateInTimezone(new Date(), timezone);
+}
+
+/** A Date's calendar date as YYYY-MM-DD in the given IANA timezone. */
+export function dateInTimezone(d: Date, timezone: string): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(new Date());
+  }).format(d);
 }
 
 /**

@@ -159,3 +159,7 @@ Rough UI Wireframes/
 
 # Personal strategy notes (never commit)
 docs/strategy-brief.md
+
+# Exported brief/record PDFs downloaded into the repo root carry real PHI —
+# they regenerate from the app, never commit them
+/*.pdf

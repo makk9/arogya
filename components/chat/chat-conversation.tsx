@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { briefModeOf } from "@/lib/chat/brief";
 import { groundingFromText } from "@/lib/citations/grounding";
 
 // 6.2:1215 empty-conversation starters. "Generate a doctor brief" is omitted —
@@ -188,6 +189,21 @@ export function ChatConversation({
   // next turn starts. "Most messages have no chips."
   const assistantCount = messages.filter((m) => m.role === "assistant").length;
   const showFollowUps = assistantCount === 1 && status === "ready";
+
+  // E7 — doctor-brief messages get a `Download PDF` action (5.7). Briefs are
+  // addressed by position among the session's brief-marked assistant messages,
+  // matching the brief-pdf route's `index` param (a freshly streamed message
+  // has no DB row id client-side, so position is the shared address).
+  const briefIndexById = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const m of messages) {
+      if (m.role === "assistant" && briefModeOf(textOf(m)) !== null) {
+        map.set(m.id, map.size);
+      }
+    }
+    return map;
+  }, [messages]);
+  const lastMessageId = messages[messages.length - 1]?.id;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -436,6 +452,19 @@ export function ChatConversation({
                       (w-6) + gap-3 = ml-9. */}
                   <div className="ml-9">
                     <MessageGrounding grounding={groundingFromText(textOf(message))} />
+                    {/* Only once the turn has settled — mid-stream the message
+                        isn't persisted yet, so the route couldn't find it. */}
+                    {sessionId !== null &&
+                    briefIndexById.has(message.id) &&
+                    !(busy && message.id === lastMessageId) ? (
+                      <a
+                        href={`/api/chat/sessions/${sessionId}/brief-pdf?index=${briefIndexById.get(message.id)}`}
+                        download
+                        className="mt-2 inline-flex items-center gap-1 rounded-md border border-stone-300 px-2.5 py-1 text-xs font-medium text-stone-700 transition-colors hover:border-stone-400 hover:bg-stone-50"
+                      >
+                        Download PDF
+                      </a>
+                    ) : null}
                   </div>
                 </div>
               ),

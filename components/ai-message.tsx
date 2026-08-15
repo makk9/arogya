@@ -19,6 +19,7 @@ import type { ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 
 import { CitationPill, type CitationPillProps } from "./citation-pill";
+import { stripBriefMarkerForDisplay } from "@/lib/chat/brief";
 import { remarkCitations } from "@/lib/citations/remark-plugin";
 
 interface AiMessageProps {
@@ -47,7 +48,9 @@ export function AiMessage({ markdown }: AiMessageProps): ReactNode {
           remarkPlugins={[remarkCitations]}
           components={markdownComponents}
         >
-          {markdown}
+          {/* Doctor-brief marker (E7) is transport metadata, not content —
+              react-markdown would render the comment literally. */}
+          {stripBriefMarkerForDisplay(markdown)}
         </ReactMarkdown>
       </div>
     </div>

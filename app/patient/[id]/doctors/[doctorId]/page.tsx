@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { AskAiButton } from "@/components/ask-ai-button";
 import { DoctorActionsMenu } from "@/components/doctors/doctor-actions-menu";
+import { DoctorBriefButton } from "@/components/doctors/doctor-brief-button";
 import { DoctorChangeEntry } from "@/components/doctors/doctor-change-entry";
 import { DoctorCurrentSection } from "@/components/doctors/doctor-current-section";
 import { DoctorDetailHeader } from "@/components/doctors/doctor-detail-header";
@@ -114,11 +115,18 @@ export default async function DoctorDetailPage({
           patientId={patient.patientId}
           doctor={doctor}
           actionsSlot={
-            <DoctorActionsMenu
-              patientId={patient.patientId}
-              doctorId={doctor.id}
-              doctorName={doctor.name}
-            />
+            <>
+              <DoctorBriefButton
+                patientId={patient.patientId}
+                doctorId={doctor.id}
+                doctorName={doctor.name}
+              />
+              <DoctorActionsMenu
+                patientId={patient.patientId}
+                doctorId={doctor.id}
+                doctorName={doctor.name}
+              />
+            </>
           }
         />
 
