@@ -11,7 +11,6 @@ import { patientQueries } from "@/db/queries/patient";
 import { vitalQueries } from "@/db/queries/vital";
 import { READING_TYPE_LABEL } from "@/lib/vitals";
 import { getCurrentPatient } from "@/lib/auth";
-import { patientProfileSurfaceContext } from "@/lib/chat/surface-context";
 import { ageInYears, todayInTimezone } from "@/lib/datetime";
 import { unitSystemForCountry } from "@/lib/units";
 
@@ -94,12 +93,7 @@ export default async function PatientProfilePage({
         <PatientNotesSection notes={notesText} />
       </PatientDetailShell>
 
-      <AskAiButton
-        surfaceContext={patientProfileSurfaceContext({
-          name: patient.name,
-          relationship: current.relationship,
-        })}
-      />
+      <AskAiButton surface={{ key: "patient-profile" }} />
     </main>
   );
 }

@@ -7,7 +7,6 @@ import { Sparkline } from "@/components/dashboard/sparkline";
 import { CONTEXT_LABEL, FLAG_LABEL } from "@/components/vitals/vital-options";
 import { vitalQueries } from "@/db/queries/vital";
 import { getCurrentPatient } from "@/lib/auth";
-import { VITALS_HISTORY_SURFACE } from "@/lib/chat/surface-context";
 import { formatAbsoluteDate } from "@/lib/datetime";
 import {
   formatVitalValue,
@@ -166,7 +165,7 @@ export default async function VitalsHistoryPage({
           })}
         </div>
       )}
-      <AskAiButton surfaceContext={VITALS_HISTORY_SURFACE} />
+      <AskAiButton surface={{ key: "vitals-history" }} />
     </main>
   );
 }

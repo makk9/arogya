@@ -15,7 +15,6 @@ import { symptomEpisodeQueries, symptomTypeQueries } from "@/db/queries/symptom"
 import { vitalQueries } from "@/db/queries/vital";
 import type { SymptomEpisode, SymptomType, VitalReading } from "@/db/schema";
 import { getCurrentPatient } from "@/lib/auth";
-import { SYMPTOMS_LIST_SURFACE } from "@/lib/chat/surface-context";
 import { formatRelative } from "@/lib/datetime";
 
 /*
@@ -152,7 +151,7 @@ export default async function SymptomsTimelinePage({
         <SymptomTimeline groups={groups} />
       )}
 
-      <AskAiButton surfaceContext={SYMPTOMS_LIST_SURFACE} />
+      <AskAiButton surface={{ key: "symptoms-list" }} />
     </main>
   );
 }

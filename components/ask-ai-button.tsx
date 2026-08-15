@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 
 import { useChatDrawer } from "@/components/chat/chat-drawer-provider";
+import type { SurfaceRef } from "@/lib/chat/surface-ref";
 import { cn } from "@/lib/utils";
 
 /*
@@ -12,14 +13,15 @@ import { cn } from "@/lib/utils";
  * on the dashboard, chat, onboarding, extraction-confirmation, structured-form,
  * or settings surfaces (6.4:1356).
  *
- * `surfaceContext` is built by the page (it already holds the entity) and passed
- * in; the drawer tags each message with it. Undefined → no surface bias.
+ * `surface` is a typed ref (key + entity id for detail pages) — the chat route
+ * resolves it server-side into the prose the prompt embeds, so the client never
+ * authors that string. Undefined → no surface bias.
  */
 export function AskAiButton({
-  surfaceContext,
+  surface,
   className,
 }: {
-  surfaceContext?: string;
+  surface?: SurfaceRef;
   className?: string;
 }) {
   const { openChat, setSurface } = useChatDrawer();
@@ -27,10 +29,11 @@ export function AskAiButton({
   // Publish this page's surface to the drawer on mount + whenever the route's
   // surface changes, so the drawer (which stays open across navigation) tags
   // each message with the page the user is currently on — not just where it
-  // was first opened.
+  // was first opened. The ref object is fresh per render, so the effect re-runs
+  // more than strictly needed — harmless, it's a mutable-ref write.
   useEffect(() => {
-    setSurface(surfaceContext);
-  }, [surfaceContext, setSurface]);
+    setSurface(surface);
+  }, [surface, setSurface]);
 
   return (
     <button

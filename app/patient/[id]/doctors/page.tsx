@@ -12,7 +12,6 @@ import type { Doctor } from "@/db/schema";
 import { doctorQueries } from "@/db/queries/doctor";
 import { medicationQueries } from "@/db/queries/medication";
 import { getCurrentPatient } from "@/lib/auth";
-import { DOCTORS_LIST_SURFACE } from "@/lib/chat/surface-context";
 
 function pickFirst(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -140,7 +139,7 @@ export default async function DoctorsListPage({
         />
       )}
 
-      <AskAiButton surfaceContext={DOCTORS_LIST_SURFACE} />
+      <AskAiButton surface={{ key: "doctors-list" }} />
     </main>
   );
 }

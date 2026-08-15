@@ -14,7 +14,6 @@ import { isCritical, isFlagged } from "@/components/labs/lab-options";
 import { doctorQueries } from "@/db/queries/doctor";
 import { labReportQueries, labResultQueries } from "@/db/queries/lab";
 import { getCurrentPatient } from "@/lib/auth";
-import { labReportSurfaceContext } from "@/lib/chat/surface-context";
 import { formatAbsoluteDate } from "@/lib/datetime";
 import { displayDoctorName } from "@/lib/doctor-display";
 
@@ -105,14 +104,7 @@ export default async function LabReportDetailPage({
         </div>
       </LabDetailShell>
 
-      <AskAiButton
-        surfaceContext={labReportSurfaceContext({
-          reportDate: report.reportDate,
-          reportType: report.reportType,
-          labName: report.labName,
-          flaggedCount,
-        })}
-      />
+      <AskAiButton surface={{ key: "lab-report", id: report.id }} />
     </main>
   );
 }

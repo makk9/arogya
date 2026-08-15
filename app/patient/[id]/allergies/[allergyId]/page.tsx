@@ -12,7 +12,6 @@ import { AllergyNotesSection } from "@/components/allergies/allergy-notes-sectio
 import { allergyChangeQueries, allergyQueries } from "@/db/queries/allergy";
 import { doctorQueries } from "@/db/queries/doctor";
 import { getCurrentPatient } from "@/lib/auth";
-import { allergySurfaceContext } from "@/lib/chat/surface-context";
 
 /*
  * Allergy detail per §6.5 (entity emphasis at 6.5:1402). One deliberate
@@ -103,7 +102,7 @@ export default async function AllergyDetailPage({
         <AllergyNotesSection notes={notesText} />
       </AllergyDetailShell>
 
-      <AskAiButton surfaceContext={allergySurfaceContext(allergy)} />
+      <AskAiButton surface={{ key: "allergy", id: allergy.id }} />
     </main>
   );
 }

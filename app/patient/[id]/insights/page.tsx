@@ -12,7 +12,6 @@ import { resolveEntityRefMap } from "@/db/queries/entity-links";
 import { insightQueries } from "@/db/queries/insight";
 import { insightCategory, insightStatus, type Insight } from "@/db/schema";
 import { getCurrentPatient } from "@/lib/auth";
-import { INSIGHTS_LIST_SURFACE } from "@/lib/chat/surface-context";
 
 type Status = (typeof insightStatus.enumValues)[number];
 
@@ -178,7 +177,7 @@ export default async function InsightsFeedPage({
         />
       )}
 
-      <AskAiButton surfaceContext={INSIGHTS_LIST_SURFACE} />
+      <AskAiButton surface={{ key: "insights-list" }} />
     </main>
   );
 }

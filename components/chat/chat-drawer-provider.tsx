@@ -17,9 +17,11 @@
  * thread alive across navigation). See decisions.md. The dedicated rail "Chat"
  * surface (6.2 three-column) still arrives with the rail in Phase D.
  *
- * `surfaceContext` rides each message's request body (sendMessage `body`), so
- * the surface tag tracks whichever page the user is on when they ask — one
- * thread, page-aware framing.
+ * The typed surface ref (lib/chat/surface-ref.ts) rides each message's request
+ * body (sendMessage `body`), so the surface tag tracks whichever page the user
+ * is on when they ask — one thread, page-aware framing. The route resolves the
+ * ref server-side into the prose the prompt embeds; the client never sends
+ * that string.
  *
  * Persistence + logging (2026-07-08): the drawer conversation is a real chat
  * session, not an ephemeral one — it lazily creates a `chat_sessions` row on the
@@ -50,6 +52,7 @@ import { type UIMessage } from "ai";
 
 import { AiMessage } from "@/components/ai-message";
 import { useQuickLog } from "@/components/chat/use-quick-log";
+import type { SurfaceRef } from "@/lib/chat/surface-ref";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -66,7 +69,7 @@ interface ChatDrawerContextValue {
   // so it tracks the page the user is *currently* on, not just where the drawer
   // was first opened (the drawer stays open across navigation).
   openChat: () => void;
-  setSurface: (surfaceContext?: string) => void;
+  setSurface: (surface?: SurfaceRef) => void;
   // Opens the drawer AND dispatches text into the conversation — the §6.1
   // dashboard chat bar's entry point. Canned chips are definitionally
   // questions (skip the router, like the drawer's own starters); typed input
@@ -100,6 +103,24 @@ function textOf(message: UIMessage): string {
     .join("");
 }
 
+// The route's 400 for a surface ref whose entity no longer resolves in-scope —
+// the stale-tab race (entity deleted elsewhere while this page still shows it).
+// The AI SDK transport throws the response body as the error message, so the
+// shape is parseable; anything that doesn't parse is some other failure.
+function isStaleSurfaceError(err: Error): boolean {
+  try {
+    const parsed = JSON.parse(err.message) as {
+      error?: { code?: string; details?: { surface?: unknown } };
+    };
+    return (
+      parsed.error?.code === "validation_failed" &&
+      parsed.error.details?.surface !== undefined
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function ChatDrawerProvider({
   patientId,
   children,
@@ -113,7 +134,7 @@ export function ChatDrawerProvider({
   // (the floating Ask AI button does this on mount + on route change), so each
   // sent message is tagged with the live current page — even after the drawer
   // was opened elsewhere and the user navigated with it pinned open.
-  const surfaceContextRef = useRef<string | undefined>(undefined);
+  const surfaceRef = useRef<SurfaceRef | undefined>(undefined);
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -122,7 +143,26 @@ export function ChatDrawerProvider({
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const { messages, sendMessage, setMessages, status, error } = useChat();
+  // Stale-surface self-heal: if a send 400s because the surface entity no
+  // longer resolves (deleted in another tab), the stale ref would fail every
+  // retry — so clear it and resubmit the same turn once, without the surface
+  // tag. One-shot per send (reset in runQuestion) so a different failure can't
+  // loop. Refs (not closures) because onError is captured at useChat() init.
+  const retriedStaleSurfaceRef = useRef(false);
+  const retrySendRef = useRef<() => void>(() => {});
+
+  const { messages, sendMessage, setMessages, status, error } = useChat({
+    onError: (err) => {
+      if (retriedStaleSurfaceRef.current || !isStaleSurfaceError(err)) return;
+      retriedStaleSurfaceRef.current = true;
+      surfaceRef.current = undefined;
+      // One tick later, not inline: onError fires while the failed request is
+      // still unwinding inside the SDK, and re-entering sendMessage there
+      // clobbers its in-flight response state (verified: the retry's stream
+      // crashes client-side without this).
+      setTimeout(() => retrySendRef.current(), 0);
+    },
+  });
 
   const isEmpty = messages.length === 0;
 
@@ -130,8 +170,8 @@ export function ChatDrawerProvider({
     if (open) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, status, open]);
 
-  const setSurface = useCallback((surfaceContext?: string) => {
-    surfaceContextRef.current = surfaceContext;
+  const setSurface = useCallback((surface?: SurfaceRef) => {
+    surfaceRef.current = surface;
   }, []);
   const openChat = useCallback(() => setOpen(true), []);
   // Latest-ref dispatch for openWithMessage: the send paths (route/runQuestion/
@@ -177,9 +217,16 @@ export function ChatDrawerProvider({
   const runQuestion = useCallback(
     async (text: string) => {
       const sid = await ensureSession();
+      retriedStaleSurfaceRef.current = false;
+      // Arm the stale-surface retry for this send: resubmit the conversation
+      // as-is (the failed user turn is still the last message; undefined text
+      // means "re-submit current messages"), surface tag dropped.
+      retrySendRef.current = () => {
+        void sendMessage(undefined, { body: { sessionId: sid ?? undefined } });
+      };
       sendMessage(
         { text },
-        { body: { sessionId: sid ?? undefined, surfaceContext: surfaceContextRef.current } },
+        { body: { sessionId: sid ?? undefined, surface: surfaceRef.current } },
       );
     },
     [ensureSession, sendMessage],

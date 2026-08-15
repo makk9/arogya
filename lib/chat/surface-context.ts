@@ -4,9 +4,10 @@
  * *inner* text only; `buildVaultContext` (lib/agents/_shared/vault-context.ts:227)
  * wraps it in `<surface_context>…</surface_context>` before it reaches the model.
  *
- * Pure functions, no DB: the floating Ask AI button lives on pages that already
- * hold the entity they're describing, so each surface builds its own string and
- * passes it to the button. The drawer then sends it alongside each message.
+ * Pure functions, no DB. Consumed ONLY server-side, by the chat route's
+ * resolver (lib/chat/resolve-surface-context.ts): pages/the drawer send a typed
+ * SurfaceRef (lib/chat/surface-ref.ts) and the route builds the string after
+ * scope-checking the entity — the client never authors prompt prose.
  *
  * Voice per 7.1: plain, names the entity, no AI throat-clearing.
  */

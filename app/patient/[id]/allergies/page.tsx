@@ -9,7 +9,6 @@ import { EntityListSections } from "@/components/entity-list-sections";
 import { AskAiButton } from "@/components/ask-ai-button";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { buttonVariants } from "@/components/ui/button";
-import { ALLERGIES_LIST_SURFACE } from "@/lib/chat/surface-context";
 import {
   allergyCategory,
   allergyStatus,
@@ -177,7 +176,7 @@ export default async function AllergiesListPage({
         />
       )}
 
-      <AskAiButton surfaceContext={ALLERGIES_LIST_SURFACE} />
+      <AskAiButton surface={{ key: "allergies-list" }} />
     </main>
   );
 }

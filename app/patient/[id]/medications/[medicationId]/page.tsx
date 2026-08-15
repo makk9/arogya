@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 
 import { AskAiButton } from "@/components/ask-ai-button";
-import { medicationSurfaceContext } from "@/lib/chat/surface-context";
 import { MedicationActionsMenu } from "@/components/medications/medication-actions-menu";
 import {
   MedicationChangeEntry,
@@ -223,7 +222,7 @@ export default async function MedicationDetailPage({
         <MedicationNotesSection notes={notesText} />
       </MedicationDetailShell>
 
-      <AskAiButton surfaceContext={medicationSurfaceContext(medication)} />
+      <AskAiButton surface={{ key: "medication", id: medication.id }} />
     </main>
   );
 }

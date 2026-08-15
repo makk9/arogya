@@ -8,7 +8,6 @@ import { EntityListSections } from "@/components/entity-list-sections";
 import { AskAiButton } from "@/components/ask-ai-button";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { buttonVariants } from "@/components/ui/button";
-import { FAMILY_HISTORY_LIST_SURFACE } from "@/lib/chat/surface-context";
 import type { FamilyHistoryEntry } from "@/db/schema";
 import { familyHistoryQueries } from "@/db/queries/family-history";
 import { getCurrentPatient } from "@/lib/auth";
@@ -96,7 +95,7 @@ export default async function FamilyHistoryListPage({
         />
       )}
 
-      <AskAiButton surfaceContext={FAMILY_HISTORY_LIST_SURFACE} />
+      <AskAiButton surface={{ key: "family-history-list" }} />
     </main>
   );
 }

@@ -7,7 +7,6 @@ import { History } from "lucide-react";
 import { useChatDrawer } from "@/components/chat/chat-drawer-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DASHBOARD_SURFACE } from "@/lib/chat/surface-context";
 
 /*
  * §6.1:1153 dashboard chat surface — bottom of the page, the natural
@@ -47,7 +46,7 @@ export function DashboardChatBar({
   // Publish the dashboard surface so drawer messages sent from here carry it
   // (same pattern as AskAiButton on entity pages).
   useEffect(() => {
-    setSurface(DASHBOARD_SURFACE);
+    setSurface({ key: "dashboard" });
   }, [setSurface]);
 
   function onSubmit(event: FormEvent) {

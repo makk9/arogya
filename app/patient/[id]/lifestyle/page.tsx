@@ -12,7 +12,6 @@ import {
   lifestyleQueries,
 } from "@/db/queries/lifestyle";
 import { getCurrentPatient } from "@/lib/auth";
-import { LIFESTYLE_SURFACE } from "@/lib/chat/surface-context";
 
 /*
  * Lifestyle profile per §6.5's LifestyleProfile variation (6.5:1403): a
@@ -80,7 +79,7 @@ export default async function LifestylePage({
         <LifestyleNotesSection notes={notesText} />
       </LifestyleDetailShell>
 
-      <AskAiButton surfaceContext={LIFESTYLE_SURFACE} />
+      <AskAiButton surface={{ key: "lifestyle" }} />
     </main>
   );
 }

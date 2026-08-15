@@ -26,7 +26,6 @@ import { doctorQueries } from "@/db/queries/doctor";
 import { labResultQueries } from "@/db/queries/lab";
 import { medicationQueries } from "@/db/queries/medication";
 import { getCurrentPatient } from "@/lib/auth";
-import { conditionSurfaceContext } from "@/lib/chat/surface-context";
 
 const conditionIdParam = z.string().uuid();
 const RECENT_LIMIT = 5;
@@ -169,7 +168,7 @@ export default async function ConditionDetailPage({
         <ConditionNotesSection notes={notesText} />
       </ConditionDetailShell>
 
-      <AskAiButton surfaceContext={conditionSurfaceContext(condition)} />
+      <AskAiButton surface={{ key: "condition", id: condition.id }} />
     </main>
   );
 }

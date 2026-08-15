@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 
 import { AskAiButton } from "@/components/ask-ai-button";
 import { Breadcrumb } from "@/components/breadcrumb";
-import { MEDICATIONS_LIST_SURFACE } from "@/lib/chat/surface-context";
 import { EntityListSections } from "@/components/entity-list-sections";
 import { MedicationCard } from "@/components/medications/medication-card";
 import { MedicationEmptyState } from "@/components/medications/medication-empty-state";
@@ -198,7 +197,7 @@ export default async function MedicationsListPage({
         />
       )}
 
-      <AskAiButton surfaceContext={MEDICATIONS_LIST_SURFACE} />
+      <AskAiButton surface={{ key: "medications-list" }} />
     </main>
   );
 }

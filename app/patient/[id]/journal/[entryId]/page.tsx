@@ -9,7 +9,6 @@ import { JournalDetailShell } from "@/components/journal/journal-detail-shell";
 import { JournalLinkedContextSection } from "@/components/journal/journal-linked-context-section";
 import { journalQueries } from "@/db/queries/journal";
 import { getCurrentPatient } from "@/lib/auth";
-import { journalSurfaceContext } from "@/lib/chat/surface-context";
 import { journalDisplayTitle } from "@/lib/journal";
 
 /*
@@ -68,13 +67,7 @@ export default async function JournalDetailPage({
         />
       </JournalDetailShell>
 
-      <AskAiButton
-        surfaceContext={journalSurfaceContext({
-          title: entry.title,
-          entryDate: entry.entryDate,
-          mood: entry.mood,
-        })}
-      />
+      <AskAiButton surface={{ key: "journal-entry", id: entry.id }} />
     </main>
   );
 }

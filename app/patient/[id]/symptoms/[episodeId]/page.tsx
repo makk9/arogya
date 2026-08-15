@@ -15,7 +15,6 @@ import { visitQueries } from "@/db/queries/visit";
 import { vitalQueries } from "@/db/queries/vital";
 import type { VitalReading } from "@/db/schema";
 import { getCurrentPatient } from "@/lib/auth";
-import { symptomEpisodeSurfaceContext } from "@/lib/chat/surface-context";
 import { formatAbsoluteDate } from "@/lib/datetime";
 import { displayDoctorName } from "@/lib/doctor-display";
 
@@ -130,13 +129,7 @@ export default async function EpisodeDetailPage({
         <EpisodeNotesSection notes={notesText} />
       </EpisodeDetailShell>
 
-      <AskAiButton
-        surfaceContext={symptomEpisodeSurfaceContext({
-          symptomTypeName: type.name,
-          startedAt: episode.startedAt.toISOString().slice(0, 10),
-          severity: episode.severity,
-        })}
-      />
+      <AskAiButton surface={{ key: "symptom-episode", id: episode.id }} />
     </main>
   );
 }

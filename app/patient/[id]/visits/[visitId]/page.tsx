@@ -13,7 +13,6 @@ import { buildOutcomeItems } from "@/components/visits/visit-outcome-model";
 import { doctorQueries } from "@/db/queries/doctor";
 import { visitQueries } from "@/db/queries/visit";
 import { getCurrentPatient } from "@/lib/auth";
-import { visitSurfaceContext } from "@/lib/chat/surface-context";
 import { formatAbsoluteDate } from "@/lib/datetime";
 import { displayDoctorName } from "@/lib/doctor-display";
 
@@ -92,13 +91,7 @@ export default async function VisitDetailPage({
         <VisitNotesSection notes={visit.notes?.trim() ?? ""} />
       </VisitDetailShell>
 
-      <AskAiButton
-        surfaceContext={visitSurfaceContext({
-          visitDate: visit.visitDate,
-          doctorName: doctor ? displayDoctorName(doctor.name) : null,
-          status: visit.status,
-        })}
-      />
+      <AskAiButton surface={{ key: "visit", id: visit.id }} />
     </main>
   );
 }

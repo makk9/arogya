@@ -12,7 +12,6 @@ import { RELATION_LABEL } from "@/components/family-history/family-history-optio
 import { conditionQueries } from "@/db/queries/condition";
 import { familyHistoryQueries } from "@/db/queries/family-history";
 import { getCurrentPatient } from "@/lib/auth";
-import { familyHistorySurfaceContext } from "@/lib/chat/surface-context";
 
 /*
  * FamilyHistory detail per §6.5 (entity emphasis at 6.5:1404). Two deliberate
@@ -88,7 +87,7 @@ export default async function FamilyHistoryDetailPage({
         <FamilyHistoryNotesSection notes={notesText} />
       </FamilyHistoryDetailShell>
 
-      <AskAiButton surfaceContext={familyHistorySurfaceContext(entry)} />
+      <AskAiButton surface={{ key: "family-history-entry", id: entry.id }} />
     </main>
   );
 }

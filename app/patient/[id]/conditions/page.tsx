@@ -9,7 +9,6 @@ import { ConditionFilters } from "@/components/conditions/condition-filters";
 import { EntityListSections } from "@/components/entity-list-sections";
 import { STATUS_OPTIONS } from "@/components/conditions/condition-options";
 import { buttonVariants } from "@/components/ui/button";
-import { CONDITIONS_LIST_SURFACE } from "@/lib/chat/surface-context";
 import {
   conditionCategory,
   conditionStatus,
@@ -207,7 +206,7 @@ export default async function ConditionsListPage({
         />
       )}
 
-      <AskAiButton surfaceContext={CONDITIONS_LIST_SURFACE} />
+      <AskAiButton surface={{ key: "conditions-list" }} />
     </main>
   );
 }

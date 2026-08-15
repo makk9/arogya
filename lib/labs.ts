@@ -38,6 +38,23 @@ export function deriveFlag(
   return "normal";
 }
 
+/*
+ * Canonical flag predicates — shared by UI surfaces (marker pills, timeline
+ * cards, captured-reading rows) and server code (the chat surface-context
+ * resolver). Moved here from components/labs/lab-options.ts (which re-exports
+ * them) so server modules never import from components/.
+ */
+
+// Out of range in either direction — anything a clinician would glance at twice.
+export function isFlagged(flag: string | null): boolean {
+  return flag !== null && flag !== "normal";
+}
+
+// The panic tier (HL7 HH/LL register) — rides the destructive/red token.
+export function isCritical(flag: string | null): boolean {
+  return flag === "critical";
+}
+
 /**
  * True when the stored `flag` clearly contradicts what the value vs range
  * implies — a sanity check for manual entry / extraction review. Returns false

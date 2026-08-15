@@ -22,7 +22,6 @@ import { labReportQueries } from "@/db/queries/lab";
 import { medicationQueries } from "@/db/queries/medication";
 import { visitQueries } from "@/db/queries/visit";
 import { getCurrentPatient } from "@/lib/auth";
-import { doctorSurfaceContext } from "@/lib/chat/surface-context";
 
 const doctorIdParam = z.string().uuid();
 const RECENT_LIMIT = 5;
@@ -144,7 +143,7 @@ export default async function DoctorDetailPage({
         <DoctorNotesSection notes={notesText} />
       </DoctorDetailShell>
 
-      <AskAiButton surfaceContext={doctorSurfaceContext(doctor)} />
+      <AskAiButton surface={{ key: "doctor", id: doctor.id }} />
     </main>
   );
 }

@@ -19,7 +19,6 @@ import {
 } from "@/db/queries/entity-links";
 import { insightQueries } from "@/db/queries/insight";
 import { getCurrentPatient } from "@/lib/auth";
-import { insightSurfaceContext } from "@/lib/chat/surface-context";
 import { formatAbsoluteDate } from "@/lib/datetime";
 
 /*
@@ -139,13 +138,7 @@ export default async function InsightDetailPage({
         <InsightNotesSection insightId={insight.id} notes={insight.notes ?? ""} />
       </div>
 
-      <AskAiButton
-        surfaceContext={insightSurfaceContext({
-          title: insight.title,
-          category: insight.category,
-          status: insight.status,
-        })}
-      />
+      <AskAiButton surface={{ key: "insight", id: insight.id }} />
     </main>
   );
 }

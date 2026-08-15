@@ -14,7 +14,6 @@ import { reportQueries } from "@/db/queries/report";
 import { visitQueries } from "@/db/queries/visit";
 import type { Doctor, Report, Visit } from "@/db/schema";
 import { getCurrentPatient } from "@/lib/auth";
-import { REPORTS_LIST_SURFACE } from "@/lib/chat/surface-context";
 import { formatAbsoluteDate, formatRelativeDate } from "@/lib/datetime";
 import { displayDoctorName } from "@/lib/doctor-display";
 
@@ -221,7 +220,7 @@ export default async function ReportsTimelinePage({
         </div>
       )}
 
-      <AskAiButton surfaceContext={REPORTS_LIST_SURFACE} />
+      <AskAiButton surface={{ key: "reports-list" }} />
     </main>
   );
 }

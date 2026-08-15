@@ -50,10 +50,7 @@ export const FLAG_PILL_LABEL: Record<string, string> = {
 // 2026-06-16 (decisions.md) — the spec's softer "worth noting" register.
 export const WARNING_GLYPH = "△";
 
-export function isFlagged(flag: string | null): boolean {
-  return flag !== null && flag !== "normal";
-}
-
-export function isCritical(flag: string | null): boolean {
-  return flag === "critical";
-}
+// Canonical home is lib/labs.ts (server code uses them too — the chat
+// surface-context resolver); re-exported here so option-list consumers keep a
+// single import site.
+export { isCritical, isFlagged } from "@/lib/labs";

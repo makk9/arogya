@@ -7,6 +7,7 @@ import { runSynthesis } from "@/lib/agents/synthesis";
 import { AgentError } from "@/lib/agents/_shared/errors";
 import { apiError } from "@/lib/api/error";
 import { getCurrentPatient } from "@/lib/auth";
+import { resolveSurfaceContext } from "@/lib/chat/resolve-surface-context";
 import { errorCode, logger } from "@/lib/logger";
 import { chatRequestSchema } from "@/lib/schemas/api/chat";
 
@@ -48,7 +49,23 @@ export async function POST(req: Request): Promise<Response> {
 
   // patientId is auth-derived, not client-supplied, per design.md 9.6:2755 +
   // CLAUDE.md tripwire ("All auth flows through getCurrentUser/Patient").
-  const { patientId } = await getCurrentPatient();
+  const current = await getCurrentPatient();
+  const { patientId } = current;
+
+  // The client sends a typed surface ref, never the prose that reaches the
+  // prompt — resolve it here, scope-checked to this patient. An id that doesn't
+  // resolve is a 400 (tampered, or a stale tab after a delete), mirroring the
+  // insights/generate trigger check.
+  let surfaceContext: string | undefined;
+  if (parsed.data.surface) {
+    const resolved = await resolveSurfaceContext(current, parsed.data.surface);
+    if (resolved === null) {
+      return apiError("validation_failed", "Unknown surface entity", {
+        surface: ["No entity of that type and id exists in this record."],
+      });
+    }
+    surfaceContext = resolved;
+  }
 
   // The client (useChat) sends UIMessages with `parts`; runSynthesis/streamText
   // want ModelMessages. convertToModelMessages does the strict shape validation
@@ -102,7 +119,7 @@ export async function POST(req: Request): Promise<Response> {
     const result = await runSynthesis({
       patientId,
       messages: modelMessages,
-      surfaceContext: parsed.data.surfaceContext,
+      surfaceContext,
       onFinish,
     });
 

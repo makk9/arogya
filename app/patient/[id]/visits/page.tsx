@@ -16,7 +16,6 @@ import { doctorQueries } from "@/db/queries/doctor";
 import { visitQueries, type VisitOutcomes } from "@/db/queries/visit";
 import type { Doctor, Visit } from "@/db/schema";
 import { getCurrentPatient } from "@/lib/auth";
-import { VISITS_LIST_SURFACE } from "@/lib/chat/surface-context";
 import {
   formatRelativeDate,
   todayLocal,
@@ -275,7 +274,7 @@ export default async function VisitsTimelinePage({
         </div>
       )}
 
-      <AskAiButton surfaceContext={VISITS_LIST_SURFACE} />
+      <AskAiButton surface={{ key: "visits-list" }} />
     </main>
   );
 }

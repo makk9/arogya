@@ -12,7 +12,6 @@ import { TimelineShowEarlier } from "@/components/visits/timeline-show-earlier";
 import { labReportQueries, labResultQueries } from "@/db/queries/lab";
 import type { LabReport, LabResult } from "@/db/schema";
 import { getCurrentPatient } from "@/lib/auth";
-import { LABS_LIST_SURFACE } from "@/lib/chat/surface-context";
 import { formatRelativeDate, todayLocal } from "@/lib/datetime";
 
 /*
@@ -223,7 +222,7 @@ export default async function LabsTimelinePage({
         </div>
       )}
 
-      <AskAiButton surfaceContext={LABS_LIST_SURFACE} />
+      <AskAiButton surface={{ key: "labs-list" }} />
     </main>
   );
 }

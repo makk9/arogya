@@ -14,7 +14,6 @@ import { symptomEpisodeQueries, symptomTypeQueries } from "@/db/queries/symptom"
 import { vitalQueries } from "@/db/queries/vital";
 import type { VitalReading } from "@/db/schema";
 import { getCurrentPatient } from "@/lib/auth";
-import { symptomTypeSurfaceContext } from "@/lib/chat/surface-context";
 
 /*
  * SymptomType detail — the parent identity surface, built on the state-detail
@@ -109,13 +108,7 @@ export default async function SymptomTypeDetailPage({
         />
       </TypeDetailShell>
 
-      <AskAiButton
-        surfaceContext={symptomTypeSurfaceContext({
-          name: type.name,
-          status: type.status,
-          episodeCount: episodes.length,
-        })}
-      />
+      <AskAiButton surface={{ key: "symptom-type", id: type.id }} />
     </main>
   );
 }

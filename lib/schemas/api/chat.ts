@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { surfaceRefSchema } from "@/lib/chat/surface-ref";
+
 /**
  * POST /api/chat request schema.
  *
@@ -21,7 +23,11 @@ const messageSchema = z.object({
 
 export const chatRequestSchema = z.object({
   messages: z.array(messageSchema).min(1),
-  surfaceContext: z.string().min(1).optional(),
+  // Typed ref to "where the user is," resolved server-side into the prose
+  // surface-context string (lib/chat/resolve-surface-context.ts) after
+  // scope-checking any entity id. Free text is rejected at the boundary — the
+  // string reaches the system-side prompt, so the client never authors it.
+  surface: surfaceRefSchema.optional(),
   // Present when the message comes from a persisted full-screen session (E0b):
   // the route persists the user turn + assistant reply against it. Absent for
   // the ephemeral Ask-AI drawer, which keeps its conversation in memory only.

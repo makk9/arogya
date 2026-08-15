@@ -13,7 +13,6 @@ import { doctorQueries } from "@/db/queries/doctor";
 import { reportQueries } from "@/db/queries/report";
 import { visitQueries } from "@/db/queries/visit";
 import { getCurrentPatient } from "@/lib/auth";
-import { reportSurfaceContext } from "@/lib/chat/surface-context";
 import { formatAbsoluteDate } from "@/lib/datetime";
 import { displayDoctorName } from "@/lib/doctor-display";
 
@@ -114,13 +113,7 @@ export default async function ReportDetailPage({
         <ReportNotesSection notes={report.notes?.trim() ?? ""} />
       </ReportDetailShell>
 
-      <AskAiButton
-        surfaceContext={reportSurfaceContext({
-          title: report.title,
-          reportType: report.reportType,
-          reportDate: report.reportDate,
-        })}
-      />
+      <AskAiButton surface={{ key: "report", id: report.id }} />
     </main>
   );
 }

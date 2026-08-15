@@ -13,7 +13,6 @@ import {
 } from "@/db/queries/journal";
 import type { JournalEntry } from "@/db/schema";
 import { getCurrentPatient } from "@/lib/auth";
-import { JOURNAL_LIST_SURFACE } from "@/lib/chat/surface-context";
 import { formatRelativeDate } from "@/lib/datetime";
 
 /*
@@ -163,7 +162,7 @@ export default async function JournalTimelinePage({
         </div>
       )}
 
-      <AskAiButton surfaceContext={JOURNAL_LIST_SURFACE} />
+      <AskAiButton surface={{ key: "journal-list" }} />
     </main>
   );
 }
