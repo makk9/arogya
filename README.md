@@ -1,4 +1,5 @@
 # arogya
+<sub>*arogya* (आरोग्य) — Sanskrit for health, wholeness; literally "absence of disease."</sub>
 
 **A personal health knowledge base for families managing an aging parent's or grandparent's care from another country.**
 
@@ -268,5 +269,3 @@ The `verify-ui` skill is the one I'd actually show someone. It drives the real a
 The product and the process ran into the same problem from opposite sides: how do you get trustworthy output from a system that is fundamentally non-deterministic? Both landed on the same three answers — **put the hard constraints in code rather than in prose**, **keep a human checkpoint on anything that writes**, and **verify rather than recall**. The synthesis agent must cite the record; the confirmation surface stands between extraction and the database; `/phase-e` reads the filesystem instead of asking. That's the same design three times.
 
 ---
-
-<sub>*arogya* (आरोग्य) — Sanskrit for health, wholeness; literally "absence of disease."</sub>
