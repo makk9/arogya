@@ -35,6 +35,6 @@ export async function getCurrentPatient(): Promise<CurrentPatient> {
     patientId: STUB_PATIENT_ID,
     name: "Relangi Mavayya",
     timezone: "Asia/Kolkata",
-    relationship: "Father",
+    relationship: "Grandfather",
   };
 }

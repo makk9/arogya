@@ -93,7 +93,7 @@ async function main() {
     city: "Hyderabad",
     timezone: "Asia/Kolkata",
     notes:
-      "Retired schoolteacher, lives in Hyderabad with his wife Lakshmi. Son (account holder) is in the US and coordinates care remotely. Generally independent; manages his own medications with a weekly pill organizer. Hindi and Telugu speaker, comfortable in English.",
+      "Retired schoolteacher, lives in Hyderabad with his wife Lakshmi. Grandson (account holder) is in the US and coordinates care remotely. Generally independent; manages his own medications with a weekly pill organizer. Hindi and Telugu speaker, comfortable in English.",
   });
 
   // ── Doctors ──────────────────────────────────────────────────────────────

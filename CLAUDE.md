@@ -205,10 +205,10 @@ Per Phase 9.1 + 9.2 + 9.6:
 
 ## Demo personas
 
-Stub-auth seed identity only — no hardcoded medical data. Real medical data gets entered via onboarding.
+`db/seed.ts` seeds a full fictional demo vault (destructive reset; medical data included by design so the §1.3 synthesis demo lands).
 
-- **User (account holder):** Avi Sharma — US-based, tracking his father remotely
-- **Patient:** Ramesh Sharma — 77, M, Father, Pune, India
+- **User (account holder):** Avi Sharma — US-based, tracking his grandfather remotely
+- **Patient:** Relangi Mavayya — 77, M, Grandfather, Hyderabad, India
 
 ---
 
