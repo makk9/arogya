@@ -13,6 +13,7 @@ import {
   medicationStatus,
   symptomBodyArea,
   symptomEpisodeSeverity,
+  vitalContext,
   vitalReadingType,
   visitType,
 } from "@/db/schema";
@@ -143,6 +144,15 @@ function numericStr(v: unknown): string | undefined {
   if (typeof v === "number" && Number.isFinite(v)) return String(v);
   const s = str(v);
   return s && /^-?\d+(\.\d+)?$/.test(s) ? s : undefined;
+}
+
+// "45", "45 minutes", 45 → 45; anything without a leading number → undefined.
+// The agent emits this as a JSON number and the confirmation card round-trips it
+// unchanged, so a string-only coercion would silently drop it.
+function wholeNumber(v: unknown): number | undefined {
+  if (typeof v === "number") return Number.isFinite(v) ? Math.trunc(v) : undefined;
+  const m = str(v)?.match(/^\s*(\d+)/);
+  return m ? Number(m[1]) : undefined;
 }
 
 // Coerce the agent's timestamp for a timestamptz event clock. A bare date maps
@@ -284,6 +294,7 @@ async function createAllergy(ctx: CommitContext, data: Data): Promise<string> {
     reaction: str(data.reaction) ?? null,
     severity: enumMember(data.severity, allergySeverity.enumValues),
     status: enumMember(data.status, allergyStatus.enumValues),
+    firstNoted: dateOnly(data.first_noted) ?? null,
     notes: str(data.notes) ?? null,
   });
   return row.id;
@@ -366,6 +377,9 @@ async function createVitalReading(
     valuePrimary: primary,
     valueSecondary: secondary ?? null,
     unit,
+    // "140 fasting" / "BP after his evening walk" — the circumstance is what
+    // makes a reading readable, and it has its own column (§4:433).
+    context: enumMember(data.context, vitalContext.enumValues),
     notes: str(data.notes) ?? null,
   });
   return row.id;
@@ -395,6 +409,8 @@ async function createVisit(ctx: CommitContext, data: Data): Promise<string> {
     visitType: enumMember(data.visit_type, visitType.enumValues),
     chiefComplaint: str(data.reason) ?? null,
     summary: str(data.summary) ?? null,
+    diagnosisText: str(data.diagnosis_text) ?? null,
+    nextSteps: str(data.next_steps) ?? null,
     notes: str(data.notes) ?? null,
   });
   return row.id;
@@ -430,7 +446,16 @@ async function createSymptomEpisode(
         },
     {
       startedAt: toDate(data.started_at, ctx.nowIso),
+      endedAt: data.ended_at ? toDate(data.ended_at, ctx.nowIso) : null,
+      durationMinutes: wholeNumber(data.duration_minutes),
       severity: enumMember(data.severity, symptomEpisodeSeverity.enumValues),
+      // The episode's own structured fields (§6.7:1533) — what it felt like,
+      // what brought it on, what helped. Without these the agent has nowhere to
+      // put the detail of a log like "waves of intense pain after climbing stairs"
+      // and buries all of it in `notes`.
+      description: str(data.description) ?? null,
+      triggers: str(data.triggers) ?? null,
+      relief: str(data.relief) ?? null,
       notes: str(data.notes) ?? null,
       sourceReportId: ctx.reportId,
       recordedBy: ctx.userId,
@@ -466,7 +491,10 @@ async function updateMedication(
       throw new CommitBlocked(`${current.name} is already marked discontinued — nothing to change.`);
     }
     await medicationQueries.discontinue(ctx.patientId, id, {
-      reason: str(data.notes) ?? "Logged as no longer taken.",
+      reason:
+        str(data.discontinuation_reason) ??
+        str(data.notes) ??
+        "Logged as no longer taken.",
       timezone: ctx.timezone,
     });
     return id;
@@ -732,6 +760,8 @@ async function updateVisit(
     visitType?: (typeof visitType.enumValues)[number];
     chiefComplaint?: string;
     summary?: string;
+    diagnosisText?: string;
+    nextSteps?: string;
     doctorId?: string;
     notes?: string;
   } = {};
@@ -744,6 +774,10 @@ async function updateVisit(
   if (reason && reason !== current.chiefComplaint) patch.chiefComplaint = reason;
   const summary = str(data.summary);
   if (summary && summary !== current.summary) patch.summary = summary;
+  const diagnosis = str(data.diagnosis_text);
+  if (diagnosis && diagnosis !== current.diagnosisText) patch.diagnosisText = diagnosis;
+  const nextSteps = str(data.next_steps);
+  if (nextSteps && nextSteps !== current.nextSteps) patch.nextSteps = nextSteps;
 
   // Doctor re-match by name (visits.doctor_id is NOT NULL). Only reassign when a
   // different in-scope doctor is named; an unmatched name blocks the card.
@@ -786,10 +820,27 @@ async function updateSymptomEpisode(
   // overwrite in place, but a logged note reads as an addition to the record).
   const patch: {
     severity?: (typeof symptomEpisodeSeverity.enumValues)[number];
+    description?: string;
+    triggers?: string;
+    relief?: string;
+    durationMinutes?: number;
     notes?: string;
   } = {};
   const severity = enumMember(data.severity, symptomEpisodeSeverity.enumValues);
   if (severity && severity !== current.severity) patch.severity = severity;
+  // §5.4's amend list named only severity + notes, written when the episode's
+  // structured fields weren't reachable from extraction at all. Now that the
+  // agent can fill them, an amendment corrects them the same way — otherwise
+  // "climbing stairs sets it off" on a known episode silently goes nowhere.
+  const description = str(data.description);
+  if (description && description !== current.description) patch.description = description;
+  const triggers = str(data.triggers);
+  if (triggers && triggers !== current.triggers) patch.triggers = triggers;
+  const relief = str(data.relief);
+  if (relief && relief !== current.relief) patch.relief = relief;
+  const duration = wholeNumber(data.duration_minutes);
+  if (duration !== undefined && duration !== current.durationMinutes)
+    patch.durationMinutes = duration;
   // Exact-match dedup on the note append (see updateVisit).
   const noteAddition = str(data.notes);
   if (noteAddition && noteAddition !== current.notes)

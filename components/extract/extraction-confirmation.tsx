@@ -92,6 +92,11 @@ export interface ExtractionConfirmationProps {
   // Per-type "worth capturing" optional fields (decisions.md 2026-07-17) — a
   // create card surfaces the ones it hasn't filled as inline "add" chips.
   enrichmentFields?: Record<CommitEntityType, readonly EnrichmentField[]>;
+  // Closed-enum values per entity type + agent key (ENUM_FIELD_VALUES). Any
+  // value outside these lists is dropped by the commit mapper's `enumMember`,
+  // so the card never offers one: agent ambiguity options are filtered against
+  // them and enum fields edit as a picker.
+  enumFields?: Record<CommitEntityType, Readonly<Record<string, readonly string[]>>>;
 }
 
 export interface LabSnapshot {
@@ -125,6 +130,7 @@ export function ExtractionConfirmation({
   labSnapshots,
   fieldSnapshots,
   enrichmentFields,
+  enumFields,
 }: ExtractionConfirmationProps) {
   const router = useRouter();
 
@@ -302,7 +308,17 @@ export function ExtractionConfirmation({
     });
   }
 
-  function resolveAmbiguity(i: number, ambIdx: number, field: string, value: string) {
+  // `value === null` is the "not sure" escape: the question is answered by
+  // declining it, so the card unblocks and whatever the agent extracted stands.
+  // Every ambiguity needs SOME resolution path — an open question the agent
+  // raised with no candidate options used to strand the card with Confirm
+  // permanently disabled and only Discard left.
+  function resolveAmbiguity(
+    i: number,
+    ambIdx: number,
+    field: string,
+    value: string | null,
+  ) {
     setCards((prev) => {
       const next = [...prev];
       const card = next[i];
@@ -311,7 +327,7 @@ export function ExtractionConfirmation({
       next[i] = {
         ...card,
         resolved,
-        data: { ...card.data, [field]: value },
+        data: value === null ? card.data : { ...card.data, [field]: value },
       };
       return next;
     });
@@ -478,6 +494,7 @@ export function ExtractionConfirmation({
                       enrichmentList={
                         isCommitType(type) ? enrichmentFields?.[type] : undefined
                       }
+                      enumMap={isCommitType(type) ? enumFields?.[type] : undefined}
                       onField={(k, v) => setField(i, k, v)}
                       onResolve={(ambIdx, field, value) =>
                         resolveAmbiguity(i, ambIdx, field, value)
@@ -585,6 +602,83 @@ function FieldEditor({
   );
 }
 
+// The client-side twin of commit.ts's `enumMember`: resolves a loosely-written
+// value to the enum member it means, canonically cased ("Severe" → "severe",
+// "In remission" → "in_remission"), or null when it isn't one. The mapper is
+// strict, so anything this rejects would be dropped at commit.
+function enumMember(value: string, values: readonly string[]): string | null {
+  const norm = (v: string) => v.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  const target = norm(value);
+  return values.find((v) => norm(v) === target) ?? null;
+}
+
+// An ambiguity on a closed-enum field whose options didn't survive the filter
+// above (or never offered a real choice) — answered from the field's own values
+// so whatever the user picks is a value the record can actually hold.
+function EnumAnswer({
+  values,
+  onAnswer,
+}: {
+  values: readonly string[];
+  onAnswer: (value: string) => void;
+}) {
+  return (
+    <select
+      defaultValue=""
+      onChange={(e) => {
+        if (e.target.value) onAnswer(e.target.value);
+      }}
+      className="mt-2 rounded border border-border bg-background px-2 py-1 text-sm"
+    >
+      <option value="">Pick one —</option>
+      {values.map((v) => (
+        <option key={v} value={v}>
+          {v.replace(/_/g, " ")}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+// An ambiguity the agent raised WITHOUT candidate options (an open question like
+// "when did these episodes start?"). Chips can't answer it, so it gets a typed
+// answer — committed explicitly, never on blur, so a stray click can't resolve a
+// question with an empty value.
+function AmbiguityAnswer({
+  kind,
+  onAnswer,
+}: {
+  kind: EnrichmentField["kind"];
+  onAnswer: (value: string) => void;
+}) {
+  const [value, setValue] = useState("");
+  const trimmed = value.trim();
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      <input
+        type={kind === "date" ? "date" : "text"}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && trimmed) {
+            e.preventDefault();
+            onAnswer(trimmed);
+          }
+        }}
+        className="w-56 rounded border border-border bg-background px-2 py-1 text-sm"
+      />
+      <button
+        type="button"
+        disabled={!trimmed}
+        onClick={() => onAnswer(trimmed)}
+        className="rounded-full border border-border bg-card px-3 py-1 text-xs text-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:hover:bg-card disabled:hover:text-foreground"
+      >
+        Save
+      </button>
+    </div>
+  );
+}
+
 // Readable markers for a lab card. On an update it diffs each extracted marker
 // against the matched report's current markers: a value change shows `old → new`
 // (labelled "correcting"), a marker not on the report shows "new marker". On a
@@ -674,8 +768,9 @@ interface CardProps {
   labSnapshot?: LabSnapshot;
   fieldSnapshot?: Record<string, string>;
   enrichmentList?: readonly EnrichmentField[];
+  enumMap?: Readonly<Record<string, readonly string[]>>;
   onField: (key: string, value: string) => void;
-  onResolve: (ambIdx: number, field: string, value: string) => void;
+  onResolve: (ambIdx: number, field: string, value: string | null) => void;
   onMode: (mode: "create" | "update") => void;
   onConfirm: () => void;
   onDiscard: () => void;
@@ -689,6 +784,7 @@ function Card({
   labSnapshot,
   fieldSnapshot,
   enrichmentList,
+  enumMap,
   onField,
   onResolve,
   onMode,
@@ -699,10 +795,20 @@ function Card({
   const [editingField, setEditingField] = useState<string | null>(null);
   // The optional field kind (enum-select / date / text) for the inline editor —
   // an extracted enum edits as a select, a date as a date input, etc.
+  // Not every extracted key is an enrichment field (the agent can raise a
+  // question about one, or fill a field the "add more" chips don't offer). Fall
+  // back to the enum map — a closed-enum field typed as free text is dropped at
+  // commit — then to a date input for date-shaped keys, since a free-text date
+  // parses to `now` in the commit mapper.
   const kindOf = (key: string): EnrichmentField["kind"] =>
-    enrichmentList?.find((f) => f.key === key)?.kind ?? "text";
+    enrichmentList?.find((f) => f.key === key)?.kind ??
+    (enumMap?.[key]
+      ? "select"
+      : /(?:_at|_on|_date|^date$)$/.test(key)
+        ? "date"
+        : "text");
   const optionsOf = (key: string): readonly string[] =>
-    enrichmentList?.find((f) => f.key === key)?.options ?? [];
+    enrichmentList?.find((f) => f.key === key)?.options ?? enumMap?.[key] ?? [];
   const meta = isCommitType(entity.target_entity_type)
     ? TYPE_META[entity.target_entity_type]
     : null;
@@ -761,28 +867,63 @@ function Card({
       </div>
 
       {/* Ambiguity prompts (non-intent) with inline-resolve chips */}
-      {entity.ambiguities.map((a, ambIdx) =>
-        a.field === "intent" || card.resolved[ambIdx] ? null : (
+      {entity.ambiguities.map((a, ambIdx) => {
+        if (a.field === "intent" || card.resolved[ambIdx]) return null;
+        // On a closed-enum field, only real enum members can be offered — the
+        // commit mapper drops anything else, so a chip like "Right knee" for
+        // `body_area` would read as saved and silently vanish. Members are
+        // matched leniently ("Severe", "in remission") and offered canonically;
+        // if fewer than two survive there's no real choice left, so the field's
+        // own values are offered as a picker instead.
+        const enumValues = enumMap?.[a.field];
+        const choices = enumValues
+          ? [...new Set(a.options.map((o) => enumMember(o, enumValues)).filter((o): o is string => o !== null))]
+          : a.options;
+        const asPicker = enumValues !== undefined && choices.length < 2;
+        return (
           <div
             key={ambIdx}
             className="mt-3 rounded-md border border-border bg-muted px-3 py-2"
           >
             <p className="text-sm text-foreground">⚠ {a.question}</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {a.options.map((opt) => (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => onResolve(ambIdx, a.field, opt)}
-                  className="rounded-full border border-border bg-card px-3 py-1 text-xs text-foreground hover:bg-accent hover:text-accent-foreground"
-                >
-                  {opt}
-                </button>
-              ))}
-            </div>
+            {asPicker ? (
+              <EnumAnswer
+                values={enumValues}
+                onAnswer={(val) => onResolve(ambIdx, a.field, val)}
+              />
+            ) : choices.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {choices.map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => onResolve(ambIdx, a.field, opt)}
+                    className="rounded-full border border-border bg-card px-3 py-1 text-xs text-foreground hover:bg-accent hover:text-accent-foreground"
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              // Open question — the agent had no candidates to offer, so the
+              // answer is typed rather than picked.
+              <AmbiguityAnswer
+                kind={kindOf(a.field)}
+                onAnswer={(val) => onResolve(ambIdx, a.field, val)}
+              />
+            )}
+            <button
+              type="button"
+              onClick={() => onResolve(ambIdx, a.field, null)}
+              className="mt-2 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+            >
+              {scalarString(card.data[a.field])
+                ? `Not sure — keep “${scalarString(card.data[a.field])}”`
+                : "Not sure — leave this out"}
+            </button>
           </div>
-        ),
-      )}
+        );
+      })}
 
       {/* New-vs-update toggle (state entities only) */}
       {canUpdate ? (

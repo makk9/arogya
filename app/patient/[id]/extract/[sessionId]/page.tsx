@@ -12,7 +12,7 @@ import {
 } from "@/db/queries";
 import type { LabSnapshot } from "@/components/extract/extraction-confirmation";
 import { parseStoredExtractionOutput } from "@/lib/agents/extraction";
-import { ENRICHMENT_FIELDS } from "@/lib/extract/enrichment";
+import { ENRICHMENT_FIELDS, ENUM_FIELD_VALUES } from "@/lib/extract/enrichment";
 import { getCurrentPatient } from "@/lib/auth";
 import { mimeFromPath } from "@/lib/files/mime";
 import { getSignedUrl } from "@/lib/storage";
@@ -178,6 +178,7 @@ export default async function ExtractConfirmPage({
       labSnapshots={labSnapshots}
       fieldSnapshots={fieldSnapshots}
       enrichmentFields={ENRICHMENT_FIELDS}
+      enumFields={ENUM_FIELD_VALUES}
     />
   );
 }
