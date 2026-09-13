@@ -22,7 +22,7 @@ const LINKED_ENTITY_MESSAGES: Record<string, string> = {
 };
 
 export async function POST(req: Request): Promise<Response> {
-  const { patientId } = await getCurrentPatient();
+  const { patientId, timezone } = await getCurrentPatient();
 
   const body = await parseJsonBody(req);
   if (!body.ok) return body.response;
@@ -57,18 +57,23 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   try {
-    const { episode } = await symptomEpisodeQueries.create(patientId, typeRef, {
-      startedAt: new Date(data.startedAt),
-      endedAt: data.endedAt ? new Date(data.endedAt) : undefined,
-      durationMinutes: data.durationMinutes,
-      severity: data.severity,
-      description: data.description,
-      triggers: data.triggers,
-      relief: data.relief,
-      linkedVitalIds: data.linkedVitalIds,
-      linkedVisitId: data.linkedVisitId,
-      notes: data.notes,
-    });
+    const { episode } = await symptomEpisodeQueries.create(
+      patientId,
+      typeRef,
+      {
+        startedAt: new Date(data.startedAt),
+        endedAt: data.endedAt ? new Date(data.endedAt) : undefined,
+        durationMinutes: data.durationMinutes,
+        severity: data.severity,
+        description: data.description,
+        triggers: data.triggers,
+        relief: data.relief,
+        linkedVitalIds: data.linkedVitalIds,
+        linkedVisitId: data.linkedVisitId,
+        notes: data.notes,
+      },
+      timezone,
+    );
     scheduleInsightGeneration(patientId, {
       type: "symptom-episode",
       id: episode.id,

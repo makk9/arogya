@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { visitStatus, visitType } from "@/db/schema";
+import { isCalendarDate } from "@/lib/datetime";
 
 /**
  * Zod schemas for /api/visits routes — the first EVENT entity (§6.6/§6.7).
@@ -29,7 +30,8 @@ const visitStatusEnum = z.enum(visitStatus.enumValues);
 
 const dateOnlySchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+  .refine(isCalendarDate, "Not a real calendar date");
 
 const uuidSchema = z.string().uuid();
 

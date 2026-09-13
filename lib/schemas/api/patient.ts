@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { bloodType, sex } from "@/db/schema";
+import { isCalendarDate } from "@/lib/datetime";
 
 /**
  * Zod schema for PATCH /api/patient per design.md 9.6:2776 + the 6.10 patient
@@ -26,7 +27,8 @@ const bloodTypeEnum = z.enum(bloodType.enumValues);
 
 const dateOnlySchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+  .refine(isCalendarDate, "Not a real calendar date");
 
 // height_cm / current_weight_kg are numeric columns (Drizzle surfaces numeric
 // as string). Accept a plain positive decimal as text; the value round-trips

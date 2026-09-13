@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import type { InsightEntityRef } from "@/db/schema";
 import { AgentError } from "@/lib/agents/_shared/errors";
+import { extractJsonText } from "@/lib/agents/_shared/json";
 import {
   insightSchema,
   type GeneratedInsight,
@@ -112,11 +113,6 @@ Return a single JSON object, JSON only — no prose, no markdown fences, no prea
 
 When nothing earns its place — the usual case — return exactly: {"insights": []}`;
 
-function stripJsonFences(text: string): string {
-  const trimmed = text.trim();
-  const match = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/);
-  return match ? match[1].trim() : trimmed;
-}
 
 // Outer envelope parsed loosely so one malformed insight can be dropped without
 // discarding a run that also found a real one (per-insight salvage below).
@@ -190,7 +186,7 @@ export async function runInsightGenerator(
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(stripJsonFences(text));
+    parsed = JSON.parse(extractJsonText(text));
   } catch {
     throw new AgentError(
       "parse_failure",

@@ -5,6 +5,7 @@ import {
   symptomEpisodeSeverity,
   symptomStatus,
 } from "@/db/schema";
+import { isCalendarDate } from "@/lib/datetime";
 
 /**
  * Zod schemas for /api/symptom-types and /api/symptom-episodes — the third EVENT
@@ -36,7 +37,8 @@ const uuidSchema = z.string().uuid();
 const isoDatetime = z.string().datetime({ offset: true });
 const dateOnlySchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+  .refine(isCalendarDate, "Not a real calendar date");
 
 // ---- SymptomType ------------------------------------------------------------
 
@@ -88,7 +90,12 @@ export const createSymptomEpisodeSchema = z
     path: ["symptomTypeId"],
   })
   // ended_at before started_at would render a negative span — reject it.
-  .refine((b) => b.endedAt === undefined || b.endedAt >= b.startedAt, {
+  // Compared as instants: the strings can carry different offsets / precision.
+  .refine(
+    (b) =>
+      b.endedAt === undefined ||
+      new Date(b.endedAt).getTime() >= new Date(b.startedAt).getTime(),
+    {
     message: "End time can't be before the start time.",
     path: ["endedAt"],
   });

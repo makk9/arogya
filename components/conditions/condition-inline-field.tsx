@@ -108,21 +108,26 @@ export function ConditionInlineField({
   // to the Select root so Base UI's <SelectValue> renders the option label
   // (not the raw enum value) on the trigger.
   if (variant === "select-category") {
+    // Clearable → a "—" sentinel row, the only way a select can express
+    // "clear this" (commits "" → PATCH null), same as select-doctor below.
+    const categoryItems = clearable
+      ? [{ value: NOT_SET, label: "—" }, ...CATEGORY_OPTIONS]
+      : [...CATEGORY_OPTIONS];
     return (
       <div className={cn("flex flex-col gap-1", className)}>
         <Select
           // null, not undefined: Base UI's controlled empty value is null —
           // undefined makes the Select uncontrolled, and the first pick flips it
           // to controlled (console warning).
-          value={field.draft || null}
-          items={CATEGORY_OPTIONS}
+          value={field.draft || (clearable ? NOT_SET : null)}
+          items={categoryItems}
           disabled={field.pending}
           // Self-activation goes straight to the open option list — the click
           // on the value IS the click on the trigger.
           defaultOpen={field.selfActive}
           onOpenChange={field.selectOpenChange}
           onValueChange={(next) => {
-            field.commitFromSelect(next ?? "");
+            field.commitFromSelect(next === NOT_SET || !next ? "" : next);
           }}
         >
           <SelectTrigger
@@ -135,7 +140,7 @@ export function ConditionInlineField({
               narrow grid cells, and long category labels would clip. Anchor
               width stays the floor; max-w-sm caps growth. */}
           <SelectContent className="w-auto min-w-(--anchor-width) max-w-sm">
-            {CATEGORY_OPTIONS.map((opt) => (
+            {categoryItems.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}
               </SelectItem>

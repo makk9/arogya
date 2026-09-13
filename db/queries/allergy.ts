@@ -216,7 +216,8 @@ export const allergyChangeQueries = {
         .where(
           and(eq(allergies.id, allergyId), eq(allergies.patientId, patientId)),
         )
-        .limit(1);
+        .limit(1)
+        .for("update");
 
       if (!current) {
         throw new AllergyDomainError("not_found");

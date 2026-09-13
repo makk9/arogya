@@ -149,7 +149,8 @@ export const lifestyleChangeQueries = {
         .select()
         .from(lifestyleProfiles)
         .where(eq(lifestyleProfiles.patientId, patientId))
-        .limit(1);
+        .limit(1)
+        .for("update");
 
       const current =
         existing ??

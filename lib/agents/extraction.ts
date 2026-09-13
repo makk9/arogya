@@ -5,6 +5,7 @@ import Anthropic, {
 } from "@anthropic-ai/sdk";
 
 import { AgentError } from "@/lib/agents/_shared/errors";
+import { extractJsonText } from "@/lib/agents/_shared/json";
 import {
   extractionOutputSchema,
   type ExtractionOutput,
@@ -14,7 +15,9 @@ import { ENUM_FIELD_VALUES } from "@/lib/extract/enrichment";
 import type { CommitEntityType } from "@/lib/schemas/api/extract-commit";
 
 export const EXTRACTION_MODEL_ID = "claude-sonnet-4-6" as const;
-export const EXTRACTION_MAX_OUTPUT_TOKENS = 4096;
+// Sized for a dense multi-page lab PDF — 4096 truncated those mid-JSON, which
+// surfaced as "couldn't read this" rather than as a truncation.
+export const EXTRACTION_MAX_OUTPUT_TOKENS = 16000;
 
 // Drafted from design.md 5.4:750-818 + 10.3:3195-3213. Brand voice (7.1) applies
 // only to the user-facing `ambiguities[].question` text — the rest is JSON. The
@@ -194,12 +197,6 @@ export type ExtractionSource =
   | { type: "document"; data: string }
   | { type: "document_url"; url: string };
 
-function stripJsonFences(text: string): string {
-  const trimmed = text.trim();
-  const match = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/);
-  return match ? match[1].trim() : trimmed;
-}
-
 // Assembles the user-message content blocks per design.md 9.3:2426. Text is sent
 // as-is; images go as a vision block followed by a short instruction so the model
 // knows the image IS the source to extract from.
@@ -285,12 +282,21 @@ export async function runExtraction(
     );
   }
 
+  if (response.stop_reason === "max_tokens") {
+    throw new AgentError(
+      "context_overflow",
+      "extraction",
+      false,
+      `Extraction output truncated at max_tokens (${EXTRACTION_MAX_OUTPUT_TOKENS})`,
+    );
+  }
+
   const text = response.content
     .filter((block): block is Anthropic.TextBlock => block.type === "text")
     .map((block) => block.text)
     .join("");
 
-  const stripped = stripJsonFences(text);
+  const stripped = extractJsonText(text);
 
   let parsed: unknown;
   try {

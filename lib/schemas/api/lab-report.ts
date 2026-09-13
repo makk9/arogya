@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { labResultFlag } from "@/db/schema";
+import { isCalendarDate } from "@/lib/datetime";
 
 /**
  * Zod schemas for /api/lab-reports routes — the second EVENT entity (§6.6/§6.7)
@@ -27,7 +28,8 @@ const flagEnum = z.enum(labResultFlag.enumValues);
 
 const dateOnlySchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+  .refine(isCalendarDate, "Not a real calendar date");
 
 const uuidSchema = z.string().uuid();
 
@@ -104,6 +106,12 @@ export const correctLabResultSchema = z
   .strict()
   .refine((obj) => Object.keys(obj).length > 0, {
     message: "At least one field must be provided",
+  })
+  // Same §4:406 split as create: a correction may switch numeric ↔ qualitative
+  // (clearing the other to null), but never set both.
+  .refine((r) => !(r.value != null && r.valueText != null), {
+    message: "value and valueText are mutually exclusive",
+    path: ["value"],
   });
 
 // `reportType` backs the §6.6 `All report types ▾` timeline filter pill.

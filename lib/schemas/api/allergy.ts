@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { allergyCategory, allergySeverity, allergyStatus } from "@/db/schema";
+import { isCalendarDate } from "@/lib/datetime";
 
 /**
  * Zod schemas for /api/allergies routes. Clones lib/schemas/api/condition.ts.
@@ -27,7 +28,8 @@ const allergySeverityEnum = z.enum(allergySeverity.enumValues);
 
 const dateOnlySchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+  .refine(isCalendarDate, "Not a real calendar date");
 
 const uuidSchema = z.string().uuid();
 

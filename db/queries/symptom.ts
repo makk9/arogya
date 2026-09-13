@@ -11,6 +11,7 @@ import {
   type SymptomType,
 } from "@/db/schema";
 import { slugify } from "@/lib/agents/_shared/serializers/format";
+import { dateInTimezone } from "@/lib/datetime";
 import { conditionInScope, symptomTypeInScope, visitInScope } from "./_shared";
 
 /*
@@ -90,9 +91,10 @@ export type EpisodeTypeRef =
 //                            linkedCondition out of patient scope (reason:
 //                            symptom_type_not_found / visit_not_found /
 //                            vital_not_found / condition_not_found)
+//  - invalid_time_range    — a PATCH would leave ended_at before started_at
 export class SymptomDomainError extends Error {
   constructor(
-    public readonly kind: "not_found" | "linked_entity_invalid",
+    public readonly kind: "not_found" | "linked_entity_invalid" | "invalid_time_range",
     public readonly meta?: { field?: string; reason?: string },
   ) {
     super(kind);
@@ -260,6 +262,10 @@ export const symptomEpisodeQueries = {
     patientId: string,
     typeRef: EpisodeTypeRef,
     episode: NewEpisodeInput,
+    // Patient's IANA timezone — a new type's first_noted is the episode's
+    // calendar day in the patient's zone, not the UTC day (a 03:00 IST episode
+    // is the previous day in UTC).
+    timezone: string,
   ): Promise<{ episode: SymptomEpisode; symptomTypeId: string; createdType: boolean }> {
     if (
       typeRef.kind === "existing" &&
@@ -293,7 +299,7 @@ export const symptomEpisodeQueries = {
       if (typeRef.kind === "existing") {
         symptomTypeId = typeRef.symptomTypeId;
       } else {
-        const firstNoted = episode.startedAt.toISOString().slice(0, 10);
+        const firstNoted = dateInTimezone(episode.startedAt, timezone);
         const [type] = await tx
           .insert(symptomTypes)
           .values({
@@ -351,6 +357,17 @@ export const symptomEpisodeQueries = {
         field: "linkedVitalIds",
         reason: "vital_not_found",
       });
+    }
+    // A partial PATCH can move either end, so check the span against the stored
+    // row — the create schema's refine only sees both ends at create time.
+    if (values.startedAt !== undefined || values.endedAt !== undefined) {
+      const current = await symptomEpisodeQueries.getById(patientId, id);
+      if (!current) return null;
+      const start = values.startedAt ?? current.startedAt;
+      const end = values.endedAt !== undefined ? values.endedAt : current.endedAt;
+      if (start && end && end.getTime() < start.getTime()) {
+        throw new SymptomDomainError("invalid_time_range", { field: "endedAt" });
+      }
     }
     const [row] = await db
       .update(symptomEpisodes)

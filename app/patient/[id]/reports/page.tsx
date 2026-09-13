@@ -14,7 +14,11 @@ import { reportQueries } from "@/db/queries/report";
 import { visitQueries } from "@/db/queries/visit";
 import type { Doctor, Report, Visit } from "@/db/schema";
 import { getCurrentPatient } from "@/lib/auth";
-import { formatAbsoluteDate, formatRelativeDate } from "@/lib/datetime";
+import {
+  formatAbsoluteDate,
+  formatRelativeDate,
+  todayLocal,
+} from "@/lib/datetime";
 import { displayDoctorName } from "@/lib/doctor-display";
 
 /*
@@ -118,7 +122,10 @@ export default async function ReportsTimelinePage({
   const distinctTypes = new Set(
     allReports.map((r) => r.reportType).filter((t) => t !== null),
   ).size;
-  const mostRecent = allReports[0];
+  // A future-dated report isn't "most recent" (it would read "in 7 days") —
+  // same past-only basis as the visits / labs subtitles.
+  const today = todayLocal();
+  const mostRecent = allReports.find((r) => r.reportDate <= today);
 
   const subtitleParts: string[] = [];
   if (distinctTypes > 0) {

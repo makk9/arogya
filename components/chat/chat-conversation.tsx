@@ -273,6 +273,7 @@ export function ChatConversation({
     nudge,
     logError,
     route,
+    ask,
     skipNudge,
     resolvePendingAsLog,
     resolvePendingAsQuestion,
@@ -313,6 +314,7 @@ export function ChatConversation({
     const next = renameValue.trim();
     setRenaming(false);
     if (!sessionId || next.length === 0 || next === title) return;
+    const previous = title;
     setTitle(next); // optimistic
     try {
       const res = await fetch(`/api/chat/sessions/${sessionId}`, {
@@ -321,8 +323,10 @@ export function ChatConversation({
         body: JSON.stringify({ title: next }),
       });
       if (res.ok) onPersisted();
+      else setTitle(previous);
     } catch {
-      // Optimistic title stays; the next refetch reconciles it.
+      // The header reads local state, so a list refetch wouldn't correct it.
+      setTitle(previous);
     }
   }
 
@@ -422,7 +426,7 @@ export function ChatConversation({
                     key={starter}
                     type="button"
                     disabled={busy}
-                    onClick={() => void runQuestion(starter)}
+                    onClick={() => ask(starter)}
                     className="rounded-full border border-stone-300 px-3 py-1.5 text-sm text-stone-700 transition-colors hover:border-stone-400 hover:bg-stone-50 disabled:opacity-50"
                   >
                     {starter}
@@ -586,7 +590,7 @@ export function ChatConversation({
                   key={followUp}
                   type="button"
                   disabled={busy}
-                  onClick={() => void runQuestion(followUp)}
+                  onClick={() => ask(followUp)}
                   className="rounded-full border border-stone-300 px-3 py-1.5 text-sm text-stone-700 transition-colors hover:border-stone-400 hover:bg-stone-50 disabled:opacity-50"
                 >
                   {followUp}
@@ -609,7 +613,7 @@ export function ChatConversation({
               key={shortcut.label}
               type="button"
               disabled={busy}
-              onClick={() => void runQuestion(shortcut.prompt)}
+              onClick={() => ask(shortcut.prompt)}
               className="rounded-full bg-stone-100 px-3 py-1 text-xs text-stone-600 transition-colors hover:bg-stone-200 disabled:opacity-50"
             >
               {shortcut.label}

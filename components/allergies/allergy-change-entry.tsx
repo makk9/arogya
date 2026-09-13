@@ -3,7 +3,7 @@ import {
   STATUS_OPTIONS,
 } from "@/components/allergies/allergy-options";
 import type { AllergyChange } from "@/db/schema";
-import { formatAbsoluteDate, formatRelative } from "@/lib/datetime";
+import { formatAbsoluteDate, formatRelativeDate } from "@/lib/datetime";
 
 interface Props {
   change: AllergyChange;
@@ -55,7 +55,7 @@ export function AllergyChangeEntry({ change }: Props) {
   return (
     <div className="grid grid-cols-[7rem_1fr] gap-3 border-l-2 border-border py-2 pl-4">
       <div className="font-mono text-xs leading-snug text-muted-foreground">
-        <div>{formatRelative(change.changedAt)}</div>
+        <div>{formatRelativeDate(change.changedAt)}</div>
         <div className="text-muted-foreground/70">
           {formatAbsoluteDate(change.changedAt)}
         </div>

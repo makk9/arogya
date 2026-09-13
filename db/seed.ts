@@ -665,6 +665,15 @@ async function main() {
       newValue: "discontinued",
       reason: "Discontinued to protect kidney function after CKD diagnosis.",
     },
+    {
+      medicationId: mFerrous,
+      changedAt: ist("2026-05-14T09:00:00"),
+      field: "status",
+      oldValue: "active",
+      newValue: "paused",
+      reason:
+        "Causing constipation; Dr. Mohan to reassess iron studies before restarting.",
+    },
   ]);
 
   // ── Lab reports + results ────────────────────────────────────────────────
@@ -954,7 +963,7 @@ async function main() {
     .where(sql`${patients.id} = ${STUB_PATIENT_ID}`);
 
   console.log(`seeded: ${row?.id} (${row?.name})`);
-  console.log("  5 doctors · 6 conditions (+4 changes) · 10 medications (+4 changes, incl. 1 paused/1 discontinued)");
+  console.log("  5 doctors · 6 conditions (+4 changes) · 10 medications (+5 changes, incl. 1 paused/1 discontinued)");
   console.log("  2 allergies (+1 change) · 1 lifestyle profile · 3 family history");
   console.log("  7 visits (incl. 1 scheduled, 1 cancelled) · 3 lab reports (19 results, 1 critical) · 11 vitals");
   console.log("  3 symptom types (7 episodes, 1 linked to a visit) · 2 reports · 2 journal entries");

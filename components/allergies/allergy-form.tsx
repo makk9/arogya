@@ -109,7 +109,9 @@ export function AllergyForm({ patientId }: AllergyFormProps) {
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
 
-  const defaultValues: AllergyFormValues = {
+  // Blank form — what "Save and add another" resets to. The extraction draft
+  // is a single-use prefill; re-applying it would invite a duplicate save.
+  const blankDefaults: AllergyFormValues = {
     substance: "",
     // Category deliberately starts empty (placeholder) — see header note.
     category: "",
@@ -118,6 +120,9 @@ export function AllergyForm({ patientId }: AllergyFormProps) {
     status: "active",
     firstNoted: "",
     notes: "",
+  };
+  const defaultValues: AllergyFormValues = {
+    ...blankDefaults,
     ...draftToAllergyValues(draft),
   };
 
@@ -204,7 +209,9 @@ export function AllergyForm({ patientId }: AllergyFormProps) {
 
   const onSubmitAddAnother = handleSubmit(async (values) => {
     if (!(await postAllergy(values))) return;
-    reset(defaultValues);
+    reset(blankDefaults);
+    // Stay on the form, but refresh the server tree so the rail counts update.
+    router.refresh();
   });
 
   const handleCancel = () => {

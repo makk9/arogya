@@ -5,6 +5,7 @@ import {
   conditionSeverity,
   conditionStatus,
 } from "@/db/schema";
+import { isCalendarDate } from "@/lib/datetime";
 
 /**
  * Zod schemas for /api/conditions routes. Clones lib/schemas/api/medication.ts.
@@ -33,7 +34,8 @@ const conditionSeverityEnum = z.enum(conditionSeverity.enumValues);
 
 const dateOnlySchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+  .refine(isCalendarDate, "Not a real calendar date");
 
 const uuidSchema = z.string().uuid();
 

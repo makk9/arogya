@@ -52,10 +52,13 @@ export default async function DoctorsListPage({
   // Group by specialty per 6.4:1335 — alphabetical group order, all expanded.
   // Free-text specialties group case-insensitively ("cardiology" and
   // "Cardiology" are one group); the first-seen casing is the display label.
-  // Doctors within a group are already name-ordered by the query.
+  // Doctors within a group are already name-ordered by the query. The key is
+  // the section slug itself, so "General medicine" / "General-medicine" land in
+  // one group rather than two sections colliding on the same slug (React key +
+  // panel id).
   const groups = new Map<string, { label: string; doctors: Doctor[] }>();
   for (const d of allDoctors) {
-    const key = d.specialty.toLowerCase();
+    const key = d.specialty.toLowerCase().replace(/[^a-z0-9]+/g, "-");
     const group = groups.get(key);
     if (group) group.doctors.push(d);
     else groups.set(key, { label: d.specialty, doctors: [d] });
@@ -65,7 +68,11 @@ export default async function DoctorsListPage({
     .sort((a, b) => a.localeCompare(b));
 
   const visibleGroups = [...groups.entries()]
-    .filter(([key]) => !specialtyFilter || key === specialtyFilter)
+    .filter(
+      ([key]) =>
+        !specialtyFilter ||
+        key === specialtyFilter.replace(/[^a-z0-9]+/g, "-"),
+    )
     .sort(([a], [b]) => a.localeCompare(b));
 
   const totalCount = allDoctors.length;

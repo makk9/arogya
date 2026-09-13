@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { reportType } from "@/db/schema";
+import { isCalendarDate } from "@/lib/datetime";
 
 /**
  * Zod schemas for /api/reports routes — an EVENT entity (§6.6/§6.7). Clones the
@@ -30,7 +31,8 @@ const reportTypeEnum = z.enum(reportType.enumValues);
 
 const dateOnlySchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+  .refine(isCalendarDate, "Not a real calendar date");
 
 const uuidSchema = z.string().uuid();
 

@@ -3,6 +3,7 @@ import { streamText, type ModelMessage, type StreamTextResult, type ToolSet } fr
 
 import { buildVaultContext } from "@/lib/agents/_shared/vault-context";
 import { AgentError } from "@/lib/agents/_shared/errors";
+import { errorCode, logger } from "@/lib/logger";
 
 export const SYNTHESIS_MODEL_ID = "claude-opus-4-7" as const;
 export const SYNTHESIS_MAX_OUTPUT_TOKENS = 4096;
@@ -219,6 +220,12 @@ export async function runSynthesis(
     },
     messages,
     maxOutputTokens: SYNTHESIS_MAX_OUTPUT_TOKENS,
+    // Replaces the ai SDK default (`console.error(error)`), which prints the
+    // APICallError's requestBodyValues — the whole system prompt, i.e. the
+    // patient's vault — past lib/logger's PHI guard. Code only.
+    onError: ({ error }) => {
+      logger.error({ op: "synthesis.stream", code: errorCode(error), ids: { patientId } });
+    },
     // `text` is the full accumulated assistant markdown — exactly what we
     // persist (citation pills live inline in the text). Fires after the stream
     // resolves, so the route's UI response is never blocked on the DB write.

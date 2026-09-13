@@ -252,7 +252,8 @@ export const conditionChangeQueries = {
             eq(conditions.patientId, patientId),
           ),
         )
-        .limit(1);
+        .limit(1)
+        .for("update");
 
       if (!current) {
         throw new ConditionDomainError("not_found");

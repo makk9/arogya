@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef } from "react";
 
 import {
   CATEGORY_OPTIONS,
@@ -49,19 +50,30 @@ export function InsightFilters() {
   const statuses = parseList(sp.get("status"), VALID_STATUSES);
   const categories = parseList(sp.get("category"), VALID_CATEGORIES);
 
-  function setParam(key: string, values: string[]) {
-    const params = new URLSearchParams(sp.toString());
-    if (values.length === 0) params.delete(key);
-    else params.set(key, values.join(","));
-    const qs = params.toString();
-    router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
-  }
+  // The menu stays open across toggles, but `sp` only updates after the
+  // replace's server round-trip — two quick ticks would each build from the
+  // same stale params and the second would drop the first. Build from the last
+  // query we wrote until the URL catches up to it.
+  const spString = sp.toString();
+  const pendingQs = useRef<string | null>(null);
+  useEffect(() => {
+    if (pendingQs.current === spString) pendingQs.current = null;
+  }, [spString]);
 
-  function toggle(key: string, current: string[], value: string, checked: boolean) {
+  function toggle(key: string, value: string, checked: boolean) {
+    const params = new URLSearchParams(pendingQs.current ?? spString);
+    const valid = key === "status" ? VALID_STATUSES : VALID_CATEGORIES;
+    const current = parseList(params.get(key), valid);
     const next = checked
-      ? [...current, value]
+      ? current.includes(value)
+        ? current
+        : [...current, value]
       : current.filter((v) => v !== value);
-    setParam(key, next);
+    if (next.length === 0) params.delete(key);
+    else params.set(key, next.join(","));
+    const qs = params.toString();
+    pendingQs.current = qs;
+    router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
   }
 
   return (
@@ -71,16 +83,14 @@ export function InsightFilters() {
         unit="status"
         items={STATUS_ITEMS}
         selected={statuses}
-        onToggle={(value, checked) => toggle("status", statuses, value, checked)}
+        onToggle={(value, checked) => toggle("status", value, checked)}
       />
       <FilterPill
         allLabel="All categories"
         unit="category"
         items={CATEGORY_ITEMS}
         selected={categories}
-        onToggle={(value, checked) =>
-          toggle("category", categories, value, checked)
-        }
+        onToggle={(value, checked) => toggle("category", value, checked)}
       />
     </div>
   );

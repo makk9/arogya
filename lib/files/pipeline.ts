@@ -91,7 +91,18 @@ export async function processUpload(
   // Trust boundary: the path is client-supplied. It MUST live under this
   // patient's upload namespace — never process another patient's (or an
   // arbitrary) object just because the client named it.
-  if (!path.startsWith(uploadPathPrefix(patientId))) {
+  // The prefix alone isn't enough: storage-js splices the path into the request
+  // URL verbatim, so `…/uploads/../../<other>/…` would pass startsWith and then
+  // collapse to another patient's object under the service-role key. Reject
+  // traversal segments, empty segments, backslashes, percent-escapes (encoded
+  // traversal) and control characters outright.
+  if (
+    !path.startsWith(uploadPathPrefix(patientId)) ||
+    path.split("/").some((seg) => seg === ".." || seg === ".") ||
+    path.includes("//") ||
+    /[\\%]/.test(path) ||
+    /[\x00-\x1f\x7f]/.test(path)
+  ) {
     return { ok: false, reason: "path_out_of_scope" };
   }
   if (!isAcceptedUploadMimeType(mimeType)) {

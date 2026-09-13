@@ -193,6 +193,8 @@ export function ReportForm({ patientId, doctors, visits }: ReportFormProps) {
   const onSubmitAddAnother = handleSubmit(async (values) => {
     if (!(await postReport(values))) return;
     reset(defaultValues);
+    // Stay on the form, but refresh the server tree so the rail counts update.
+    router.refresh();
   });
 
   const handleCancel = () => {

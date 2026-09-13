@@ -240,3 +240,73 @@ export function ageInYears(dob: string, today?: string): number | null {
   if (rm < m || (rm === m && rd < d)) age -= 1;
   return age < 0 ? null : age;
 }
+
+/**
+ * True when `s` is a real `YYYY-MM-DD` calendar date. The bare regex the API
+ * schemas used accepted "2026-02-30" (silently rolled to Mar 2 by `new Date`)
+ * and "2026-13-01" (Invalid Date → a 500 on insert).
+ */
+export function isCalendarDate(s: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const probe = new Date(Date.UTC(y, mo - 1, d));
+  return (
+    probe.getUTCFullYear() === y &&
+    probe.getUTCMonth() === mo - 1 &&
+    probe.getUTCDate() === d
+  );
+}
+
+// Offset (ms) of `timezone` from UTC at the given instant.
+function tzOffsetMs(instant: Date, timezone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(instant);
+  const get = (type: string) =>
+    Number(parts.find((p) => p.type === type)?.value ?? 0);
+  const asUtc = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour"),
+    get("minute"),
+    get("second"),
+  );
+  return asUtc - (instant.getTime() - instant.getMilliseconds());
+}
+
+/**
+ * Interprets a wall-clock `YYYY-MM-DDTHH:mm[:ss[.sss]]` (no offset) as local
+ * time in `timezone` and returns the UTC instant. `new Date(s)` would read it
+ * in the *server's* zone — on a UTC host "8am" for a Hyderabad patient became
+ * 13:30 IST. Two-pass so a DST-shifted offset settles. Returns null when the
+ * string isn't that shape.
+ */
+export function zonedWallTimeToUtc(s: string, timezone: string): Date | null {
+  const m =
+    /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/.exec(
+      s,
+    );
+  if (!m) return null;
+  const wall = Date.UTC(
+    Number(m[1]),
+    Number(m[2]) - 1,
+    Number(m[3]),
+    Number(m[4]),
+    Number(m[5]),
+    Number(m[6] ?? 0),
+    Number((m[7] ?? "0").padEnd(3, "0")),
+  );
+  if (Number.isNaN(wall)) return null;
+  let guess = wall - tzOffsetMs(new Date(wall), timezone);
+  guess = wall - tzOffsetMs(new Date(guess), timezone);
+  return new Date(guess);
+}

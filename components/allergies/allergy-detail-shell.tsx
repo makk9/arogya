@@ -63,6 +63,7 @@ export function AllergyDetailShell({ allergy, children }: Props) {
         allergyId={allergy.id}
         substance={allergy.substance}
         currentStatus={allergy.status}
+        currentSeverity={allergy.severity}
         open={logChangeOpen}
         onOpenChange={setLogChangeOpen}
       />

@@ -174,6 +174,8 @@ export const patientQueries = {
         visits,
         and(
           eq(visits.patientId, patientId),
+          // Cancelled / no-show visits never happened — not recent activity.
+          eq(visits.status, "completed"),
           gte(visits.visitDate, visitsSince),
           lte(visits.visitDate, today),
         ),

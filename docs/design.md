@@ -430,7 +430,7 @@ Numeric readings the user logs at home — BP, weight, glucose, temperature, hea
 - `recorded_at` is timestamptz (not date) — timing is medically meaningful.
 - `value_primary` + `value_secondary` keeps BP as one event with two numbers.
 - `linked_symptom_id` enables the demo-critical synthesis ("dizziness episodes correlate with low BP readings").
-- No paired change log — readings are immutable events. Mistakes get deleted and re-entered.
+- No paired change log. ~~Readings are immutable events. Mistakes get deleted and re-entered.~~ **Amended 2026-09-13 (decisions.md):** a wrong reading is corrected in place (time, values, unit, context, flag, notes) from the vitals history table — an overwrite with no change log, same as a lab marker correction. `reading_type` stays fixed (it's the reading's identity and citation slug segment); a reading logged under the wrong type is deleted and re-entered.
 
 ### SymptomType + SymptomEpisode ✓
 
@@ -790,7 +790,7 @@ The agent has full source context plus the matching dictionary, so it reasons pr
 
 The Phase 3 entity-type pattern still applies underneath: time-series readings (BP, labs, weight) are always create-new; state entities (medications, conditions, doctors) match-or-create per the buckets above; visits/reports always create-new but may produce side-effect updates to state entities.
 
-> **Amendment carve-out (added 2026-07-14, decisions.md).** "Create-new" governs whether a *record* is new — it does not forbid *amending an existing one*. A note can ADD to or CORRECT a lab report (append/correct a marker), a visit (correct a field / append a note), or a symptom episode (correct severity / append a note) already on file — the extraction `update` path, mirroring the on-page §6.7 `+ Log a correction` / Edit affordances (in-place overwrite, no change log — events have none). This is distinct from conflating two separate draws/visits, which stays forbidden: a *new* lab draw or visit is still create-new. **`vital_reading` is the exception with no amendment path** — §4:433 keeps readings immutable (a wrong reading is deleted and re-entered, never edited). The agent cannot delete records from chat; a deletion request is declined with an advisory pointing to the record's own Delete action.
+> **Amendment carve-out (added 2026-07-14, decisions.md).** "Create-new" governs whether a *record* is new — it does not forbid *amending an existing one*. A note can ADD to or CORRECT a lab report (append/correct a marker), a visit (correct a field / append a note), or a symptom episode (correct severity / append a note) already on file — the extraction `update` path, mirroring the on-page §6.7 `+ Log a correction` / Edit affordances (in-place overwrite, no change log — events have none). This is distinct from conflating two separate draws/visits, which stays forbidden: a *new* lab draw or visit is still create-new. **`vital_reading` is the exception with no *extraction* amendment path** — a reading is corrected on the vitals page itself (§4:433 as amended 2026-09-13), never via a chat note. The agent cannot delete records from chat; a deletion request is declined with an advisory pointing to the record's own Delete action.
 
 **Guardrails.**
 - *Never fabricate.* If a field isn't in the source, leave it null. Never infer dosage from drug name. Never guess a date.

@@ -59,6 +59,11 @@ export async function PATCH(req: Request, ctx: Ctx): Promise<Response> {
     }
     return Response.json({ episode });
   } catch (err) {
+    if (err instanceof SymptomDomainError && err.kind === "invalid_time_range") {
+      return apiError("validation_failed", "Invalid time range", {
+        fieldErrors: { endedAt: ["End time can't be before the start time."] },
+      });
+    }
     if (
       err instanceof SymptomDomainError &&
       err.kind === "linked_entity_invalid"

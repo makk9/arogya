@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { AskAiButton } from "@/components/ask-ai-button";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { Sparkline } from "@/components/dashboard/sparkline";
+import { VitalEditButton } from "@/components/vitals/vital-edit-dialog";
 import { CONTEXT_LABEL, FLAG_LABEL } from "@/components/vitals/vital-options";
 import { vitalQueries } from "@/db/queries/vital";
 import { getCurrentPatient } from "@/lib/auth";
@@ -23,8 +24,8 @@ import {
  * (#r-<id>) — this page exists so citations resolve, not for browsing, so
  * there's deliberately no rail item.
  *
- * Readings are immutable (§4:433 — no amendment path; a wrong reading is
- * deleted and re-entered), so rows have no edit affordance here.
+ * Rows carry an Edit action: readings are corrected in place (decisions.md
+ * 2026-09-13, superseding §4:433's delete-and-re-enter rule).
  */
 
 const CHART_POINTS = 24;
@@ -132,6 +133,9 @@ export default async function VitalsHistoryPage({
                       <th className={TH}>Context</th>
                       <th className={TH}>Flag</th>
                       <th className={TH}>Notes</th>
+                      <th className={TH}>
+                        <span className="sr-only">Actions</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -155,6 +159,21 @@ export default async function VitalsHistoryPage({
                         </td>
                         <td className={`${TD} max-w-56 truncate text-muted-foreground`}>
                           {r.notes ?? "—"}
+                        </td>
+                        <td className={`${TD} text-right`}>
+                          <VitalEditButton
+                            reading={{
+                              id: r.id,
+                              readingType: r.readingType,
+                              recordedAt: r.recordedAt.toISOString(),
+                              valuePrimary: r.valuePrimary,
+                              valueSecondary: r.valueSecondary,
+                              unit: r.unit,
+                              context: r.context,
+                              flag: r.flag,
+                              notes: r.notes,
+                            }}
+                          />
                         </td>
                       </tr>
                     ))}

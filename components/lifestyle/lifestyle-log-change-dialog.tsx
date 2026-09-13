@@ -198,6 +198,15 @@ export function LifestyleLogChangeDialog({
     const errBody = parsed.error;
 
     if (errBody?.code === "invalid_state_transition") {
+      // value_unchanged: the server's current value IS what was submitted —
+      // not a parallel write, just a no-op. Say so on the field instead of the
+      // "changed elsewhere" state (which discards the typed reason).
+      if (errBody.details?.currentValue === values.newValue) {
+        setError("newValue", {
+          message: "That's already the current value — change it or cancel.",
+        });
+        return;
+      }
       setState({
         kind: "stale-value",
         field: errBody.details?.field ?? "value",

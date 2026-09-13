@@ -34,6 +34,7 @@ import {
   vitalQueries,
 } from "@/db/queries";
 import type { NewLabResultInput } from "@/db/queries/lab";
+import { zonedWallTimeToUtc } from "@/lib/datetime";
 import type { CommitCardInput, CommitEntityType } from "@/lib/schemas/api/extract-commit";
 
 /**
@@ -155,13 +156,21 @@ function wholeNumber(v: unknown): number | undefined {
   return m ? Number(m[1]) : undefined;
 }
 
-// Coerce the agent's timestamp for a timestamptz event clock. A bare date maps
-// to UTC midnight; anything unparseable falls back to "now" rather than
-// fabricating a time.
-function toDate(v: unknown, fallbackIso: string): Date {
+// Coerce the agent's timestamp for a timestamptz event clock. The agent writes
+// wall-clock times in the patient's day ("8am" → `…T08:00:00`, no offset), so an
+// offset-less time or bare date is interpreted in the PATIENT's timezone — a
+// plain `new Date(s)` reads it in the server's zone (on a UTC host a Hyderabad
+// 8am reading landed at 13:30 IST). A bare date maps to patient-local midnight;
+// an explicit Z/offset is honored as-is; anything unparseable falls back to
+// "now" rather than fabricating a time.
+function toDate(v: unknown, fallbackIso: string, timezone: string): Date {
   const s = str(v);
   if (!s) return new Date(fallbackIso);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(`${s}T00:00:00Z`);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    return zonedWallTimeToUtc(`${s}T00:00`, timezone) ?? new Date(fallbackIso);
+  }
+  const wall = zonedWallTimeToUtc(s, timezone);
+  if (wall) return wall;
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? new Date(fallbackIso) : d;
 }
@@ -373,7 +382,7 @@ async function createVitalReading(
     recordedBy: ctx.userId,
     sourceReportId: ctx.reportId,
     readingType,
-    recordedAt: toDate(data.measured_at, ctx.nowIso),
+    recordedAt: toDate(data.measured_at, ctx.nowIso, ctx.timezone),
     valuePrimary: primary,
     valueSecondary: secondary ?? null,
     unit,
@@ -445,8 +454,10 @@ async function createSymptomEpisode(
           bodyArea: enumMember(data.body_area, symptomBodyArea.enumValues),
         },
     {
-      startedAt: toDate(data.started_at, ctx.nowIso),
-      endedAt: data.ended_at ? toDate(data.ended_at, ctx.nowIso) : null,
+      startedAt: toDate(data.started_at, ctx.nowIso, ctx.timezone),
+      endedAt: data.ended_at
+        ? toDate(data.ended_at, ctx.nowIso, ctx.timezone)
+        : null,
       durationMinutes: wholeNumber(data.duration_minutes),
       severity: enumMember(data.severity, symptomEpisodeSeverity.enumValues),
       // The episode's own structured fields (§6.7:1533) — what it felt like,
@@ -460,6 +471,7 @@ async function createSymptomEpisode(
       sourceReportId: ctx.reportId,
       recordedBy: ctx.userId,
     },
+    ctx.timezone,
   );
   return episode.id;
 }
@@ -622,15 +634,18 @@ async function updateAllergy(
     });
     applied = true;
   }
-  const reactionOrNotes = joinNotes(
-    current.notes ?? undefined,
-    str(data.reaction) && str(data.reaction) !== current.reaction
-      ? `Reaction: ${str(data.reaction)}`
-      : undefined,
-    str(data.notes),
-  );
-  if (reactionOrNotes && reactionOrNotes !== current.notes) {
-    await allergyQueries.update(ctx.patientId, id, { notes: reactionOrNotes });
+  // `reaction` has its own column (no change log) — amend it in place. Writing
+  // it into notes instead left the column stale, so the "differs" check never
+  // settled and every re-confirm appended another "Reaction: X" line.
+  const reaction = str(data.reaction);
+  const addedNotes = str(data.notes);
+  const patch: { reaction?: string; notes?: string } = {};
+  if (reaction && reaction !== current.reaction) patch.reaction = reaction;
+  if (addedNotes && !(current.notes ?? "").includes(addedNotes)) {
+    patch.notes = joinNotes(current.notes ?? undefined, addedNotes) ?? addedNotes;
+  }
+  if (patch.reaction !== undefined || patch.notes !== undefined) {
+    await allergyQueries.update(ctx.patientId, id, patch);
     applied = true;
   }
 

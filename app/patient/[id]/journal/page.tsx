@@ -13,7 +13,7 @@ import {
 } from "@/db/queries/journal";
 import type { JournalEntry } from "@/db/schema";
 import { getCurrentPatient } from "@/lib/auth";
-import { formatRelativeDate } from "@/lib/datetime";
+import { formatRelativeDate, todayLocal } from "@/lib/datetime";
 
 /*
  * Journal timeline per the §6.6 event-timeline template — the user's own
@@ -81,7 +81,10 @@ export default async function JournalTimelinePage({
   );
 
   const totalCount = entries.length;
-  const mostRecent = entries[0];
+  // Past-only, like the visits / labs subtitles — a future-dated entry would
+  // otherwise read "most recent in N days".
+  const today = todayLocal();
+  const mostRecent = entries.find((e) => e.entryDate <= today);
 
   const subtitleParts: string[] = ["written by you"];
   if (mostRecent) {

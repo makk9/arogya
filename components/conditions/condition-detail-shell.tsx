@@ -73,6 +73,7 @@ export function ConditionDetailShell({ condition, doctors, children }: Props) {
         doctors={doctors}
         currentStatus={condition.status}
         currentManagingDoctorId={condition.managingDoctor}
+        currentSeverity={condition.severity}
         open={logChangeOpen}
         onOpenChange={setLogChangeOpen}
       />

@@ -6,6 +6,7 @@ import {
   lifestyleStressLevel,
   lifestyleTobaccoUse,
 } from "@/db/schema";
+import { isCalendarDate } from "@/lib/datetime";
 
 /**
  * Zod schemas for /api/lifestyle routes. The singleton variant of the state
@@ -33,7 +34,8 @@ const alcoholUseEnum = z.enum(lifestyleAlcoholUse.enumValues);
 
 const dateOnlySchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+  .refine(isCalendarDate, "Not a real calendar date");
 
 export const updateLifestyleSchema = z
   .object({

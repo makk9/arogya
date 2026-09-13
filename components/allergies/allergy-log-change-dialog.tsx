@@ -55,6 +55,7 @@ interface Props {
   allergyId: string;
   substance: string;
   currentStatus: Allergy["status"];
+  currentSeverity: Allergy["severity"];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /**
@@ -90,6 +91,7 @@ export function AllergyLogChangeDialog({
   allergyId,
   substance,
   currentStatus,
+  currentSeverity,
   open,
   onOpenChange,
   initialField,
@@ -108,7 +110,9 @@ export function AllergyLogChangeDialog({
   // Default newValue for a freshly-selected field.
   const defaultFor = (field: AllergyChangeFormValues["field"]): string => {
     if (field === "status") return firstStatus;
-    return SEVERITY_OPTIONS[0]?.value ?? "";
+    // First non-current severity — defaulting to option[0] silently logged a
+    // same-or-lower severity when the user only typed a reason.
+    return SEVERITY_OPTIONS.find((o) => o.value !== currentSeverity)?.value ?? "";
   };
 
   const defaultValues: AllergyChangeFormValues = {

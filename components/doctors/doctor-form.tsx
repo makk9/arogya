@@ -86,7 +86,9 @@ export function DoctorForm({ patientId }: DoctorFormProps) {
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
 
-  const defaultValues: DoctorFormValues = {
+  // Blank form — what "Save and add another" resets to. The extraction draft
+  // is a single-use prefill; re-applying it would invite a duplicate save.
+  const blankDefaults: DoctorFormValues = {
     name: "",
     specialty: "",
     clinic: "",
@@ -96,6 +98,9 @@ export function DoctorForm({ patientId }: DoctorFormProps) {
     // visit to a long-standing doctor is usually historical, often unknown.
     firstVisit: "",
     notes: "",
+  };
+  const defaultValues: DoctorFormValues = {
+    ...blankDefaults,
     ...draftToDoctorValues(draft),
   };
 
@@ -182,7 +187,9 @@ export function DoctorForm({ patientId }: DoctorFormProps) {
 
   const onSubmitAddAnother = handleSubmit(async (values) => {
     if (!(await postDoctor(values))) return;
-    reset(defaultValues);
+    reset(blankDefaults);
+    // Stay on the form, but refresh the server tree so the rail counts update.
+    router.refresh();
   });
 
   const handleCancel = () => {

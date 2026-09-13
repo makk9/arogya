@@ -184,16 +184,24 @@ export const medicationQueries = {
   async discontinue(
     patientId: string,
     id: string,
-    opts: { reason: string; linkedVisitId?: string; timezone: string },
+    opts: {
+      reason: string;
+      linkedVisitId?: string;
+      timezone: string;
+      recordedBy?: string;
+    },
   ): Promise<Medication> {
     return db.transaction(async (tx) => {
+      // FOR UPDATE: a double-submitted discontinue must not both pass the
+      // already-discontinued guard and write two status rows.
       const [current] = await tx
         .select()
         .from(medications)
         .where(
           and(eq(medications.id, id), eq(medications.patientId, patientId)),
         )
-        .limit(1);
+        .limit(1)
+        .for("update");
 
       if (!current) {
         throw new MedicationDomainError("not_found");
@@ -204,6 +212,15 @@ export const medicationQueries = {
           discontinuedOn: current.discontinuedOn,
         });
       }
+      if (
+        opts.linkedVisitId &&
+        !(await visitInScope(patientId, opts.linkedVisitId))
+      ) {
+        throw new MedicationDomainError("linked_entity_invalid", {
+          field: "linkedVisitId",
+          reason: "visit_not_found",
+        });
+      }
 
       await tx.insert(medicationChanges).values({
         medicationId: id,
@@ -212,6 +229,7 @@ export const medicationQueries = {
         newValue: "discontinued",
         reason: opts.reason,
         linkedVisitId: opts.linkedVisitId ?? null,
+        recordedBy: opts.recordedBy ?? null,
       });
 
       const today = todayInTimezone(opts.timezone);
@@ -309,7 +327,10 @@ export const medicationChangeQueries = {
         .where(
           and(eq(medications.id, medicationId), eq(medications.patientId, patientId)),
         )
-        .limit(1);
+        .limit(1)
+        // Serialize concurrent changes so each row's server-computed oldValue
+        // is the value the previous change left, not a shared stale read.
+        .for("update");
 
       if (!current) {
         throw new MedicationDomainError("not_found");

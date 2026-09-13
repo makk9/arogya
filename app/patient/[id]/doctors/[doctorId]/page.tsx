@@ -81,11 +81,15 @@ export default async function DoctorDetailPage({
   }));
 
   // Derived last visit (Phase 4: never stored). visitQueries returns the
-  // patient's visits; the max visit_date among this doctor's is the answer.
-  const lastVisit = doctorVisits.reduce<string | null>(
-    (latest, v) => (latest === null || v.visitDate > latest ? v.visitDate : latest),
-    null,
-  );
+  // patient's visits; the max visit_date among this doctor's COMPLETED visits
+  // is the answer (scheduled / cancelled / no-show visits didn't happen).
+  const lastVisit = doctorVisits
+    .filter((v) => v.status === "completed")
+    .reduce<string | null>(
+      (latest, v) =>
+        latest === null || v.visitDate > latest ? v.visitDate : latest,
+      null,
+    );
 
   const hasLinks =
     linkedMeds.length > 0 ||

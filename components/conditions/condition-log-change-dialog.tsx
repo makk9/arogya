@@ -74,6 +74,7 @@ interface Props {
   doctors: ReadonlyArray<DoctorOption>;
   currentStatus: Condition["status"];
   currentManagingDoctorId: string | null;
+  currentSeverity: Condition["severity"];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /**
@@ -112,6 +113,7 @@ export function ConditionLogChangeDialog({
   doctors,
   currentStatus,
   currentManagingDoctorId,
+  currentSeverity,
   open,
   onOpenChange,
   initialField,
@@ -134,7 +136,10 @@ export function ConditionLogChangeDialog({
   // Default newValue for a freshly-selected field.
   const defaultFor = (field: ConditionChangeFormValues["field"]): string => {
     if (field === "status") return firstStatus;
-    if (field === "severity") return SEVERITY_OPTIONS[0]?.value ?? "";
+    // First non-current severity — defaulting to option[0] silently logged a
+    // downgrade (Severe → Mild) when the user only typed a reason.
+    if (field === "severity")
+      return SEVERITY_OPTIONS.find((o) => o.value !== currentSeverity)?.value ?? "";
     return ""; // managing_doctor — force an explicit pick
   };
 

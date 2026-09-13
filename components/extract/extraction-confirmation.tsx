@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { FilePreview } from "@/components/reports/file-preview";
 import { Button } from "@/components/ui/button";
@@ -147,6 +147,14 @@ export function ExtractionConfirmation({
     })),
   );
   const [banner, setBanner] = useState<string | null>(null);
+  // Review close-out flags. Set in the same batched update as the card change
+  // that triggered them, so the end-of-review effect below always sees them:
+  //  - reviewEnded: finalize sent / navigation started — concurrent paths
+  //    never double-finalize or double-navigate.
+  //  - leaving: "Edit manually instead" navigates to the form itself — the
+  //    effect must not yank the user back to the chat.
+  const [reviewEnded, setReviewEnded] = useState(false);
+  const [leaving, setLeaving] = useState(false);
 
   const isFailure = status === "failed" || extractions.length === 0;
 
@@ -173,7 +181,10 @@ export function ExtractionConfirmation({
       return next;
     });
 
-    // finalize when this batch clears the last pending card.
+    // finalize when this batch clears the last pending card. A card whose own
+    // commit is still in flight counts as pending, so two concurrent confirms
+    // both send finalize:false — the end-of-review effect below then closes the
+    // session once the last one lands.
     const remainingAfter = pendingIndices.filter((i) => !indices.includes(i));
     const finalize = remainingAfter.length === 0;
 
@@ -222,7 +233,8 @@ export function ExtractionConfirmation({
         return next;
       });
 
-      if (body.finalized) {
+      if (body.finalized && !reviewEnded) {
+        setReviewEnded(true);
         // Return to the chat conversation the log came from (§6.2:1197); the
         // upload path has no origin, so it lands on the patient profile (no
         // dashboard yet, E0a). Toast on finalize deferred with the dashboard.
@@ -258,7 +270,13 @@ export function ExtractionConfirmation({
   //  - If nothing committed and the chat session was created solely for this
   //    log, delete it (dangling turn + titled empty session) and land on the
   //    chat index rather than the now-gone session.
-  async function endReview(anyCommitted: boolean) {
+  //  - `navigate: false` finalizes without leaving (the caller navigates).
+  async function endReview(
+    anyCommitted: boolean,
+    { navigate = true }: { navigate?: boolean } = {},
+  ) {
+    if (reviewEnded) return;
+    setReviewEnded(true);
     if (anyCommitted) {
       try {
         await fetch(`/api/extract/${sessionId}/commit`, {
@@ -269,6 +287,7 @@ export function ExtractionConfirmation({
       } catch {
         // Non-fatal — the entities already wrote; navigate regardless.
       }
+      if (!navigate) return;
     } else if (newChatSession && chatSessionId) {
       try {
         await fetch(`/api/chat/sessions/${chatSessionId}`, { method: "DELETE" });
@@ -285,7 +304,9 @@ export function ExtractionConfirmation({
 
   function discard(i: number) {
     // Was this the last pending card? If so the review is over — don't strand
-    // the user on a page whose header controls have vanished (count → 0).
+    // the user on a page whose header controls have vanished (count → 0). A card
+    // still committing counts as pending; the effect below finalizes once it
+    // lands.
     const stillPending = cards.some(
       (c, idx) => idx !== i && c.status === "pending",
     );
@@ -293,6 +314,19 @@ export function ExtractionConfirmation({
     markDiscarded(i);
     if (!stillPending) void endReview(anyCommitted);
   }
+
+  // End-of-review catch-all: once nothing is pending and something committed,
+  // close the session. Covers the interleavings the click-time paths can't see —
+  // e.g. confirm A, then confirm/discard B before A returns, where every request
+  // went out with finalize:false.
+  useEffect(() => {
+    if (reviewEnded || leaving) return;
+    if (cards.length === 0) return;
+    if (cards.some((c) => c.status === "pending")) return;
+    if (!cards.some((c) => c.status === "committed")) return;
+    // Deferred so the finalize's navigation isn't started from the effect body.
+    queueMicrotask(() => void endReview(true));
+  });
 
   function discardAll() {
     // Abandon every pending card — same end-of-review path as clearing the last
@@ -352,7 +386,16 @@ export function ExtractionConfirmation({
       writeExtractionDraft(entity.target_entity_type, cards[i].data);
       const segment = TYPE_META[entity.target_entity_type].segment;
       // Mark discarded WITHOUT the end-of-review navigation — we're navigating to
-      // the manual form ourselves, not abandoning the review.
+      // the manual form ourselves, not abandoning the review. If this was the
+      // last pending card and others committed, still finalize the session
+      // (flips the quick-log report to `committed` so citations resolve).
+      const stillPending = cards.some(
+        (c, idx) => idx !== i && c.status === "pending",
+      );
+      if (!stillPending && cards.some((c) => c.status === "committed")) {
+        void endReview(true, { navigate: false });
+      }
+      setLeaving(true);
       markDiscarded(i);
       router.push(`/patient/${patientId}/${segment}/new`);
     }
@@ -1068,6 +1111,7 @@ function Card({
         <div className="flex items-center gap-2">
           <button
             type="button"
+            disabled={card.committing}
             onClick={onDiscard}
             className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
           >

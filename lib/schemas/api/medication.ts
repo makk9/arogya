@@ -5,6 +5,7 @@ import {
   medicationForm,
   medicationStatus,
 } from "@/db/schema";
+import { isCalendarDate } from "@/lib/datetime";
 
 /**
  * Zod schemas for /api/medications routes per design.md 9.6:2776.
@@ -28,7 +29,8 @@ const medicationStatusEnum = z.enum(medicationStatus.enumValues);
 
 const dateOnlySchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+  .refine(isCalendarDate, "Not a real calendar date");
 
 const uuidSchema = z.string().uuid();
 

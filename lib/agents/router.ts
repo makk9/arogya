@@ -5,6 +5,7 @@ import Anthropic, {
 } from "@anthropic-ai/sdk";
 
 import { AgentError } from "@/lib/agents/_shared/errors";
+import { extractJsonText } from "@/lib/agents/_shared/json";
 import {
   routerOutputSchema,
   type RouterOutput,
@@ -66,12 +67,6 @@ Return a single JSON object:
   "reasoning": "one short sentence, for debugging — not shown to the user"
 }`;
 
-function stripJsonFences(text: string): string {
-  const trimmed = text.trim();
-  const match = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/);
-  return match ? match[1].trim() : trimmed;
-}
-
 export interface RunRouterParams {
   input: string;
 }
@@ -122,7 +117,7 @@ export async function runRouter(
 
   // Haiku frequently wraps JSON in markdown fences (```json ... ```) despite
   // explicit prompt instructions not to. Strip them defensively before parsing.
-  const stripped = stripJsonFences(text);
+  const stripped = extractJsonText(text);
 
   let parsed: unknown;
   try {

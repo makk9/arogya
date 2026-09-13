@@ -157,35 +157,6 @@ export async function POST(
         patientId,
       });
       finalized = true;
-
-      // Acknowledgement (§6.2:1197): write an assistant turn back to the
-      // originating chat so returning to it shows a real thinking-partner
-      // response engaging with what was logged, not just the user's own message
-      // or a mechanical receipt. Scope-checked; a foreign/absent id or an empty
-      // acknowledgement is silently skipped.
-      if (parsed.data.chatSessionId) {
-        const chat = await chatQueries.getSession(patientId, parsed.data.chatSessionId);
-        if (chat) {
-          const ack = await buildLogAck(patientId, parsed.data.cards, results);
-          if (ack.length > 0) {
-            await chatQueries.addMessage(chat.id, "assistant", ack);
-          }
-        }
-      }
-      // Fire-and-forget debounced insight generation (§5.6 / §9.3): a finalized
-      // commit is exactly the "significant entity creation" trigger. One run per
-      // finalize — the batch already settled into this single call — triggered
-      // by the first committed clinical entity (a doctor row is care-team
-      // bookkeeping, not clinical signal).
-      const triggerResult = results.find(
-        (r) => r.ok && r.entityId && r.entityType !== "doctor",
-      );
-      if (triggerResult?.entityId) {
-        scheduleInsightGeneration(patientId, {
-          type: COMMIT_TYPE_TO_REF_TYPE[triggerResult.entityType],
-          id: triggerResult.entityId,
-        });
-      }
     } catch (err) {
       logger.error({
         op: "extract.commit.finalize",
@@ -193,6 +164,56 @@ export async function POST(
         ids: { patientId, sessionId: param.id },
       });
       // Entities already wrote; report the partial state rather than 500.
+    }
+  }
+
+  if (finalized) {
+    // Fire-and-forget debounced insight generation (§5.6 / §9.3): a finalized
+    // commit is exactly the "significant entity creation" trigger. One run per
+    // finalize — the batch already settled into this single call — triggered
+    // by the first committed clinical entity (a doctor row is care-team
+    // bookkeeping, not clinical signal). Scheduled before (and independent of)
+    // the chat acknowledgement, so an ack failure can't skip it.
+    const triggerResult = results.find(
+      (r) => r.ok && r.entityId && r.entityType !== "doctor",
+    );
+    if (triggerResult?.entityId) {
+      scheduleInsightGeneration(patientId, {
+        type: COMMIT_TYPE_TO_REF_TYPE[triggerResult.entityType],
+        id: triggerResult.entityId,
+      });
+    } else if (parsed.data.cards.length === 0) {
+      // Finalize-only request (the last card was discarded / handed to the
+      // manual form after earlier per-card commits): the entities committed in
+      // prior requests, so this request has no result to point at. Trigger on
+      // the source Report they all backlink to.
+      scheduleInsightGeneration(patientId, {
+        type: "report",
+        id: session.reportId,
+      });
+    }
+
+    // Acknowledgement (§6.2:1197): write an assistant turn back to the
+    // originating chat so returning to it shows a real thinking-partner
+    // response engaging with what was logged, not just the user's own message
+    // or a mechanical receipt. Scope-checked; a foreign/absent id or an empty
+    // acknowledgement is silently skipped.
+    if (parsed.data.chatSessionId) {
+      try {
+        const chat = await chatQueries.getSession(patientId, parsed.data.chatSessionId);
+        if (chat) {
+          const ack = await buildLogAck(patientId, parsed.data.cards, results);
+          if (ack.length > 0) {
+            await chatQueries.addMessage(chat.id, "assistant", ack);
+          }
+        }
+      } catch (err) {
+        logger.error({
+          op: "extract.commit.ack",
+          code: errorCode(err),
+          ids: { patientId, sessionId: param.id },
+        });
+      }
     }
   }
 

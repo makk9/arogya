@@ -5,9 +5,9 @@ import { vitalContext, vitalFlag, vitalReadingType } from "@/db/schema";
 /**
  * Zod schemas for /api/vital-readings — an EVENT entity with a reduced surface:
  * VitalReading has no timeline/detail page in v1 (§6.6 lists five event rail
- * items; vitals aren't one), so there is no PATCH/correction route. Readings are
- * immutable; a mistake is deleted and re-entered (§4:433). Hence only a create
- * schema here plus a DELETE handler that needs no body.
+ * items; vitals aren't one). Readings are corrected in place from the vitals
+ * history table (PATCH, no change log — same as a lab marker correction;
+ * decisions.md 2026-09-13 supersedes §4:433's delete-and-re-enter rule).
  *
  * No `patientId` in the body — auth-derived via getCurrentPatient() (9.6:2755).
  *
@@ -59,4 +59,26 @@ export const createVitalReadingSchema = z
     path: ["valueSecondary"],
   });
 
+// PATCH — in-place correction of a logged reading (decisions.md 2026-09-13,
+// superseding §4:433's immutability). `readingType` is the reading's identity
+// (and its citation slug's type segment), so it isn't correctable — a reading
+// logged under the wrong type is deleted and re-entered. The primary value and
+// unit are required on the row, so they can change but not clear; the rest
+// clear to null.
+export const updateVitalReadingSchema = z
+  .object({
+    recordedAt: z.string().datetime({ offset: true }).optional(),
+    valuePrimary: numericStringSchema.optional(),
+    valueSecondary: numericStringSchema.nullable().optional(),
+    unit: z.string().min(1).optional(),
+    context: contextEnum.nullable().optional(),
+    flag: flagEnum.nullable().optional(),
+    notes: z.string().min(1).nullable().optional(),
+  })
+  .strict()
+  .refine((obj) => Object.keys(obj).length > 0, {
+    message: "At least one field must be provided",
+  });
+
 export type CreateVitalReadingInput = z.infer<typeof createVitalReadingSchema>;
+export type UpdateVitalReadingInput = z.infer<typeof updateVitalReadingSchema>;

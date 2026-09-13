@@ -173,7 +173,9 @@ export function SymptomForm({
     ...vitals.map((v) => ({ value: v.id, label: v.label })),
   ];
 
-  const defaultValues: SymptomFormValues = {
+  // Blank form — what "Save and add another" resets to. The extraction draft
+  // is a single-use prefill; re-applying it would invite a duplicate save.
+  const blankDefaults: SymptomFormValues = {
     // Open-ended "Log symptom" defaults to "+ Create new" — pre-selecting the
     // most-recent existing symptom risks logging an episode under the wrong one
     // by accident; picking an existing symptom should be deliberate. (The locked
@@ -189,6 +191,9 @@ export function SymptomForm({
     relief: "",
     linkedVitalId: "",
     notes: "",
+  };
+  const defaultValues: SymptomFormValues = {
+    ...blankDefaults,
     ...draftToSymptomValues(draft),
   };
 
@@ -286,7 +291,9 @@ export function SymptomForm({
 
   const onSubmitAddAnother = handleSubmit(async (values) => {
     if (!(await postEpisode(values))) return;
-    reset({ ...defaultValues, startedAtLocal: nowLocalDatetime() });
+    reset({ ...blankDefaults, startedAtLocal: nowLocalDatetime() });
+    // Stay on the form, but refresh the server tree so the rail counts update.
+    router.refresh();
   });
 
   const handleCancel = () => {

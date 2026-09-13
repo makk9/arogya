@@ -240,12 +240,29 @@ export const labReportQueries = {
       orderedBy: values.orderedBy,
       linkedVisitId: values.linkedVisitId,
     });
-    const [row] = await db
-      .update(labReports)
-      .set(values)
-      .where(and(eq(labReports.id, id), eq(labReports.patientId, patientId)))
-      .returning();
-    return row ?? null;
+    return db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(labReports)
+        .set(values)
+        .where(and(eq(labReports.id, id), eq(labReports.patientId, patientId)))
+        .returning();
+      if (!row) return null;
+      // result_date is denormalized from the report (§4:401) — a corrected
+      // report date must carry to its markers, or trends and
+      // `lab-result:<marker>:<date>` citations keep the old day.
+      if (values.reportDate !== undefined) {
+        await tx
+          .update(labResults)
+          .set({ resultDate: row.reportDate })
+          .where(
+            and(
+              eq(labResults.labReportId, id),
+              eq(labResults.patientId, patientId),
+            ),
+          );
+      }
+      return row;
+    });
   },
 
   // lab_results.lab_report_id is onDelete:"cascade" — deleting a report removes

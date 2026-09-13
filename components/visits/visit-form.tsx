@@ -125,7 +125,9 @@ export function VisitForm({ patientId, doctors }: VisitFormProps) {
     ...VISIT_TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
   ];
 
-  const defaultValues: VisitFormValues = {
+  // Blank form — what "Save and add another" resets to. The extraction draft
+  // is a single-use prefill; re-applying it would invite a duplicate save.
+  const blankDefaults: VisitFormValues = {
     doctorId: "",
     visitDate: todayLocal(),
     visitType: "",
@@ -135,6 +137,9 @@ export function VisitForm({ patientId, doctors }: VisitFormProps) {
     diagnosisText: "",
     nextSteps: "",
     notes: "",
+  };
+  const defaultValues: VisitFormValues = {
+    ...blankDefaults,
     ...draftToVisitValues(draft),
   };
 
@@ -221,7 +226,9 @@ export function VisitForm({ patientId, doctors }: VisitFormProps) {
 
   const onSubmitAddAnother = handleSubmit(async (values) => {
     if (!(await postVisit(values))) return;
-    reset(defaultValues);
+    reset(blankDefaults);
+    // Stay on the form, but refresh the server tree so the rail counts update.
+    router.refresh();
   });
 
   const handleCancel = () => {

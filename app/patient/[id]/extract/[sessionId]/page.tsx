@@ -27,6 +27,9 @@ export const runtime = "nodejs";
  * and hands off to the client surface that does the review + commit. Reached
  * from both the upload pipeline and the quick-log router (§6.11:1718).
  */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default async function ExtractConfirmPage({
   params,
   searchParams,
@@ -36,7 +39,9 @@ export default async function ExtractConfirmPage({
 }) {
   const { id, sessionId } = await params;
   const { patientId } = await getCurrentPatient();
-  if (id !== patientId) notFound();
+  // A malformed session id is a clean 404, not a pg "invalid input syntax for
+  // type uuid" 500 (same guard as chat/[sessionId]).
+  if (id !== patientId || !UUID_RE.test(sessionId)) notFound();
 
   // Where to go after commit/discard. Set by the chat log path so the user
   // returns to the conversation they logged from (§6.2:1197). Accept only a

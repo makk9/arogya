@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, lte } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -66,7 +66,16 @@ export async function recentActivity(
         })
         .from(visits)
         .leftJoin(doctors, eq(visits.doctorId, doctors.id))
-        .where(eq(visits.patientId, patientId))
+        // Only visits that happened: a scheduled (future) visit isn't recent
+        // activity, and cancelled / no-show ones never took place. Filtered in
+        // SQL so upcoming visits can't eat the per-type LIMIT.
+        .where(
+          and(
+            eq(visits.patientId, patientId),
+            eq(visits.status, "completed"),
+            lte(visits.visitDate, today),
+          ),
+        )
         .orderBy(desc(visits.visitDate))
         .limit(limit),
       db

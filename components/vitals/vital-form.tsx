@@ -129,7 +129,9 @@ export function VitalForm({ patientId }: VitalFormProps) {
     ...FLAG_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
   ];
 
-  const defaultValues: VitalFormValues = {
+  // Blank form — what "Save and add another" resets to. The extraction draft
+  // is a single-use prefill; re-applying it would invite a duplicate save.
+  const blankDefaults: VitalFormValues = {
     readingType: "blood_pressure",
     recordedAtLocal: nowLocalDatetime(),
     valuePrimary: "",
@@ -138,6 +140,9 @@ export function VitalForm({ patientId }: VitalFormProps) {
     context: "",
     flag: "",
     notes: "",
+  };
+  const defaultValues: VitalFormValues = {
+    ...blankDefaults,
     ...draftToVitalValues(draft),
   };
 
@@ -221,20 +226,21 @@ export function VitalForm({ patientId }: VitalFormProps) {
 
   const onSubmitSave = handleSubmit(async (values) => {
     if (!(await postReading(values))) return;
-    // No vitals list page — return to the patient's symptoms timeline, the
-    // nearest surface where readings show up (as `●` pills on episodes).
-    router.push(`/patient/${patientId}/symptoms`);
+    // Return to the vitals history page, where the new reading lands.
+    router.push(`/patient/${patientId}/vitals`);
     router.refresh();
   });
 
   const onSubmitAddAnother = handleSubmit(async (values) => {
     if (!(await postReading(values))) return;
-    reset({ ...defaultValues, recordedAtLocal: nowLocalDatetime() });
+    reset({ ...blankDefaults, recordedAtLocal: nowLocalDatetime() });
+    // Stay on the form, but refresh the server tree so the rail counts update.
+    router.refresh();
   });
 
   const handleCancel = () => {
     if (isDirty) setCancelOpen(true);
-    else router.push(`/patient/${patientId}/symptoms`);
+    else router.push(`/patient/${patientId}/vitals`);
   };
 
   return (
@@ -497,7 +503,7 @@ export function VitalForm({ patientId }: VitalFormProps) {
             <AlertDialogAction
               variant="destructive"
               onClick={() => {
-                router.push(`/patient/${patientId}/symptoms`);
+                router.push(`/patient/${patientId}/vitals`);
               }}
             >
               Discard

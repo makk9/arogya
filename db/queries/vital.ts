@@ -15,8 +15,9 @@ import { READING_TYPE_ORDER, type VitalReadingTypeValue } from "@/lib/vitals";
  * page ("the trend is the value", §3:145); readings surface on the dashboard's
  * key-markers card and the grouped vitals history view (E0a — a rail item
  * since the 2026-08-12 promotion), which entity links anchor into
- * (`/vitals#r-<id>`). There's no bySlug resolver and no update/correction
- * (readings are immutable; a mistake is deleted and re-entered, §4:433).
+ * (`/vitals#r-<id>`). There's no bySlug resolver. Readings are corrected in
+ * place via `update` (no change log, like a lab marker correction —
+ * decisions.md 2026-09-13 supersedes §4:433's delete-and-re-enter rule).
  *
  * Patient scope rides patient_id, so a foreign id can never surface another
  * patient's rows. `linkedSymptomId` is scope-checked before insert (a mapped
@@ -27,9 +28,10 @@ import { READING_TYPE_ORDER, type VitalReadingTypeValue } from "@/lib/vitals";
 //  - not_found             — patient-scoped lookup missed
 //  - linked_entity_invalid — linkedSymptomId out of patient scope
 //                            (reason "symptom_episode_not_found")
+//  - secondary_not_allowed — a second value on a single-number reading type
 export class VitalDomainError extends Error {
   constructor(
-    public readonly kind: "not_found" | "linked_entity_invalid",
+    public readonly kind: "not_found" | "linked_entity_invalid" | "secondary_not_allowed",
     public readonly meta?: { field?: string; reason?: string },
   ) {
     super(kind);
@@ -105,6 +107,47 @@ export const vitalQueries = {
     }
     const [row] = await db.insert(vitalReadings).values(values).returning();
     return row;
+  },
+
+  // In-place correction. readingType is immutable (not in the update shape),
+  // so a secondary value is only accepted where the stored type carries one
+  // (blood pressure). Returns null when the reading isn't this patient's.
+  async update(
+    patientId: string,
+    id: string,
+    values: Partial<
+      Pick<
+        NewVitalReading,
+        | "recordedAt"
+        | "valuePrimary"
+        | "valueSecondary"
+        | "unit"
+        | "context"
+        | "flag"
+        | "notes"
+      >
+    >,
+  ): Promise<VitalReading | null> {
+    return db.transaction(async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(vitalReadings)
+        .where(and(eq(vitalReadings.id, id), eq(vitalReadings.patientId, patientId)))
+        .limit(1)
+        .for("update");
+      if (!current) return null;
+      if (values.valueSecondary && current.readingType !== "blood_pressure") {
+        throw new VitalDomainError("secondary_not_allowed", {
+          field: "valueSecondary",
+        });
+      }
+      const [row] = await tx
+        .update(vitalReadings)
+        .set(values)
+        .where(eq(vitalReadings.id, id))
+        .returning();
+      return row;
+    });
   },
 
   async delete(patientId: string, id: string): Promise<boolean> {

@@ -141,8 +141,12 @@ export function useInlineEdit({
 
   // After a commit from a self-activated editor: return to display unless an
   // error needs to stay visible. Harmless in global edit mode.
+  // On error, pin the field open (self-active) — Done blurs the field and
+  // leaves global Edit mode BEFORE the PATCH returns, so without this the
+  // editor, and the error with it, would vanish and a rejected value would
+  // read as saved. Escape still reverts.
   const settle = (outcome: CommitOutcome) => {
-    if (outcome !== "error") setSelfActive(false);
+    setSelfActive(outcome === "error");
   };
 
   const revertAndClose = () => {

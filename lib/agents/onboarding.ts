@@ -15,6 +15,7 @@ import {
 } from "@/db/queries";
 import { AgentError } from "@/lib/agents/_shared/errors";
 import { buildMatchingDictionary } from "@/lib/agents/_shared/vault-context";
+import { errorCode, logger } from "@/lib/logger";
 
 export const ONBOARDING_MODEL_ID = "claude-sonnet-4-6" as const;
 export const ONBOARDING_MAX_OUTPUT_TOKENS = 4096;
@@ -262,5 +263,10 @@ export async function runOnboardingTurn(
     },
     messages,
     maxOutputTokens: ONBOARDING_MAX_OUTPUT_TOKENS,
+    // Replaces the ai SDK default (`console.error(error)`), which prints the
+    // request body — prompt + dictionary, i.e. PHI — past lib/logger. Code only.
+    onError: ({ error }) => {
+      logger.error({ op: "onboarding.stream", code: errorCode(error), ids: { patientId } });
+    },
   });
 }

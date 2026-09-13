@@ -144,7 +144,9 @@ export function MedicationForm({
   // consume-and-clear it before the values are applied.
   const [draft] = useState(() => takeExtractionDraft("medication"));
 
-  const defaultValues: MedicationFormValues = {
+  // Blank form — what "Save and add another" resets to. The extraction draft
+  // is a single-use prefill; re-applying it would invite a duplicate save.
+  const blankDefaults: MedicationFormValues = {
     name: "",
     brandName: "",
     currentDose: "",
@@ -158,6 +160,9 @@ export function MedicationForm({
     startedOn: todayLocal(),
     category: "allopathic",
     notes: "",
+  };
+  const defaultValues: MedicationFormValues = {
+    ...blankDefaults,
     ...draftToMedicationValues(draft),
   };
 
@@ -247,7 +252,9 @@ export function MedicationForm({
 
   const onSubmitAddAnother = handleSubmit(async (values) => {
     if (!(await postMedication(values))) return;
-    reset(defaultValues);
+    reset(blankDefaults);
+    // Stay on the form, but refresh the server tree so the rail counts update.
+    router.refresh();
   });
 
   const handleCancel = () => {

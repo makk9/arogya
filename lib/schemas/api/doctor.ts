@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { isCalendarDate } from "@/lib/datetime";
+
 /**
  * Zod schemas for /api/doctors routes. Clones lib/schemas/api/condition.ts.
  *
@@ -21,7 +23,8 @@ import { z } from "zod";
 
 const dateOnlySchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+  .refine(isCalendarDate, "Not a real calendar date");
 
 /**
  * Create accepts the change-logged fields (specialty / clinic) directly — at

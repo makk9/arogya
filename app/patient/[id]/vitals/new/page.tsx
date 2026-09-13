@@ -5,10 +5,8 @@ import { VitalForm } from "@/components/vitals/vital-form";
 import { getCurrentPatient } from "@/lib/auth";
 
 /*
- * Server component for `Log reading`. Vitals are a create-only surface in v1 —
- * no list/timeline/detail page (§6.6's event rail doesn't include vitals; they
- * surface as `●` pills on symptom episodes). This page is reachable by URL and
- * from the symptom flow; the dashboard/rail quick-action wiring lands in Phase E.
+ * Server component for `Log reading`. Reached from the vitals history page's
+ * "+ Log reading" (and by URL / the symptom flow); saving returns there.
  */
 export default async function NewVitalReadingPage({
   params,
@@ -21,7 +19,7 @@ export default async function NewVitalReadingPage({
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
-      <Breadcrumb patientId={id} trail={[{ label: "vitals" }, { label: "new" }]} />
+      <Breadcrumb patientId={id} trail={[{ label: "vitals", href: "vitals" }, { label: "new" }]} />
 
       <VitalForm patientId={patient.patientId} />
     </main>

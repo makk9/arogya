@@ -308,6 +308,19 @@ export function useQuickLog({
     else void runLog(text, true);
   }, [logError, nudge, answerNudge, runLog]);
 
+  // A canned question (starter / follow-up / shortcut chip) bypasses the
+  // router, so it must also close an open nudge — otherwise the NEXT typed
+  // question would be swallowed as the nudge's answer.
+  const ask = useCallback(
+    (text: string) => {
+      setNudge(null);
+      setPending(null);
+      setLogError(null);
+      void runQuestion(text);
+    },
+    [runQuestion],
+  );
+
   // Leaving the conversation (e.g. the drawer's "New chat"): drop in-flight
   // quick-log affordances tied to the old session.
   const reset = useCallback(() => {
@@ -323,6 +336,7 @@ export function useQuickLog({
     nudge,
     logError,
     route,
+    ask,
     runLog,
     skipNudge,
     resolvePendingAsLog,

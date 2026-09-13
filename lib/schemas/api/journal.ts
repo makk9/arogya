@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { journalMood } from "@/db/schema";
+import { isCalendarDate } from "@/lib/datetime";
 
 /**
  * Zod schemas for /api/journal routes — the leanest EVENT entity (§6.6/§6.7).
@@ -28,13 +29,15 @@ const moodEnum = z.enum(journalMood.enumValues);
 
 const dateOnlySchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+  .refine(isCalendarDate, "Not a real calendar date");
 
 export const createJournalSchema = z
   .object({
     entryDate: dateOnlySchema,
     title: z.string().min(1).optional(),
-    content: z.string().min(1),
+    // trim first: a whitespace-only body renders as a blank entry.
+    content: z.string().trim().min(1),
     mood: moodEnum.optional(),
   })
   .strict();
@@ -44,7 +47,7 @@ export const updateJournalSchema = z
     entryDate: dateOnlySchema.optional(),
     // title / mood clear to null; content is non-nullable (NOT NULL column).
     title: z.string().min(1).nullable().optional(),
-    content: z.string().min(1).optional(),
+    content: z.string().trim().min(1).optional(),
     mood: moodEnum.nullable().optional(),
   })
   .strict()

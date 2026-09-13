@@ -16,6 +16,7 @@
  *    id), so there's no prop→state sync to maintain.
  */
 
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import {
@@ -51,6 +52,26 @@ export function FullScreenChat({
 }: FullScreenChatProps) {
   const [sessions, setSessions] = useState(initialSessions);
   const [activeId, setActiveId] = useState<string | null>(activeSessionId);
+  // Remount key for the conversation pane. A draft that lazily became a
+  // session swapped its URL in place (no remount), so the page — still keyed
+  // "new" — isn't remounted when the user then navigates back to the bare
+  // `/chat` route ("+ New conversation", or Delete's push). Next syncs
+  // history.replaceState into usePathname, so we watch for that return and
+  // reset the pane ourselves; otherwise the old conversation stays on screen
+  // and the next send targets its (possibly deleted) session.
+  const pathname = usePathname();
+  const [paneKey, setPaneKey] = useState(0);
+  const [sawSessionUrl, setSawSessionUrl] = useState(false);
+  const draftPath = `/patient/${patientId}/chat`;
+  if (activeSessionId === null && activeId !== null) {
+    if (!sawSessionUrl && pathname === `${draftPath}/${activeId}`) {
+      setSawSessionUrl(true);
+    } else if (sawSessionUrl && pathname === draftPath) {
+      setSawSessionUrl(false);
+      setActiveId(null);
+      setPaneKey((k) => k + 1);
+    }
+  }
 
   const refetchSessions = useCallback(async () => {
     try {
@@ -112,11 +133,12 @@ export function FullScreenChat({
         sessions={sessions}
         activeId={activeId}
       />
-      {/* No key needed: the page keys this whole component on the route session
-          id, so real navigation already remounts the conversation. Lazy session
-          creation deliberately does NOT remount (it swaps the URL in place to
-          keep the in-flight stream alive). */}
+      {/* The page keys this whole component on the route session id, so real
+          navigation already remounts the conversation. Lazy session creation
+          deliberately does NOT remount (it swaps the URL in place to keep the
+          in-flight stream alive); `paneKey` covers the return-to-draft case. */}
       <ChatConversation
+        key={paneKey}
         patientId={patientId}
         patientFirstName={patientFirstName}
         sessionId={activeSessionId}

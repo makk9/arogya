@@ -121,7 +121,9 @@ export function ConditionForm({ patientId }: ConditionFormProps) {
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
 
-  const defaultValues: ConditionFormValues = {
+  // Blank form — what "Save and add another" resets to. The extraction draft
+  // is a single-use prefill; re-applying it would invite a duplicate save.
+  const blankDefaults: ConditionFormValues = {
     name: "",
     status: "active",
     // Severity + category default to the "not set" sentinel — the submit
@@ -133,6 +135,9 @@ export function ConditionForm({ patientId }: ConditionFormProps) {
     // are often historical or unknown, so the native picker starts empty.
     diagnosedOn: "",
     notes: "",
+  };
+  const defaultValues: ConditionFormValues = {
+    ...blankDefaults,
     ...draftToConditionValues(draft),
   };
 
@@ -228,7 +233,9 @@ export function ConditionForm({ patientId }: ConditionFormProps) {
 
   const onSubmitAddAnother = handleSubmit(async (values) => {
     if (!(await postCondition(values))) return;
-    reset(defaultValues);
+    reset(blankDefaults);
+    // Stay on the form, but refresh the server tree so the rail counts update.
+    router.refresh();
   });
 
   const handleCancel = () => {

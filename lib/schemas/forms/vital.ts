@@ -36,7 +36,13 @@ export const vitalFormSchema = z
         message: "Must be a number.",
       });
     }
-    if (v.valueSecondary.trim() !== "" && !NUMERIC_RE.test(v.valueSecondary.trim())) {
+    // Only two-value types show (and submit) the secondary input — a stale
+    // diastolic left over from blood pressure must not block a hidden field.
+    if (
+      v.readingType === "blood_pressure" &&
+      v.valueSecondary.trim() !== "" &&
+      !NUMERIC_RE.test(v.valueSecondary.trim())
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["valueSecondary"],

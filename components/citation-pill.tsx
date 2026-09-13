@@ -641,17 +641,35 @@ function VaultEntityCitationPill({
   // Guards against a refetch on re-open and against a double-fetch from rapid
   // clicks (the `state` closure is stale within a single tick).
   const requestedRef = useRef(false);
+  // The target the guard above was set for — a changed slug re-arms the fetch.
+  const requestedFor = useRef<string | null>(null);
+
+  // A pill rendered mid-stream can hold a partial slug (`§ med:metfor`) that
+  // later completes on the same instance. Drop any result for the old target so
+  // a sticky "not-found" for the fragment doesn't outlive it.
+  const target = `${entityType}\u0000${slug}`;
+  const [prevTarget, setPrevTarget] = useState(target);
+  if (target !== prevTarget) {
+    setPrevTarget(target);
+    setState("idle");
+    setPreview(null);
+  }
 
   // Fetch on the open click — deliberate intent, never while the reader merely
   // scans text containing pills. Lives in the open handler (not an effect): the
   // fetch is an event response, not state synchronization.
   function handleOpenChange(next: boolean): void {
     setOpen(next);
-    if (!next || requestedRef.current) return;
+    if (!next) return;
+    if (requestedRef.current && requestedFor.current === target) return;
+    requestedFor.current = target;
     requestedRef.current = true;
     setState("loading");
+    const forTarget = target;
     fetch(config.endpoint(slug))
       .then(async (res) => {
+        // The slug moved on while this was in flight — its answer is stale.
+        if (requestedFor.current !== forTarget) return;
         // 404 is a definitive answer (the entity isn't resolvable) — stay
         // guarded.
         if (res.status === 404) {

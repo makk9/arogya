@@ -189,13 +189,18 @@ export function LabReportForm({ patientId, doctors }: LabReportFormProps) {
     })),
   ];
 
-  const defaultValues: LabReportFormValues = {
+  // Blank form — what "Save and add another" resets to. The extraction draft
+  // is a single-use prefill; re-applying it would invite a duplicate save.
+  const blankDefaults: LabReportFormValues = {
     reportDate: todayLocal(),
     reportType: "",
     labName: "",
     orderedBy: "",
     notes: "",
     results: [{ ...EMPTY_MARKER_ROW }],
+  };
+  const defaultValues: LabReportFormValues = {
+    ...blankDefaults,
     ...draftToLabValues(draft),
   };
 
@@ -286,7 +291,9 @@ export function LabReportForm({ patientId, doctors }: LabReportFormProps) {
 
   const onSubmitAddAnother = handleSubmit(async (values) => {
     if (!(await postReport(values))) return;
-    reset(defaultValues);
+    reset(blankDefaults);
+    // Stay on the form, but refresh the server tree so the rail counts update.
+    router.refresh();
   });
 
   const handleCancel = () => {

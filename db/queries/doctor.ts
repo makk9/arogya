@@ -117,12 +117,13 @@ export const doctorQueries = {
   // `last_visit` is derived from the most recent linked Visit, never stored
   // (Phase 4 Doctor note). Returns doctorId → YYYY-MM-DD of the latest visit;
   // doctors with no visits are absent. Empty until the Visit vertical lands —
-  // surfaces render "—".
+  // surfaces render "—". Completed visits only: a scheduled follow-up or a
+  // cancelled / no-show visit isn't a visit that happened.
   async lastVisitByDoctor(patientId: string): Promise<Map<string, string>> {
     const rows = await db
       .select({ doctorId: visits.doctorId, lastVisit: max(visits.visitDate) })
       .from(visits)
-      .where(eq(visits.patientId, patientId))
+      .where(and(eq(visits.patientId, patientId), eq(visits.status, "completed")))
       .groupBy(visits.doctorId);
     const byDoctor = new Map<string, string>();
     for (const r of rows) {
@@ -194,7 +195,8 @@ export const doctorChangeQueries = {
         .select()
         .from(doctors)
         .where(and(eq(doctors.id, doctorId), eq(doctors.patientId, patientId)))
-        .limit(1);
+        .limit(1)
+        .for("update");
 
       if (!current) {
         throw new DoctorDomainError("not_found");

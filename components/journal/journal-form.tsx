@@ -161,6 +161,8 @@ export function JournalForm({ patientId }: JournalFormProps) {
   const onSubmitAddAnother = handleSubmit(async (values) => {
     if (!(await postEntry(values))) return;
     reset(defaultValues);
+    // Stay on the form, but refresh the server tree so the rail counts update.
+    router.refresh();
   });
 
   const handleCancel = () => {

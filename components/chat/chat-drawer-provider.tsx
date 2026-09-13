@@ -245,6 +245,7 @@ export function ChatDrawerProvider({
     nudge,
     logError,
     route,
+    ask,
     skipNudge,
     resolvePendingAsLog,
     resolvePendingAsQuestion,
@@ -280,7 +281,7 @@ export function ChatDrawerProvider({
         setInput(trimmed);
         return;
       }
-      if (isQuestion) void runQuestion(trimmed);
+      if (isQuestion) ask(trimmed);
       else void route(trimmed);
     };
   });
@@ -414,7 +415,7 @@ export function ChatDrawerProvider({
                       key={starter}
                       type="button"
                       disabled={busy}
-                      onClick={() => void runQuestion(starter)}
+                      onClick={() => ask(starter)}
                       className="rounded-full border border-stone-300 px-3 py-1.5 text-sm text-stone-700 transition-colors hover:border-stone-400 hover:bg-stone-50 disabled:opacity-50"
                     >
                       {starter}

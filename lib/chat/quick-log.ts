@@ -72,9 +72,19 @@ export async function processQuickLog(
   // `text` is the user's answer; re-extract the original log (held on this
   // session's report) PLUS the answer, and overwrite the session in place — no
   // second session, no orphan. The enrichment/notice fields are ignored on this
-  // second pass (one round only). A stale reuse id falls through to a fresh log.
+  // second pass (one round only). A stale or already-closed reuse id falls
+  // through to a fresh log.
   if (reuseSessionId) {
-    const session = await extractionSessionQueries.getById(patientId, reuseSessionId);
+    const found = await extractionSessionQueries.getById(patientId, reuseSessionId);
+    // Only a still-open review may be re-extracted. A committed session (the
+    // user took "just log it", confirmed, then answered the stale nudge) must
+    // not flip back to ready_for_confirmation — confirming it again would
+    // duplicate every entity. Anything else falls through to a fresh log.
+    const session =
+      found &&
+      (found.status === "ready_for_confirmation" || found.status === "failed")
+        ? found
+        : null;
     const report = session
       ? await reportQueries.getById(patientId, session.reportId)
       : null;
