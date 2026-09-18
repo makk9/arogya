@@ -73,7 +73,6 @@ Trust in AI-generated medical reasoning has to be verifiable, not asserted.
 | | |
 |---|---|
 | **Scope** | Solo — product spec, IA, data model, AI system, UI, PDF export, verification |
-| **Timeline** | May 9 – Aug 15, 2026 (~3.5 months, nights and weekends alongside a full-time SWE role) |
 | **Code** | ~61,000 lines of strict TypeScript across 514 files, 85 commits |
 | **Data** | 26 Postgres tables, 6 migrations, per-entity query layer |
 | **API** | 59 route handlers |
