@@ -73,7 +73,7 @@ Trust in AI-generated medical reasoning has to be verifiable, not asserted.
 | | |
 |---|---|
 | **Scope** | Solo — product spec, IA, data model, AI system, UI, PDF export, verification |
-| **Code** | ~61,000 lines of strict TypeScript across 514 files, 85 commits |
+| **Code** | ~61,000 lines of strict TypeScript across 514 files |
 | **Data** | 26 Postgres tables, 6 migrations, per-entity query layer |
 | **API** | 59 route handlers |
 | **AI** | 6 agents across 3 model tiers — streaming and non-streaming, text and vision |
