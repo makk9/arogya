@@ -222,13 +222,7 @@ docs/
 
 ## Project status
 
-**v1 is functionally complete and not yet deployed.** What that honestly means:
-
-✅ All 12 entity types across the 4 screen templates, plus dashboard, chat, onboarding, upload → vision extraction → confirmation, insight generation, and doctor-brief generation with PDF export.
-
-🚧 **Next milestone: deployment + a seeded fictional demo vault.** The development database currently holds my grandfather's real medical history — which is what made this worth building, and also why there is no public demo link or screenshot in this README yet. A shareable version needs the fictional patient persona populated through onboarding first.
-
-**Not built, deliberately:** real auth (stubbed, single-user), multi-patient support, search, mobile layouts. Each is on the spec's explicit "does not ship in v1" list — the fence that kept a 3.5-month solo project from becoming a 12-month one.
+**v1 is functionally complete and not yet deployed.** 
 
 ---
 
