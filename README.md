@@ -9,6 +9,9 @@ A structured, fully-traceable medical record — the *vault* — paired with a m
 
 ---
 
+<img width="3018" height="1704" alt="image" src="https://github.com/user-attachments/assets/449c52f4-de63-4b09-9c43-f6fc66873523" />
+
+
 ## The problem
 
 My grandparents are 75+ and live in India.
