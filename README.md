@@ -7,6 +7,14 @@ A structured, fully-traceable medical record — the *vault* — paired with a m
 
 <sub>Next.js 16 · React 19 · TypeScript (strict) · Postgres + Drizzle · Supabase · Anthropic API · Tailwind 4</sub>
 
+<p align="center">
+  <a href="docs/media/arogya-demo.mp4">
+    <img src="docs/media/arogya-demo.gif" alt="arogya walkthrough: dashboard, a cited AI insight, the medication and doctor wiki, and Ask AI reasoning across the full record with § citations" width="100%">
+  </a>
+  <br>
+  <sub>Dashboard → AI insight with § citations → medication & doctor wiki → Ask AI reasoning across the whole record. Shown at 2× speed with a fictional demo patient. <a href="docs/media/arogya-demo.mp4">Full-quality video</a>.</sub>
+</p>
+
 ---
 
 <img width="3018" height="1704" alt="image" src="https://github.com/user-attachments/assets/449c52f4-de63-4b09-9c43-f6fc66873523" />
